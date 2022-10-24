@@ -38,13 +38,15 @@ type store struct {
 	registrations []*config.Registration
 	// We store multiple untyped stores, so we can watch the same ConfigMap but convert it in different ways
 	// For instance, we have karpenter-global-settings that converts into a cloudprovider-specific config and a global config
-	stores map[*config.Registration]*configmap.UntypedStore
+	stores   map[*config.Registration]*configmap.UntypedStore
+	initData map[*config.Registration]interface{}
 }
 
 func WatchSettingsOrDie(ctx context.Context, kubernetesInterface kubernetes.Interface, cmw *informer.InformedWatcher, registrations ...*config.Registration) Store {
 	ss := &store{
 		registrations: registrations,
 		stores:        map[*config.Registration]*configmap.UntypedStore{},
+		initData:      map[*config.Registration]interface{}{},
 	}
 	for _, registration := range registrations {
 		if err := registration.Validate(); err != nil {

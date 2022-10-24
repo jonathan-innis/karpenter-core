@@ -39,7 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/aws/karpenter-core/pkg/apis/config/settings"
+	"github.com/aws/karpenter-core/pkg/apis/config"
 	"github.com/aws/karpenter-core/pkg/events"
 	operatorcontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/injection"
@@ -62,7 +62,8 @@ type Operator struct {
 	Recorder            events.Recorder // Deprecate me in favor of EventRecorder
 	Clock               clock.Clock
 
-	webhooks []knativeinjection.ControllerConstructor
+	webhooks         []knativeinjection.ControllerConstructor
+	configMapWatcher *informer.InformedWatcher
 }
 
 // NewManagerOrDie instantiates a controller manager or panics
@@ -94,15 +95,9 @@ func NewOperator() (context.Context, *Operator) {
 	kubernetesInterface := kubernetes.NewForConfigOrDie(config)
 	configMapWatcher := informer.NewInformedWatcher(kubernetesInterface, system.Namespace())
 
-	// Settings
-	settingsStore := settingsstore.WatchSettingsOrDie(ctx, kubernetesInterface, configMapWatcher, settings.Registration)
-	ctx = settingsStore.InjectSettings(ctx)
-
 	// Logging
 	logger := NewLogger(ctx, component, config, configMapWatcher)
 	ctx = logging.WithLogger(ctx, logger)
-
-	lo.Must0(configMapWatcher.Start(ctx.Done()))
 
 	// Manager
 	manager, err := controllerruntime.NewManager(config, controllerruntime.Options{
@@ -138,11 +133,17 @@ func NewOperator() (context.Context, *Operator) {
 	return ctx, &Operator{
 		Manager:             manager,
 		KubernetesInterface: kubernetesInterface,
-		SettingsStore:       settingsStore,
 		Recorder:            recorder,
 		EventRecorder:       eventRecorder,
 		Clock:               clock.RealClock{},
+		configMapWatcher:    configMapWatcher,
 	}
+}
+
+func (o *Operator) WithSettings(ctx context.Context, registrations ...*config.Registration) *Operator {
+	o.SettingsStore = settingsstore.WatchSettingsOrDie(ctx, o.KubernetesInterface, o.configMapWatcher, registrations...)
+	lo.Must0(o.configMapWatcher.Start(ctx.Done()))
+	return o
 }
 
 func (o *Operator) WithControllers(ctx context.Context, controllers ...operatorcontroller.Controller) *Operator {
