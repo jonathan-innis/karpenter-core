@@ -15,14 +15,17 @@ limitations under the License.
 package options
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"net/url"
 	"os"
+	"reflect"
 	"runtime/debug"
 
 	"go.uber.org/multierr"
+	"knative.dev/pkg/logging"
 
 	"github.com/aws/karpenter-core/pkg/utils/env"
 )
@@ -48,14 +51,14 @@ type Options struct {
 	EnableLeaderElection bool
 	MemoryLimit          int64
 	// AWS Specific
-	ClusterName               string
-	ClusterEndpoint           string
-	VMMemoryOverhead          float64
-	AWSNodeNameConvention     string
-	AWSENILimitedPodDensity   bool
-	AWSDefaultInstanceProfile string
-	AWSEnablePodENI           bool
-	AWSIsolatedVPC            bool
+	ClusterName               string  `deprecated:"true"`
+	ClusterEndpoint           string  `deprecated:"true"`
+	VMMemoryOverhead          float64 `deprecated:"true"`
+	AWSNodeNameConvention     string  `deprecated:"true"`
+	AWSENILimitedPodDensity   bool    `deprecated:"true"`
+	AWSDefaultInstanceProfile string  `deprecated:"true"`
+	AWSEnablePodENI           bool    `deprecated:"true"`
+	AWSIsolatedVPC            bool    `deprecated:"true"`
 }
 
 // New creates an Options struct and registers CLI flags and environment variables to fill-in the Options struct fields
@@ -75,14 +78,14 @@ func New() *Options {
 	f.BoolVar(&opts.EnableLeaderElection, "leader-elect", env.WithDefaultBool("LEADER_ELECT", true), "Start leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.")
 	f.Int64Var(&opts.MemoryLimit, "memory-limit", env.WithDefaultInt64("MEMORY_LIMIT", -1), "Memory limit on the container running the controller. The GC soft memory limit is set to 90% of this value.")
 	// AWS Specific
-	f.StringVar(&opts.ClusterName, "cluster-name", env.WithDefaultString("CLUSTER_NAME", ""), "The kubernetes cluster name for resource discovery")
-	f.StringVar(&opts.ClusterEndpoint, "cluster-endpoint", env.WithDefaultString("CLUSTER_ENDPOINT", ""), "The external kubernetes cluster endpoint for new nodes to connect with")
-	f.Float64Var(&opts.VMMemoryOverhead, "vm-memory-overhead", env.WithDefaultFloat64("VM_MEMORY_OVERHEAD", 0.075), "The VM memory overhead as a percent that will be subtracted from the total memory for all instance types")
-	f.StringVar(&opts.AWSNodeNameConvention, "aws-node-name-convention", env.WithDefaultString("AWS_NODE_NAME_CONVENTION", string(IPName)), "The node naming convention used by the AWS cloud provider. DEPRECATION WARNING: this field may be deprecated at any time")
+	f.StringVar(&opts.ClusterName, "cluster-name", env.WithDefaultString("CLUSTER_NAME", ""), "The kubernetes cluster name for resource discovery.  DEPRECATED: Use 'clusterName' in 'karpenter-global-settings'")
+	f.StringVar(&opts.ClusterEndpoint, "cluster-endpoint", env.WithDefaultString("CLUSTER_ENDPOINT", ""), "The external kubernetes cluster endpoint for new nodes to connect with.  DEPRECATED: Use 'clusterEndpoint' in 'karpenter-global-settings'")
+	f.Float64Var(&opts.VMMemoryOverhead, "vm-memory-overhead", env.WithDefaultFloat64("VM_MEMORY_OVERHEAD", 0.075), "The VM memory overhead as a percent that will be subtracted from the total memory for all instance types.  DEPRECATED: Use 'aws.vmMemoryOverheadPercent' in 'karpenter-global-settings'")
+	f.StringVar(&opts.AWSNodeNameConvention, "aws-node-name-convention", env.WithDefaultString("AWS_NODE_NAME_CONVENTION", string(IPName)), "The node naming convention used by the AWS cloud provider. DEPRECATED: Use 'aws.nodeNameConvention' in 'karpenter-global-settings'")
 	f.BoolVar(&opts.AWSENILimitedPodDensity, "aws-eni-limited-pod-density", env.WithDefaultBool("AWS_ENI_LIMITED_POD_DENSITY", true), "Indicates whether new nodes should use ENI-based pod density. DEPRECATED: Use `.spec.kubeletConfiguration.maxPods` to set pod density on a per-provisioner basis")
-	f.StringVar(&opts.AWSDefaultInstanceProfile, "aws-default-instance-profile", env.WithDefaultString("AWS_DEFAULT_INSTANCE_PROFILE", ""), "The default instance profile to use when provisioning nodes in AWS")
-	f.BoolVar(&opts.AWSEnablePodENI, "aws-enable-pod-eni", env.WithDefaultBool("AWS_ENABLE_POD_ENI", false), "If true then instances that support pod ENI will report a vpc.amazonaws.com/pod-eni resource")
-	f.BoolVar(&opts.AWSIsolatedVPC, "aws-isolated-vpc", env.WithDefaultBool("AWS_ISOLATED_VPC", false), "If true then assume we can't reach AWS services which don't have a VPC endpoint. This also has the effect of disabling look-ups to the AWS pricing endpoint.")
+	f.StringVar(&opts.AWSDefaultInstanceProfile, "aws-default-instance-profile", env.WithDefaultString("AWS_DEFAULT_INSTANCE_PROFILE", ""), "The default instance profile to use when provisioning nodes in AWS. DEPRECATED: Use 'aws.defaultInstanceProfile' in 'karpenter-global-settings'")
+	f.BoolVar(&opts.AWSEnablePodENI, "aws-enable-pod-eni", env.WithDefaultBool("AWS_ENABLE_POD_ENI", false), "If true then instances that support pod ENI will report a vpc.amazonaws.com/pod-eni resource.  DEPRECATED: Use 'aws.enablePodENI' in 'karpenter-global-settings'")
+	f.BoolVar(&opts.AWSIsolatedVPC, "aws-isolated-vpc", env.WithDefaultBool("AWS_ISOLATED_VPC", false), "If true then assume we can't reach AWS services which don't have a VPC endpoint. This also has the effect of disabling look-ups to the AWS pricing endpoint.  DEPRECATED: Use 'aws.isolatedVPC' in 'karpenter-global-settings'")
 
 	if opts.MemoryLimit > 0 {
 		newLimit := int64(float64(opts.MemoryLimit) * 0.9)
@@ -93,7 +96,7 @@ func New() *Options {
 
 // MustParse reads the user passed flags, environment variables, and default values.
 // Options are valided and panics if an error is returned
-func (o *Options) MustParse() *Options {
+func (o *Options) MustParse(ctx context.Context) *Options {
 	err := o.Parse(os.Args[1:])
 
 	if errors.Is(err, flag.ErrHelp) {
@@ -105,7 +108,20 @@ func (o *Options) MustParse() *Options {
 	if err := o.Validate(); err != nil {
 		panic(err)
 	}
+	o.logDeprecations(ctx)
 	return o
+}
+
+func (o *Options) logDeprecations(ctx context.Context) {
+	t := reflect.TypeOf(o).Elem()
+	v := reflect.ValueOf(o).Elem()
+	for i := 0; i < t.NumField(); i++ {
+		if t.Field(i).Tag.Get("deprecated") != "" {
+			if !v.Field(i).IsZero() {
+				logging.FromContext(ctx).Warnf("%s is deprecated. See https://karpenter.sh/ for details on upgrading from deprecated parameters", t.Field(i).Name)
+			}
+		}
+	}
 }
 
 func (o Options) Validate() (err error) {

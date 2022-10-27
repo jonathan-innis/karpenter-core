@@ -75,7 +75,7 @@ func NewOperator() (context.Context, *Operator) {
 	ctx = sharedmain.WithHADisabled(ctx) // Disable leader election for webhook
 
 	// Options
-	opts := options.New().MustParse()
+	opts := options.New().MustParse(ctx)
 	ctx = injection.WithOptions(ctx, *opts)
 
 	// Webhook
