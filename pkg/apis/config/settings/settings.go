@@ -18,9 +18,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/samber/lo"
+	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/configmap"
@@ -42,6 +44,8 @@ var defaultSettings = Settings{
 }
 
 type Settings struct {
+	ClusterName       string          `json:"clusterName"`
+	ClusterEndpoint   string          `json:"clusterEndpoint"`
 	BatchMaxDuration  metav1.Duration `json:"batchMaxDuration"`
 	BatchIdleDuration metav1.Duration `json:"batchIdleDuration"`
 }
@@ -60,11 +64,17 @@ func NewSettingsFromConfigMap(cm *v1.ConfigMap) (Settings, error) {
 	s := defaultSettings
 
 	if err := configmap.Parse(cm.Data,
+		configmap.AsString("clusterName", &s.ClusterName),
+		configmap.AsString("clusterEndpoint", &s.ClusterEndpoint),
 		AsPositiveMetaDuration("batchMaxDuration", &s.BatchMaxDuration),
 		AsPositiveMetaDuration("batchIdleDuration", &s.BatchIdleDuration),
 	); err != nil {
 		// Failing to parse means that there is some error in the Settings, so we should crash
 		panic(fmt.Sprintf("parsing config data, %v", err))
+	}
+	if err := s.Validate(); err != nil {
+		// Failing to validate means that there is some error in the Settings, so we should crash
+		panic(fmt.Sprintf("validating config data, %v", err))
 	}
 	return s, nil
 }
@@ -97,4 +107,20 @@ func FromContext(ctx context.Context) Settings {
 		panic("settings doesn't exist in context")
 	}
 	return data.(Settings)
+}
+
+func (s Settings) Validate() error {
+	return multierr.Combine(
+		s.validateEndpoint(),
+	)
+}
+
+func (s Settings) validateEndpoint() error {
+	endpoint, err := url.Parse(s.ClusterEndpoint)
+	// url.Parse() will accept a lot of input without error; make
+	// sure it's a real URL
+	if err != nil || !endpoint.IsAbs() || endpoint.Hostname() == "" {
+		return fmt.Errorf("\"%s\" not a valid clusterEndpoint URL", s.ClusterEndpoint)
+	}
+	return nil
 }
