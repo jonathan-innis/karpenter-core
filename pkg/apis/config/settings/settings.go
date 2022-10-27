@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
@@ -44,10 +45,10 @@ var defaultSettings = Settings{
 }
 
 type Settings struct {
-	ClusterName       string          `json:"clusterName"`
-	ClusterEndpoint   string          `json:"clusterEndpoint"`
-	BatchMaxDuration  metav1.Duration `json:"batchMaxDuration"`
-	BatchIdleDuration metav1.Duration `json:"batchIdleDuration"`
+	ClusterName       string          `json:"clusterName" validate:"required"`
+	ClusterEndpoint   string          `json:"clusterEndpoint" validate:"required"`
+	BatchMaxDuration  metav1.Duration `json:"batchMaxDuration" validate:"required"`
+	BatchIdleDuration metav1.Duration `json:"batchIdleDuration" validate:"required"`
 }
 
 func (s Settings) Data() (map[string]string, error) {
@@ -110,8 +111,10 @@ func FromContext(ctx context.Context) Settings {
 }
 
 func (s Settings) Validate() error {
+	validate := validator.New()
 	return multierr.Combine(
 		s.validateEndpoint(),
+		validate.Struct(s),
 	)
 }
 
