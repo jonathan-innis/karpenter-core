@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/operator/settingsstore"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 )
 
 // Batcher separates a stream of Trigger() calls into windowed slices. The
@@ -75,8 +76,8 @@ func (b *Batcher) Wait(ctx context.Context) {
 	// Settings are injected here so that we ensure we have the latest
 	// timeout/idle values after a potentially long wait
 	ctx = b.settingsStore.InjectSettings(ctx)
-	timeout := time.NewTimer(settings.FromContext(ctx).BatchMaxDuration.Duration)
-	idle := time.NewTimer(settings.FromContext(ctx).BatchIdleDuration.Duration)
+	timeout := time.NewTimer(injection.From[settings.Settings](ctx).BatchMaxDuration.Duration)
+	idle := time.NewTimer(injection.From[settings.Settings](ctx).BatchIdleDuration.Duration)
 	for {
 		select {
 		case <-b.trigger:
@@ -84,7 +85,7 @@ func (b *Batcher) Wait(ctx context.Context) {
 			if !idle.Stop() {
 				<-idle.C
 			}
-			idle.Reset(settings.FromContext(ctx).BatchIdleDuration.Duration)
+			idle.Reset(injection.From[settings.Settings](ctx).BatchIdleDuration.Duration)
 		case <-b.immediate:
 			return
 		case <-timeout.C:

@@ -42,10 +42,10 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis"
 	"github.com/aws/karpenter-core/pkg/events"
 	operatorcontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	"github.com/aws/karpenter-core/pkg/operator/injection"
 	"github.com/aws/karpenter-core/pkg/operator/options"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
 	"github.com/aws/karpenter-core/pkg/operator/settingsstore"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 )
 
 const (
@@ -76,7 +76,7 @@ func NewOperator() (context.Context, *Operator) {
 
 	// Options
 	opts := options.New().MustParse()
-	ctx = injection.WithOptions(ctx, *opts)
+	ctx = injection.Into[options.Options](ctx, *opts)
 
 	// Webhook
 	ctx = webhook.WithOptions(ctx, webhook.Options{
@@ -116,8 +116,8 @@ func NewOperator() (context.Context, *Operator) {
 		BaseContext: func() context.Context {
 			ctx := context.Background()
 			ctx = logging.WithLogger(ctx, logger)
-			ctx = injection.WithConfig(ctx, config)
-			ctx = injection.WithOptions(ctx, *opts)
+			ctx = injection.Into[*rest.Config](ctx, config)
+			ctx = injection.Into[options.Options](ctx, *opts)
 			return ctx
 		},
 	})

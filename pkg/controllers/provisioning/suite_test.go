@@ -36,6 +36,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/test"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -63,13 +64,13 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	env = test.NewEnvironment(ctx, func(e *test.Environment) {
-		ctx = settings.ToContext(ctx, test.Settings())
+		ctx = injection.Into[settings.Settings](ctx, test.Settings())
 		cloudProvider = &fake.CloudProvider{}
 		recorder = test.NewEventRecorder()
 		fakeClock = clock.NewFakeClock(time.Now())
 		cluster = state.NewCluster(ctx, fakeClock, e.Client, cloudProvider)
 		nodeController = state.NewNodeController(e.Client, cluster)
-		prov = provisioning.NewProvisioner(ctx, e.Client, corev1.NewForConfigOrDie(e.Config), recorder, cloudProvider, cluster, test.SettingsStore{})
+		prov = provisioning.NewProvisioner(ctx, e.Client, corev1.NewForConfigOrDie(e.Config), recorder, cloudProvider, cluster, &test.SettingsStore{})
 		controller = provisioning.NewController(e.Client, prov, recorder)
 		instanceTypes, _ := cloudProvider.GetInstanceTypes(context.Background(), nil)
 		instanceTypeMap = map[string]cloudprovider.InstanceType{}
@@ -81,7 +82,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = BeforeEach(func() {
-	ctx = settings.ToContext(ctx, test.Settings())
+	ctx = injection.Into[settings.Settings](ctx, test.Settings())
 	recorder.Reset()
 	cluster = state.NewCluster(ctx, fakeClock, env.Client, cloudProvider)
 })

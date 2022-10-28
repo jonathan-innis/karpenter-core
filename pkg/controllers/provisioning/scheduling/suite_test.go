@@ -36,6 +36,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
 
@@ -71,7 +72,7 @@ func TestScheduling(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	env = test.NewEnvironment(ctx, func(e *test.Environment) {
-		ctx = settings.ToContext(ctx, test.Settings())
+		ctx = injection.Into[settings.Settings](ctx, test.Settings())
 		cloudProv = &fake.CloudProvider{}
 		instanceTypes, _ := cloudProv.GetInstanceTypes(ctx, nil)
 		// set these on the cloud provider so we can manipulate them if needed
@@ -81,7 +82,7 @@ var _ = BeforeSuite(func() {
 		nodeStateController = state.NewNodeController(e.Client, cluster)
 		podStateController = state.NewPodController(e.Client, cluster)
 		recorder = test.NewEventRecorder()
-		prov = provisioning.NewProvisioner(ctx, e.Client, corev1.NewForConfigOrDie(e.Config), recorder, cloudProv, cluster, test.SettingsStore{})
+		prov = provisioning.NewProvisioner(ctx, e.Client, corev1.NewForConfigOrDie(e.Config), recorder, cloudProv, cluster, &test.SettingsStore{})
 		controller = provisioning.NewController(e.Client, prov, recorder)
 	})
 	Expect(env.Start()).To(Succeed(), "Failed to start environment")

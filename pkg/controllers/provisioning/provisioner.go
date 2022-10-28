@@ -42,8 +42,8 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
 	operatorcontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	"github.com/aws/karpenter-core/pkg/operator/injection"
 	"github.com/aws/karpenter-core/pkg/operator/settingsstore"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	scheduler "github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"

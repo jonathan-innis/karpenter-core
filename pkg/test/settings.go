@@ -16,19 +16,42 @@ package test
 
 import (
 	"context"
+	"reflect"
 	"time"
 
+	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 )
 
 // SettingsStore is a map from ContextKey to settings/config data
-type SettingsStore map[interface{}]interface{}
+type SettingsStore struct {
+	settings map[string]interface{}
+}
 
-func (ss SettingsStore) InjectSettings(ctx context.Context) context.Context {
-	for k, v := range ss {
-		ctx = context.WithValue(ctx, k, v)
+func NewSettingsStore(settings ...interface{}) *SettingsStore {
+	return &SettingsStore{
+		settings: lo.SliceToMap(settings, func(setting interface{}) (string, interface{}) {
+			if reflect.ValueOf(setting).Kind() == reflect.Pointer {
+				panic("test settings store can't store pointer values")
+			}
+			return reflect.TypeOf(setting).Name(), setting
+		}),
+	}
+}
+
+func (ss *SettingsStore) Add(setting ...interface{}) {
+	if reflect.ValueOf(setting).Kind() == reflect.Pointer {
+		panic("test settings store can't store pointer values")
+	}
+	ss.settings[reflect.TypeOf(setting).Name()] = setting
+}
+
+func (ss *SettingsStore) InjectSettings(ctx context.Context) context.Context {
+	for _, v := range ss.settings {
+		ctx = injection.Into(ctx, v)
 	}
 	return ctx
 }

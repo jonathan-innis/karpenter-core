@@ -42,7 +42,7 @@ import (
 
 	provisioning "github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
 	operatorcontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	"github.com/aws/karpenter-core/pkg/operator/injection"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/events"

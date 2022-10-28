@@ -37,6 +37,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -76,7 +77,7 @@ func NewCluster(ctx context.Context, clk clock.Clock, client client.Client, cp c
 	// The nominationPeriod is how long we consider a node as 'likely to be used' after a pending pod was
 	// nominated for it. This time can very depending on the batching window size + time spent scheduling
 	// so we try to adjust based off the window size.
-	nominationPeriod := 2 * settings.FromContext(ctx).BatchMaxDuration.Duration
+	nominationPeriod := 2 * injection.From[settings.Settings](ctx).BatchMaxDuration.Duration
 	if nominationPeriod < 10*time.Second {
 		nominationPeriod = 10 * time.Second
 	}

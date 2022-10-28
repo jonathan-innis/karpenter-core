@@ -20,11 +20,9 @@ import (
 	"knative.dev/pkg/configmap"
 )
 
-// Constructor should take the form func(*v1.ConfigMap) (T, error)
-type Constructor interface{}
-
 // Registration defines a ConfigMap registration to be watched by the settingsstore.Watcher
 // and to be injected into the Reconcile() contexts of controllers
+// Constructor should take the form func(*v1.ConfigMap) (T, error)
 type Registration struct {
 	ConfigMapName string
 	Constructor   interface{}

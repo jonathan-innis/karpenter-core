@@ -22,7 +22,7 @@ import (
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
-	"github.com/aws/karpenter-core/pkg/operator/injection"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/metrics"

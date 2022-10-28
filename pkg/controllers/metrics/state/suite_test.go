@@ -31,6 +31,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
 	statemetrics "github.com/aws/karpenter-core/pkg/controllers/metrics/state/scraper"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
@@ -63,7 +64,7 @@ var _ = BeforeSuite(func() {
 	env = test.NewEnvironment(ctx, func(e *test.Environment) {})
 	Expect(env.Start()).To(Succeed(), "Failed to start environment")
 
-	ctx = settings.ToContext(ctx, test.Settings())
+	ctx = injection.Into[settings.Settings](ctx, test.Settings())
 	cloudProvider = &fake.CloudProvider{InstanceTypes: fake.InstanceTypesAssorted()}
 	fakeClock = clock.NewFakeClock(time.Now())
 	cluster = state.NewCluster(ctx, fakeClock, env.Client, cloudProvider)

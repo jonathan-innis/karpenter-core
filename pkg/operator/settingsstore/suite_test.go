@@ -28,6 +28,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/operator/settingsstore"
 	"github.com/aws/karpenter-core/pkg/test"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -79,7 +80,7 @@ var _ = Describe("Operator Settings", func() {
 	It("should have default values", func() {
 		Eventually(func(g Gomega) {
 			testCtx := ss.InjectSettings(ctx)
-			s := settings.FromContext(testCtx)
+			s := injection.From[settings.Settings](testCtx)
 			g.Expect(s.BatchIdleDuration.Duration).To(Equal(1 * time.Second))
 			g.Expect(s.BatchMaxDuration.Duration).To(Equal(10 * time.Second))
 		}).Should(Succeed())
@@ -87,7 +88,7 @@ var _ = Describe("Operator Settings", func() {
 	It("should update if values are changed", func() {
 		Eventually(func(g Gomega) {
 			testCtx := ss.InjectSettings(ctx)
-			s := settings.FromContext(testCtx)
+			s := injection.From[settings.Settings](testCtx)
 			g.Expect(s.BatchIdleDuration.Duration).To(Equal(1 * time.Second))
 			g.Expect(s.BatchMaxDuration.Duration).To(Equal(10 * time.Second))
 		})
@@ -100,7 +101,7 @@ var _ = Describe("Operator Settings", func() {
 
 		Eventually(func(g Gomega) {
 			testCtx := ss.InjectSettings(ctx)
-			s := settings.FromContext(testCtx)
+			s := injection.From[settings.Settings](testCtx)
 			g.Expect(s.BatchIdleDuration.Duration).To(Equal(2 * time.Second))
 			g.Expect(s.BatchMaxDuration.Duration).To(Equal(15 * time.Second))
 		}).Should(Succeed())
@@ -134,7 +135,7 @@ var _ = Describe("Multiple Settings", func() {
 
 		Eventually(func(g Gomega) {
 			testCtx := ss.InjectSettings(ctx)
-			s := settings.FromContext(testCtx)
+			s := injection.From[settings.Settings](testCtx)
 			fs := fake.SettingsFromContext(testCtx)
 			g.Expect(s.BatchIdleDuration.Duration).To(Equal(2 * time.Second))
 			g.Expect(s.BatchMaxDuration.Duration).To(Equal(15 * time.Second))
@@ -150,7 +151,7 @@ var _ = Describe("ConfigMap Doesn't Exist on Startup", func() {
 
 		Eventually(func(g Gomega) {
 			testCtx := ss.InjectSettings(ctx)
-			s := settings.FromContext(testCtx)
+			s := injection.From[settings.Settings](testCtx)
 			g.Expect(s.BatchIdleDuration.Duration).To(Equal(1 * time.Second))
 			g.Expect(s.BatchMaxDuration.Duration).To(Equal(10 * time.Second))
 		}).Should(Succeed())
@@ -168,7 +169,7 @@ var _ = Describe("ConfigMap Doesn't Exist on Startup", func() {
 
 		Eventually(func(g Gomega) {
 			testCtx := ss.InjectSettings(ctx)
-			s := settings.FromContext(testCtx)
+			s := injection.From[settings.Settings](testCtx)
 			g.Expect(s.BatchIdleDuration.Duration).To(Equal(2 * time.Second))
 			g.Expect(s.BatchMaxDuration.Duration).To(Equal(15 * time.Second))
 		}).Should(Succeed())

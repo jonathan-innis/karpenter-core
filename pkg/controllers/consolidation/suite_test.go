@@ -47,6 +47,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/test"
 	. "github.com/aws/karpenter-core/pkg/test/expectations"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 )
 
 var ctx context.Context
@@ -74,14 +75,14 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	env = test.NewEnvironment(ctx, func(e *test.Environment) {
-		ctx = settings.ToContext(ctx, test.Settings())
+		ctx = injection.Into[settings.Settings](ctx, test.Settings())
 		cloudProvider = &fake.CloudProvider{}
 		fakeClock = clock.NewFakeClock(time.Now())
 		cluster = state.NewCluster(ctx, fakeClock, env.Client, cloudProvider)
 		nodeStateController = state.NewNodeController(env.Client, cluster)
 		kubernetesInterface = kubernetes.NewForConfigOrDie(e.Config)
 		recorder = test.NewEventRecorder()
-		provisioner = provisioning.NewProvisioner(ctx, env.Client, kubernetesInterface.CoreV1(), recorder, cloudProvider, cluster, test.SettingsStore{})
+		provisioner = provisioning.NewProvisioner(ctx, env.Client, kubernetesInterface.CoreV1(), recorder, cloudProvider, cluster, &test.SettingsStore{})
 		provisioningController = provisioning.NewController(env.Client, provisioner, recorder)
 	})
 	Expect(env.Start()).To(Succeed(), "Failed to start environment")

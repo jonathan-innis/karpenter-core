@@ -32,6 +32,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/settingsstore"
 	"github.com/aws/karpenter-core/pkg/test"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -76,7 +77,7 @@ var _ = AfterEach(func() {
 })
 
 var _ = Describe("Core Settings", func() {
-	It("should inject default settings into Reconcile loop", func() {
+	FIt("should inject default settings into Reconcile loop", func() {
 		ExpectApplied(ctx, env.Client, defaultConfigMap.DeepCopy())
 		expected := settings.Settings{
 			BatchMaxDuration:  metav1.Duration{Duration: time.Second * 10},
@@ -128,7 +129,7 @@ func ExpectSettingsMatch(g Gomega, a settings.Settings, b settings.Settings) {
 
 func ExpectOperatorSettingsInjected(expected settings.Settings) ReconcileAssertion {
 	return func(ctx context.Context, _ reconcile.Request) {
-		settings := settings.FromContext(ctx)
+		settings := injection.From[settings.Settings](ctx)
 		ExpectSettingsMatch(GomegaFromContext(ctx), expected, settings)
 	}
 }

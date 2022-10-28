@@ -15,7 +15,6 @@ limitations under the License.
 package settings
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -27,8 +26,6 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/config"
 )
-
-var ContextKey = Registration
 
 var Registration = &config.Registration{
 	ConfigMapName: "karpenter-global-settings",
@@ -84,17 +81,4 @@ func AsPositiveMetaDuration(key string, target *metav1.Duration) configmap.Parse
 		}
 		return nil
 	}
-}
-
-func ToContext(ctx context.Context, s Settings) context.Context {
-	return context.WithValue(ctx, ContextKey, s)
-}
-
-func FromContext(ctx context.Context) Settings {
-	data := ctx.Value(ContextKey)
-	if data == nil {
-		// This is developer error if this happens, so we should panic
-		panic("settings doesn't exist in context")
-	}
-	return data.(Settings)
 }

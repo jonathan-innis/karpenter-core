@@ -33,6 +33,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
 	. "github.com/aws/karpenter-core/pkg/test/expectations"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
 
@@ -55,7 +56,7 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	fakeClock = clock.NewFakeClock(time.Now())
 	env = test.NewEnvironment(ctx, func(e *test.Environment) {
-		ctx = settings.ToContext(ctx, test.Settings())
+		ctx = injection.Into[settings.Settings](ctx, test.Settings())
 		cp := &fake.CloudProvider{}
 		cluster := state.NewCluster(ctx, fakeClock, e.Client, cp)
 		controller = node.NewController(fakeClock, e.Client, cp, cluster)

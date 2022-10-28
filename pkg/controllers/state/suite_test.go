@@ -27,6 +27,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/apis/provisioning/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/utils/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
 
@@ -73,7 +74,7 @@ var _ = AfterSuite(func() {
 })
 
 var _ = BeforeEach(func() {
-	ctx = settings.ToContext(ctx, test.Settings())
+	ctx = injection.Into[settings.Settings](ctx, test.Settings())
 	cloudProvider = &fake.CloudProvider{InstanceTypes: fake.InstanceTypesAssorted()}
 	fakeClock = clock.NewFakeClock(time.Now())
 	cluster = state.NewCluster(ctx, fakeClock, env.Client, cloudProvider)
@@ -532,7 +533,7 @@ var _ = Describe("Node Resource Level", func() {
 	})
 	It("should trigger node nomination eviction observers", func() {
 		// Reduce the nomination timeframe for a quicker test
-		ctx = settings.ToContext(ctx, settings.Settings{BatchMaxDuration: metav1.Duration{Duration: time.Second}, BatchIdleDuration: metav1.Duration{Duration: time.Second}})
+		ctx = injection.Into[settings.Settings](ctx, settings.Settings{BatchMaxDuration: metav1.Duration{Duration: time.Second}, BatchIdleDuration: metav1.Duration{Duration: time.Second}})
 		cluster = state.NewCluster(ctx, fakeClock, env.Client, cloudProvider)
 
 		node := test.Node(test.NodeOptions{
