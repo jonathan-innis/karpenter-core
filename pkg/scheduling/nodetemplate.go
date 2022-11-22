@@ -36,6 +36,7 @@ type NodeTemplate struct {
 	StartupTaints        Taints
 	Requirements         Requirements
 	KubeletConfiguration *v1alpha5.KubeletConfiguration
+	Requests             v1.ResourceList
 }
 
 func NewNodeTemplate(provisioner *v1alpha5.Provisioner) *NodeTemplate {
@@ -53,6 +54,7 @@ func NewNodeTemplate(provisioner *v1alpha5.Provisioner) *NodeTemplate {
 		Taints:               provisioner.Spec.Taints,
 		StartupTaints:        provisioner.Spec.StartupTaints,
 		Requirements:         requirements,
+		Requests:             v1.ResourceList{},
 	}
 }
 
