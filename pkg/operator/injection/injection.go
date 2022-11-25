@@ -18,7 +18,6 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 
 	"github.com/aws/karpenter-core/pkg/operator/options"
 )
@@ -49,20 +48,6 @@ func GetOptions(ctx context.Context) options.Options {
 		return options.Options{}
 	}
 	return retval.(options.Options)
-}
-
-type configKey struct{}
-
-func WithConfig(ctx context.Context, config *rest.Config) context.Context {
-	return context.WithValue(ctx, configKey{}, config)
-}
-
-func GetConfig(ctx context.Context) *rest.Config {
-	retval := ctx.Value(configKey{})
-	if retval == nil {
-		return nil
-	}
-	return retval.(*rest.Config)
 }
 
 type controllerNameKeyType struct{}

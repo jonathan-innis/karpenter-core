@@ -117,7 +117,6 @@ func NewOperator() (context.Context, *Operator) {
 		BaseContext: func() context.Context {
 			ctx := context.Background()
 			ctx = logging.WithLogger(ctx, logger)
-			ctx = injection.WithConfig(ctx, config)
 			ctx = injection.WithOptions(ctx, *opts)
 			return ctx
 		},
