@@ -20,7 +20,6 @@ import (
 
 // MachineStatus defines the observed state of Machine
 type MachineStatus struct {
-	// ProviderID of the corresponding node object
 	ProviderID string `json:"providerID,omitempty"`
 	// Conditions contains signals for health and readiness
 	// +optional
