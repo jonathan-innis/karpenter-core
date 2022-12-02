@@ -190,16 +190,18 @@ var _ = Describe("Controller", func() {
 				},
 				ReadyStatus: v1.ConditionTrue,
 				Allocatable: v1.ResourceList{
-					v1.ResourceCPU:          resource.MustParse("4"),
-					v1.ResourceMemory:       resource.MustParse("4Gi"),
-					v1.ResourcePods:         resource.MustParse("5"),
-					fake.ResourceGPUVendorA: resource.MustParse("2"),
+					v1.ResourceCPU:              resource.MustParse("4"),
+					v1.ResourceMemory:           resource.MustParse("4Gi"),
+					v1.ResourcePods:             resource.MustParse("5"),
+					v1.ResourceEphemeralStorage: resource.MustParse("20Gi"),
+					fake.ResourceGPUVendorA:     resource.MustParse("2"),
 				},
 				Capacity: v1.ResourceList{
-					v1.ResourceCPU:          resource.MustParse("4"),
-					v1.ResourceMemory:       resource.MustParse("4Gi"),
-					v1.ResourcePods:         resource.MustParse("5"),
-					fake.ResourceGPUVendorA: resource.MustParse("2"),
+					v1.ResourceCPU:              resource.MustParse("4"),
+					v1.ResourceMemory:           resource.MustParse("4Gi"),
+					v1.ResourcePods:             resource.MustParse("5"),
+					v1.ResourceEphemeralStorage: resource.MustParse("20Gi"),
+					fake.ResourceGPUVendorA:     resource.MustParse("2"),
 				},
 			})
 			ExpectApplied(ctx, env.Client, provisioner, node)

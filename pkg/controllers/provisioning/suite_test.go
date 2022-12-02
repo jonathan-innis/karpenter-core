@@ -78,7 +78,7 @@ var _ = BeforeSuite(func() {
 	nodeController = informer.NewNodeController(env.Client, cluster)
 	prov = provisioning.NewProvisioner(ctx, env.Client, corev1.NewForConfigOrDie(env.Config), recorder, cloudProvider, cluster)
 	provisioningController = provisioning.NewController(env.Client, prov, recorder)
-	instanceTypes, _ := cloudProvider.GetInstanceTypes(context.Background(), nil)
+	instanceTypes, _ := cloudProvider.GetInstanceTypes(context.Background())
 	instanceTypeMap = map[string]*cloudprovider.InstanceType{}
 	for _, it := range instanceTypes {
 		instanceTypeMap[it.Name] = it
@@ -197,7 +197,7 @@ var _ = Describe("Provisioning", func() {
 	})
 	It("should schedule all pods on one node when node is in deleting state", func() {
 		provisioner := test.Provisioner()
-		its, err := cloudProvider.GetInstanceTypes(ctx, provisioner)
+		its, err := cloudProvider.GetInstanceTypes(ctx)
 		Expect(err).To(BeNil())
 		node := test.Node(test.NodeOptions{
 			ObjectMeta: metav1.ObjectMeta{

@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/utils/node"
@@ -57,7 +58,8 @@ func (r *Initialization) Reconcile(ctx context.Context, provisioner *v1alpha5.Pr
 }
 
 func (r *Initialization) getInstanceType(ctx context.Context, provisioner *v1alpha5.Provisioner, instanceTypeName string) (*cloudprovider.InstanceType, error) {
-	instanceTypes, err := r.cloudProvider.GetInstanceTypes(ctx, provisioner)
+	instanceTypes, err := r.cloudProvider.GetInstanceTypes(ctx)
+	instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, provisioner)
 	if err != nil {
 		return nil, err
 	}

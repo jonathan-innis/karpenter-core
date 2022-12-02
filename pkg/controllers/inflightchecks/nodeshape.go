@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 )
 
@@ -47,10 +48,11 @@ func (n *NodeShape) Check(ctx context.Context, node *v1.Node, provisioner *v1alp
 		return nil, nil
 	}
 
-	instanceTypes, err := n.provider.GetInstanceTypes(ctx, provisioner)
+	instanceTypes, err := n.provider.GetInstanceTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
+	instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, provisioner)
 
 	instanceType, ok := lo.Find(instanceTypes, func(it *cloudprovider.InstanceType) bool { return it.Name == node.Labels[v1.LabelInstanceTypeStable] })
 	if !ok {

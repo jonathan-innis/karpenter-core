@@ -55,6 +55,9 @@ func NewInstanceType(options InstanceTypeOptions) *cloudprovider.InstanceType {
 	if r := options.Resources[v1.ResourceMemory]; r.IsZero() {
 		options.Resources[v1.ResourceMemory] = resource.MustParse("4Gi")
 	}
+	if r := options.Resources[v1.ResourceEphemeralStorage]; r.IsZero() {
+		options.Resources[v1.ResourceEphemeralStorage] = resource.MustParse("20Gi")
+	}
 	if r := options.Resources[v1.ResourcePods]; r.IsZero() {
 		options.Resources[v1.ResourcePods] = resource.MustParse("5")
 	}
@@ -100,6 +103,14 @@ func NewInstanceType(options InstanceTypeOptions) *cloudprovider.InstanceType {
 			KubeReserved: v1.ResourceList{
 				v1.ResourceCPU:    resource.MustParse("100m"),
 				v1.ResourceMemory: resource.MustParse("10Mi"),
+			},
+			SystemReserved: v1.ResourceList{
+				v1.ResourceCPU:              resource.MustParse("100m"),
+				v1.ResourceMemory:           resource.MustParse("100Mi"),
+				v1.ResourceEphemeralStorage: resource.MustParse("1Gi"),
+			},
+			EvictionHardThreshold: v1.ResourceList{
+				v1.ResourceMemory: resource.MustParse("100Mi"),
 			},
 		},
 	}

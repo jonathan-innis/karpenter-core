@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/injection"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -257,10 +258,11 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 		// Create node template
 		machines = append(machines, scheduler.NewMachineTemplate(provisioner))
 		// Get instance type options
-		instanceTypeOptions, err := p.cloudProvider.GetInstanceTypes(ctx, provisioner)
+		instanceTypeOptions, err := p.cloudProvider.GetInstanceTypes(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("getting instance types, %w", err)
 		}
+		instanceTypeOptions = overlay.WithProvisionerOverrides(instanceTypeOptions, provisioner)
 		instanceTypes[provisioner.Name] = append(instanceTypes[provisioner.Name], instanceTypeOptions...)
 
 		// Construct Topology Domains

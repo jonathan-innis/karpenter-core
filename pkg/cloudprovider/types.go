@@ -59,7 +59,7 @@ type CloudProvider interface {
 	// Availability of types or zone may vary by provisioner or over time.  Regardless of
 	// availability, the GetInstanceTypes method should always return all instance types,
 	// even those with no offerings available.
-	GetInstanceTypes(context.Context, *v1alpha5.Provisioner) ([]*InstanceType, error)
+	GetInstanceTypes(context.Context) ([]*InstanceType, error)
 	// IsMachineDrifted returns whether a machine has drifted from the provisioning requirements
 	// it is tied to.
 	IsMachineDrifted(context.Context, *v1alpha5.Machine) (bool, error)
@@ -93,12 +93,15 @@ type InstanceTypeOverhead struct {
 	KubeReserved v1.ResourceList
 	// SystemReserved returns the default resources allocated to the OS system daemons by default
 	SystemReserved v1.ResourceList
-	// EvictionThreshold returns the resources used to maintain a hard eviction threshold
-	EvictionThreshold v1.ResourceList
+	// EvictionHardThreshold returns the resources used to maintain a hard eviction threshold
+	EvictionHardThreshold v1.ResourceList
+	// EvictionSoftThreshold returns the resources used to maintain a soft eviction threshold
+	EvictionSoftThreshold v1.ResourceList
 }
 
 func (i InstanceTypeOverhead) Total() v1.ResourceList {
-	return resources.Merge(i.KubeReserved, i.SystemReserved, i.EvictionThreshold)
+	evictionThreshold := resources.MaxResources(i.EvictionSoftThreshold, i.EvictionHardThreshold)
+	return resources.Merge(i.KubeReserved, i.SystemReserved, evictionThreshold)
 }
 
 // An Offering describes where an InstanceType is available to be used, with the expectation that its properties

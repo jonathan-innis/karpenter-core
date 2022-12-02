@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/node"
 )
@@ -56,10 +57,11 @@ func (f FailedInit) Check(ctx context.Context, n *v1.Node, provisioner *v1alpha5
 		return nil, nil
 	}
 
-	instanceTypes, err := f.provider.GetInstanceTypes(ctx, provisioner)
+	instanceTypes, err := f.provider.GetInstanceTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
+	instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, provisioner)
 
 	instanceType, ok := lo.Find(instanceTypes, func(it *cloudprovider.InstanceType) bool { return it.Name == n.Labels[v1.LabelInstanceTypeStable] })
 	if !ok {

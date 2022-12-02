@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	pscheduling "github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
@@ -260,12 +261,13 @@ func buildProvisionerMap(ctx context.Context, kubeClient client.Client, cloudPro
 		p := &provList.Items[i]
 		provisioners[p.Name] = p
 
-		provInstanceTypes, err := cloudProvider.GetInstanceTypes(ctx, p)
+		instanceTypes, err := cloudProvider.GetInstanceTypes(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("listing instance types for %s, %w", p.Name, err)
 		}
+		instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, p)
 		instanceTypesByProvisioner[p.Name] = map[string]*cloudprovider.InstanceType{}
-		for _, it := range provInstanceTypes {
+		for _, it := range instanceTypes {
 			instanceTypesByProvisioner[p.Name][it.Name] = it
 		}
 	}

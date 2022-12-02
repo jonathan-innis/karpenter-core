@@ -76,7 +76,7 @@ var _ = BeforeSuite(func() {
 	env = test.NewEnvironment(scheme.Scheme, test.WithCRDs(apis.CRDs...))
 	ctx = settings.ToContext(ctx, test.Settings())
 	cloudProv = fake.NewCloudProvider()
-	instanceTypes, _ := cloudProv.GetInstanceTypes(ctx, nil)
+	instanceTypes, _ := cloudProv.GetInstanceTypes(ctx)
 	// set these on the cloud provider so we can manipulate them if needed
 	cloudProv.InstanceTypes = instanceTypes
 	fakeClock = clock.NewFakeClock(time.Now())
@@ -100,7 +100,7 @@ var _ = BeforeEach(func() {
 	}}})
 	// reset instance types
 	newCP := fake.CloudProvider{}
-	cloudProv.InstanceTypes, _ = newCP.GetInstanceTypes(context.Background(), nil)
+	cloudProv.InstanceTypes, _ = newCP.GetInstanceTypes(context.Background())
 	cloudProv.CreateCalls = nil
 	recorder.Reset()
 })
@@ -1092,7 +1092,7 @@ var _ = Describe("Binpacking", func() {
 		pod := ExpectProvisioned(ctx, env.Client, cluster, recorder, provisioningController, prov, test.UnschedulablePod(
 			test.PodOptions{ResourceRequirements: v1.ResourceRequirements{
 				Requests: map[v1.ResourceName]resource.Quantity{
-					v1.ResourceMemory: resource.MustParse("2000M"),
+					v1.ResourceMemory: resource.MustParse("1800M"),
 				},
 			}}))[0]
 		node := ExpectScheduled(ctx, env.Client, pod)

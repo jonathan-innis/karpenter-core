@@ -94,9 +94,10 @@ var _ = Describe("Controller", func() {
 				},
 			})
 			n.Status.Capacity = v1.ResourceList{
-				v1.ResourceCPU:    resource.MustParse("1"),
-				v1.ResourceMemory: resource.MustParse("1Gi"),
-				v1.ResourcePods:   resource.MustParse("10"),
+				v1.ResourceCPU:              resource.MustParse("1"),
+				v1.ResourceMemory:           resource.MustParse("1Gi"),
+				v1.ResourcePods:             resource.MustParse("10"),
+				v1.ResourceEphemeralStorage: resource.MustParse("20Gi"),
 			}
 			ExpectApplied(ctx, env.Client, provisioner, n)
 			fakeClock.Step(2 * time.Hour)

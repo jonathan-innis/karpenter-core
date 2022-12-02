@@ -21,7 +21,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/operator/injection"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
@@ -77,7 +76,7 @@ func (d *decorator) Delete(ctx context.Context, machine *v1alpha5.Machine) error
 	return d.CloudProvider.Delete(ctx, machine)
 }
 
-func (d *decorator) GetInstanceTypes(ctx context.Context, provisioner *v1alpha5.Provisioner) ([]*cloudprovider.InstanceType, error) {
+func (d *decorator) GetInstanceTypes(ctx context.Context) ([]*cloudprovider.InstanceType, error) {
 	defer metrics.Measure(methodDurationHistogramVec.WithLabelValues(injection.GetControllerName(ctx), "GetInstanceTypes", d.Name()))()
-	return d.CloudProvider.GetInstanceTypes(ctx, provisioner)
+	return d.CloudProvider.GetInstanceTypes(ctx)
 }
