@@ -41,11 +41,13 @@ const (
 
 // Karpenter specific annotations
 const (
-	DoNotEvictPodAnnotationKey         = Group + "/do-not-evict"
-	DoNotConsolidateNodeAnnotationKey  = Group + "/do-not-consolidate"
-	EmptinessTimestampAnnotationKey    = Group + "/emptiness-timestamp"
-	ProviderCompatabilityAnnotationKey = Group + "/compatibility/provider"
-	VoluntaryDisruptionAnnotationKey   = Group + "/voluntary-disruption"
+	DoNotEvictPodAnnotationKey        = Group + "/do-not-evict"
+	DoNotConsolidateNodeAnnotationKey = Group + "/do-not-consolidate"
+	EmptinessTimestampAnnotationKey   = Group + "/emptiness-timestamp"
+	VoluntaryDisruptionAnnotationKey  = Group + "/voluntary-disruption"
+	MachineHydratedAnnotationKey      = Group + "machine-hydrated"
+
+	ProviderLegacyAnnotationKey = LegacyGroup + "/provider"
 
 	// Karpenter specific annotation values
 	VoluntaryDisruptionDriftedAnnotationValue = "drifted"

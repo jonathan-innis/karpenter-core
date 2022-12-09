@@ -78,15 +78,18 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 	if len(machineList.Items) == 0 {
 		machine = v1alpha1.MachineFromNode(node)
 		machine.Spec.Kubelet = provisioner.Spec.KubeletConfiguration
-		lo.Must0(controllerutil.SetOwnerReference(provisioner, machine, scheme.Scheme))
+		machine.Labels = lo.Assign(machine.Labels, map[string]string{
+			v1alpha5.MachineHydratedAnnotationKey: "true",
+		})
 		if provisioner.Spec.ProviderRef != nil {
 			machine.Spec.MachineTemplateRef = provisioner.Spec.ProviderRef.ToObjectReference()
 		} else if provisioner.Spec.Provider != nil {
-			machine.Annotations[v1alpha5.ProviderCompatabilityAnnotationKey] = v1alpha5.ProviderAnnotation(provisioner.Spec.Provider)
+			machine.Annotations[v1alpha5.ProviderLegacyAnnotationKey] = v1alpha5.ProviderAnnotation(provisioner.Spec.Provider)
 		} else {
 			logging.FromContext(ctx).Errorf("node contains no valid provider or providerRef data")
 			return reconcile.Result{}, nil
 		}
+		lo.Must0(controllerutil.SetOwnerReference(provisioner, machine, scheme.Scheme))
 		if err := c.kubeClient.Create(ctx, machine); err != nil {
 			if !errors.IsAlreadyExists(err) {
 				return reconcile.Result{}, err
@@ -99,7 +102,9 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 		logging.FromContext(ctx).Errorf("more than one machine (%d machines) maps to this node", len(machineList.Items))
 		return reconcile.Result{}, nil
 	}
-	if err := c.kubeClient.Status().Patch(ctx, v1alpha1.MachineFromNode(node), client.MergeFrom(machine)); err != nil {
+	statusCopy := machine.DeepCopy()
+	statusCopy.Status = v1alpha1.MachineFromNode(node).Status
+	if err := c.kubeClient.Status().Patch(ctx, statusCopy, client.MergeFrom(machine)); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 	return reconcile.Result{}, nil

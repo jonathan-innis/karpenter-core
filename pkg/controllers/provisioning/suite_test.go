@@ -804,11 +804,11 @@ var _ = Describe("Provisioning", func() {
 			pods := ExpectProvisioned(ctx, env.Client, cluster, recorder, provisioningController, prov, test.UnschedulablePod())
 
 			Expect(cloudProvider.CreateCalls).To(HaveLen(1))
-			Expect(cloudProvider.CreateCalls[0].Annotations).To(HaveKey(v1alpha5.ProviderCompatabilityAnnotationKey))
+			Expect(cloudProvider.CreateCalls[0].Annotations).To(HaveKey(v1alpha5.ProviderLegacyAnnotationKey))
 
 			// Deserialize the provider into the expected format
 			provider := map[string]string{}
-			Expect(json.Unmarshal([]byte(cloudProvider.CreateCalls[0].Annotations[v1alpha5.ProviderCompatabilityAnnotationKey]), &provider)).To(Succeed())
+			Expect(json.Unmarshal([]byte(cloudProvider.CreateCalls[0].Annotations[v1alpha5.ProviderLegacyAnnotationKey]), &provider)).To(Succeed())
 			Expect(provider).To(HaveKeyWithValue("providerField1", "value"))
 			Expect(provider).To(HaveKeyWithValue("providerField2", "value"))
 

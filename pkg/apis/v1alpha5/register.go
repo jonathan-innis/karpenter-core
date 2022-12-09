@@ -23,6 +23,7 @@ import (
 
 const (
 	Group           = "karpenter.sh"
+	LegacyGroup     = "legacy." + Group // Used for compatibility and legacy support
 	ExtensionsGroup = "extensions." + Group
 	TestingGroup    = "testing." + Group // Exclusively used for labeling/discovery in testing
 )

@@ -97,7 +97,7 @@ func (i *MachineTemplate) ToMachine(owner *v1alpha5.Provisioner) *v1alpha1.Machi
 	}
 	if i.Provider != nil {
 		m.Annotations = lo.Assign(m.Annotations, map[string]string{
-			v1alpha5.ProviderCompatabilityAnnotationKey: v1alpha5.ProviderAnnotation(i.Provider),
+			v1alpha5.ProviderLegacyAnnotationKey: v1alpha5.ProviderAnnotation(i.Provider),
 		})
 	}
 	if i.ProviderRef != nil {

@@ -26,6 +26,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/inflightchecks"
 	machinehydration "github.com/aws/karpenter-core/pkg/controllers/machine/hydration"
+	machinenodelabels "github.com/aws/karpenter-core/pkg/controllers/machine/nodelabels"
 	metricspod "github.com/aws/karpenter-core/pkg/controllers/metrics/pod"
 	metricsprovisioner "github.com/aws/karpenter-core/pkg/controllers/metrics/provisioner"
 	metricsstate "github.com/aws/karpenter-core/pkg/controllers/metrics/state"
@@ -70,5 +71,6 @@ func NewControllers(
 		counter.NewController(kubeClient, cluster),
 		inflightchecks.NewController(clock, kubeClient, eventRecorder, cloudProvider),
 		machinehydration.NewController(kubeClient),
+		machinenodelabels.NewController(kubeClient),
 	}
 }
