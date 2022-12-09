@@ -15,8 +15,10 @@ limitations under the License.
 package v1alpha5
 
 import (
+	"encoding/json"
 	"sort"
 
+	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -94,8 +96,13 @@ type Consolidation struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
-// +kubebuilder:object:generate=false
+// +k8s:deepcopy-gen=false
 type Provider = runtime.RawExtension
+
+func ProviderAnnotation(p *Provider) string {
+	raw := lo.Must(json.Marshal(p)) // Provider should already have been validated so this shouldn't fail
+	return string(raw)
+}
 
 type ProviderRef struct {
 	// Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"
@@ -105,6 +112,14 @@ type ProviderRef struct {
 	// API version of the referent
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
+}
+
+func (p *ProviderRef) ToObjectReference() *v1.ObjectReference {
+	return &v1.ObjectReference{
+		APIVersion: p.APIVersion,
+		Kind:       p.Kind,
+		Name:       p.Name,
+	}
 }
 
 // KubeletConfiguration defines args to be used when configuring kubelet on provisioned nodes.

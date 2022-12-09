@@ -15,8 +15,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -73,14 +75,15 @@ type MachineList struct {
 }
 
 // MachineFromNode converts a node into a pseudo-Machine using known values from the node
-// Deprecated: Converting from a Node to a pseudo-Machine should only be supported as long as we support
 // Node finalization and termination flow through the Node termination finalizer
 func MachineFromNode(node *v1.Node) *Machine {
-	return &Machine{
+	m := &Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        node.Name,
 			Annotations: node.Annotations,
-			Labels:      node.Labels,
+			Labels: lo.Assign(node.Labels, map[string]string{
+				v1alpha5.NodeNameLabelKey: node.Name,
+			}),
 		},
 		Spec: MachineSpec{
 			Taints:       node.Spec.Taints,
@@ -94,4 +97,12 @@ func MachineFromNode(node *v1.Node) *Machine {
 			Allocatable: node.Status.Allocatable,
 		},
 	}
+	if _, ok := node.Annotations[v1alpha5.EmptinessTimestampAnnotationKey]; ok {
+		m.StatusConditions().MarkTrueWithReason(MachineVoluntarilyDisrupted, EmptinessDisruptionReason, "Machine has no pods scheduled")
+	}
+	if _, ok := node.Annotations[v1alpha5.VoluntaryDisruptionAnnotationKey]; ok {
+		m.StatusConditions().MarkTrueWithReason(MachineVoluntarilyDisrupted, DriftedDisruptionReason, "Machine has drifted from desired state")
+	}
+	controllerutil.AddFinalizer(m, v1alpha5.TerminationFinalizer)
+	return m
 }

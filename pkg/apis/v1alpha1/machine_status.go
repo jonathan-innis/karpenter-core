@@ -44,10 +44,17 @@ func (in *Machine) StatusConditions() apis.ConditionManager {
 }
 
 var (
-	MachineCreated     apis.ConditionType
-	MachineRegistered  apis.ConditionType
-	MachineInitialized apis.ConditionType
-	MachineHealthy     apis.ConditionType
+	MachineCreated                apis.ConditionType
+	MachineRegistered             apis.ConditionType
+	MachineInitialized            apis.ConditionType
+	MachineHealthy                apis.ConditionType
+	MachineVoluntarilyDisrupted   apis.ConditionType
+	MachineInvoluntarilyDisrupted apis.ConditionType
+)
+
+const (
+	EmptinessDisruptionReason = "MachineEmpty"
+	DriftedDisruptionReason   = "MachineDrifted"
 )
 
 func (in *Machine) GetConditions() apis.Conditions {
