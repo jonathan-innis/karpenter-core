@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha1"
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 )
 
@@ -52,8 +51,12 @@ func (c *Controller) Name() string {
 	return "machine-node-labels"
 }
 
-// Reconcile executes a machine hydration loop for existing nodes
+// Reconcile executes reconciling the node labels and annotations to match the machine labels and annotations
 func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Result, error) {
+	// TODO joinnis: Re-enable this feature flag before merging this into the repo
+	//if !settings.FromContext(ctx).MachineEnabled {
+	//	return reconcile.Result{RequeueAfter: time.Minute}, nil
+	//}
 	if node.Spec.ProviderID == "" {
 		return reconcile.Result{}, nil
 	}
@@ -69,10 +72,8 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 		return reconcile.Result{}, nil
 	}
 	machine := machineList.Items[0]
-	node.Labels = lo.Assign(node.Labels, map[string]string{
-		v1alpha5.MachineNameLabelKey:     machine.Name,
-		v1alpha5.ProvisionerNameLabelKey: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
-	})
+	node.Labels = lo.Assign(node.Labels, machine.Labels)
+	node.Annotations = lo.Assign(node.Annotations, machine.Annotations)
 	return reconcile.Result{}, nil
 }
 
@@ -81,7 +82,6 @@ func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontrol
 		NewControllerManagedBy(m).
 		For(&v1.Node{}).
 		Watches(
-			// Reconcile node when a pod assigned to it changes.
 			&source.Kind{Type: &v1alpha1.Machine{}},
 			handler.EnqueueRequestsFromMapFunc(func(o client.Object) (requests []reconcile.Request) {
 				if id := o.(*v1alpha1.Machine).Status.ProviderID; id != "" {

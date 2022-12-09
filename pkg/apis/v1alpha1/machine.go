@@ -18,7 +18,6 @@ import (
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -79,8 +78,9 @@ type MachineList struct {
 func MachineFromNode(node *v1.Node) *Machine {
 	m := &Machine{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        node.Name,
-			Annotations: node.Annotations,
+			Annotations: lo.Assign(node.Annotations, map[string]string{
+				v1alpha5.MachineHydratedAnnotationKey: "true",
+			}),
 			Labels: lo.Assign(node.Labels, map[string]string{
 				v1alpha5.NodeNameLabelKey: node.Name,
 			}),
@@ -103,6 +103,13 @@ func MachineFromNode(node *v1.Node) *Machine {
 	if _, ok := node.Annotations[v1alpha5.VoluntaryDisruptionAnnotationKey]; ok {
 		m.StatusConditions().MarkTrueWithReason(MachineVoluntarilyDisrupted, DriftedDisruptionReason, "Machine has drifted from desired state")
 	}
-	controllerutil.AddFinalizer(m, v1alpha5.TerminationFinalizer)
+	if _, ok := node.Annotations[v1alpha5.LabelNodeInitialized]; ok {
+		m.StatusConditions().MarkTrue(MachineInitialized)
+		m.StatusConditions().MarkTrue(MachineHealthy)
+	}
+	m.StatusConditions().MarkTrue(MachineCreated)
+	m.StatusConditions().MarkTrue(MachineRegistered)
+	// TODO joinnis: Add back the finalizer. We don't have anything handling this right now so we don't want to add this in yet.
+	//controllerutil.AddFinalizer(m, v1alpha5.TerminationFinalizer)
 	return m
 }

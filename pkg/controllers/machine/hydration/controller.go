@@ -55,6 +55,11 @@ func (c *Controller) Name() string {
 
 // Reconcile executes a machine hydration loop for existing nodes
 func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Result, error) {
+	// TODO joinnis: Re-enable this feature flag before merging this into the repo
+	//if !settings.FromContext(ctx).MachineEnabled {
+	//	return reconcile.Result{RequeueAfter: time.Minute}, nil
+	//}
+
 	// If the node has already propagated a machine label, we know that it already has a Machine corresponding to it
 	// If there is a provisioner name label without the machine label, we know that this node needs to be hydrated. This
 	// is because we rely on the fact that these labels will be added at the same time in the node label reconciliation flow.
@@ -77,6 +82,7 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 	var machine *v1alpha1.Machine
 	if len(machineList.Items) == 0 {
 		machine = v1alpha1.MachineFromNode(node)
+		machine.GenerateName = provisioner.Name
 		machine.Spec.Kubelet = provisioner.Spec.KubeletConfiguration
 		machine.Labels = lo.Assign(machine.Labels, map[string]string{
 			v1alpha5.MachineHydratedAnnotationKey: "true",
@@ -102,6 +108,10 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 		logging.FromContext(ctx).Errorf("more than one machine (%d machines) maps to this node", len(machineList.Items))
 		return reconcile.Result{}, nil
 	}
+	machine.Labels = lo.Assign(machine.Labels, map[string]string{
+		v1alpha5.MachineNameLabelKey: machine.Name,
+	})
+	if 
 	statusCopy := machine.DeepCopy()
 	statusCopy.Status = v1alpha1.MachineFromNode(node).Status
 	if err := c.kubeClient.Status().Patch(ctx, statusCopy, client.MergeFrom(machine)); err != nil {

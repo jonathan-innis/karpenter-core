@@ -39,13 +39,15 @@ var defaultSettings = Settings{
 	BatchMaxDuration:  metav1.Duration{Duration: time.Second * 10},
 	BatchIdleDuration: metav1.Duration{Duration: time.Second * 1},
 	DriftEnabled:      false,
+	MachineEnabled:    false,
 }
 
 type Settings struct {
-	BatchMaxDuration  metav1.Duration
-	BatchIdleDuration metav1.Duration
+	BatchMaxDuration  metav1.Duration `validate:"required,min=0s"`
+	BatchIdleDuration metav1.Duration `validate:"required,min=0s"`
 	// This feature flag is temporary and will be removed in the near future.
-	DriftEnabled bool
+	DriftEnabled   bool
+	MachineEnabled bool
 }
 
 // NewSettingsFromConfigMap creates a Settings from the supplied ConfigMap
@@ -56,6 +58,7 @@ func NewSettingsFromConfigMap(cm *v1.ConfigMap) (Settings, error) {
 		AsMetaDuration("batchMaxDuration", &s.BatchMaxDuration),
 		AsMetaDuration("batchIdleDuration", &s.BatchIdleDuration),
 		configmap.AsBool("featureGates.driftEnabled", &s.DriftEnabled),
+		configmap.AsBool("featureGates.machineEnabled", &s.MachineEnabled),
 	); err != nil {
 		// Failing to parse means that there is some error in the Settings, so we should crash
 		panic(fmt.Sprintf("parsing settings, %v", err))
@@ -75,12 +78,6 @@ func NewSettingsFromConfigMap(cm *v1.ConfigMap) (Settings, error) {
 //	}
 func (s Settings) Validate() (err error) {
 	validate := validator.New()
-	if s.BatchMaxDuration.Duration <= 0 {
-		err = multierr.Append(err, fmt.Errorf("batchMaxDuration cannot be negative"))
-	}
-	if s.BatchIdleDuration.Duration <= 0 {
-		err = multierr.Append(err, fmt.Errorf("batchMaxDuration cannot be negative"))
-	}
 	return multierr.Append(err, validate.Struct(s))
 }
 
