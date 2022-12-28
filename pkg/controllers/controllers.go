@@ -68,5 +68,6 @@ func NewControllers(
 		metricsprovisioner.NewController(kubeClient),
 		counter.NewController(kubeClient, cluster),
 		inflightchecks.NewController(clock, kubeClient, eventRecorder, cloudProvider),
+		machinehydration.NewController(),
 	}
 }
