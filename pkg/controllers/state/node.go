@@ -36,7 +36,8 @@ import (
 // compute topology information.
 // +k8s:deepcopy-gen=true
 type Node struct {
-	Node *v1.Node
+	Node    *v1.Node
+	Machine *v1alpha5.Machine
 
 	inflightAllocatable v1.ResourceList // TODO @joinnis: This can be removed when machine is added
 	inflightCapacity    v1.ResourceList // TODO @joinnis: This can be removed when machine is added

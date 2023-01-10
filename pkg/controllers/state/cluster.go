@@ -36,6 +36,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	podutils "github.com/aws/karpenter-core/pkg/utils/pod"
+	"github.com/aws/karpenter-core/pkg/utils/sets"
 )
 
 // Cluster maintains cluster state that is often needed but expensive to compute.
@@ -66,6 +67,31 @@ func NewCluster(clk clock.Clock, client client.Client, cp cloudprovider.CloudPro
 		bindings:         map[types.NamespacedName]string{},
 		nameToProviderID: map[string]string{},
 	}
+}
+
+// Synced determines if the cluster state nodes contain all the machines that have been created from the provisioning loop
+// This sync call is to ensure that all provider ids and allocatable/capacity is resolved and known in the cluster state
+// before continuing on to performing provisioning/deprovisioning
+func (c *Cluster) Synced(ctx context.Context) error {
+	machineList := &v1alpha5.MachineList{}
+	if err := c.kubeClient.List(ctx, machineList); err != nil {
+		return err
+	}
+	// These are the machines that we know about from the LIST cache at the api-server
+	existingUIDs := sets.New[string](lo.Map(machineList.Items, func(m v1alpha5.Machine, _ int) string {
+		return string(m.UID)
+	})...)
+	// These are the machines that we know about in the internal cluster state
+	c.ForEachNode(func(n *Node) bool {
+		if n.Machine != nil {
+			existingUIDs.Delete(string(n.Machine.UID))
+		}
+		return true
+	})
+	if existingUIDs.Len() > 0 {
+		return fmt.Errorf("%d machines have not synced with the cluster state", existingUIDs.Len())
+	}
+	return nil
 }
 
 // ForPodsWithAntiAffinity calls the supplied function once for each pod with required anti affinity terms that is
