@@ -24,9 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
-
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+
 	"github.com/aws/karpenter-core/pkg/utils/node"
 	"github.com/aws/karpenter-core/pkg/utils/resources"
 )
@@ -45,7 +44,7 @@ func (r *Initialization) Reconcile(ctx context.Context, provisioner *v1alpha5.Pr
 
 	// node is not ready per the label, we need to check if kubelet indicates that the node is ready as well as if
 	// startup taints are removed and extended resources have been initialized
-	instanceType, err := r.getInstanceType(ctx, provisioner, n.Labels[v1.LabelInstanceTypeStable])
+	instanceType, err := r.getInstanceType(ctx, n.Labels[v1.LabelInstanceTypeStable])
 	if err != nil {
 		return reconcile.Result{}, fmt.Errorf("determining instance type, %w", err)
 	}
@@ -57,9 +56,8 @@ func (r *Initialization) Reconcile(ctx context.Context, provisioner *v1alpha5.Pr
 	return reconcile.Result{}, nil
 }
 
-func (r *Initialization) getInstanceType(ctx context.Context, provisioner *v1alpha5.Provisioner, instanceTypeName string) (*cloudprovider.InstanceType, error) {
+func (r *Initialization) getInstanceType(ctx context.Context, instanceTypeName string) (*cloudprovider.InstanceType, error) {
 	instanceTypes, err := r.cloudProvider.GetInstanceTypes(ctx)
-	instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, provisioner)
 	if err != nil {
 		return nil, err
 	}

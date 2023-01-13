@@ -99,20 +99,6 @@ func NewInstanceType(options InstanceTypeOptions) *cloudprovider.InstanceType {
 		Requirements: requirements,
 		Offerings:    options.Offerings,
 		Capacity:     options.Resources,
-		Overhead: &cloudprovider.InstanceTypeOverhead{
-			KubeReserved: v1.ResourceList{
-				v1.ResourceCPU:    resource.MustParse("100m"),
-				v1.ResourceMemory: resource.MustParse("10Mi"),
-			},
-			SystemReserved: v1.ResourceList{
-				v1.ResourceCPU:              resource.MustParse("100m"),
-				v1.ResourceMemory:           resource.MustParse("100Mi"),
-				v1.ResourceEphemeralStorage: resource.MustParse("1Gi"),
-			},
-			EvictionHardThreshold: v1.ResourceList{
-				v1.ResourceMemory: resource.MustParse("100Mi"),
-			},
-		},
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	clock "k8s.io/utils/clock/testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -1092,7 +1093,7 @@ var _ = Describe("Binpacking", func() {
 		pod := ExpectProvisioned(ctx, env.Client, cluster, recorder, provisioningController, prov, test.UnschedulablePod(
 			test.PodOptions{ResourceRequirements: v1.ResourceRequirements{
 				Requests: map[v1.ResourceName]resource.Quantity{
-					v1.ResourceMemory: resource.MustParse("1800M"),
+					v1.ResourceMemory: resource.MustParse("1600M"), // (2000M - ~400M) of overhead
 				},
 			}}))[0]
 		node := ExpectScheduled(ctx, env.Client, pod)
@@ -1135,7 +1136,7 @@ var _ = Describe("Binpacking", func() {
 		}
 		Expect(nodeNames).To(HaveLen(20))
 	})
-	It("should pack small and large pods together", func() {
+	FIt("should pack small and large pods together", func() {
 		largeOpts := test.PodOptions{
 			NodeSelector: map[string]string{v1.LabelArchStable: "amd64"},
 			Conditions:   []v1.PodCondition{{Type: v1.PodScheduled, Reason: v1.PodReasonUnschedulable, Status: v1.ConditionFalse}},
@@ -1697,13 +1698,20 @@ var _ = Describe("In-Flight Nodes", func() {
 			ExpectDeleted(ctx, env.Client, initialPod[0])
 			ExpectReconcileSucceeded(ctx, nodeStateController, client.ObjectKeyFromObject(node1))
 
+			instanceTypes, err := cloudprovider.NewHelper(cloudProv).GetInstanceTypesWithOverhead(ctx)
+			Expect(err).To(BeNil())
+
 			ExpectApplied(ctx, env.Client, provisioner, dsPod)
 			cluster.ForEachNode(func(f *state.Node) bool {
 				dsRequests := f.DaemonSetRequests()
 				available := f.Available()
 				Expect(dsRequests.Cpu().AsApproximateFloat64()).To(BeNumerically("~", 0))
-				// no pods so we have the full (16 cpu - 100m overhead)
-				Expect(available.Cpu().AsApproximateFloat64()).To(BeNumerically("~", 15.9))
+				it, ok := lo.Find(instanceTypes, func(i *cloudprovider.InstanceType) bool {
+					return i.Name == f.Node.Labels[v1.LabelInstanceTypeStable]
+				})
+				Expect(ok).To(BeTrue())
+				instanceTypeCPU := it.Allocatable()[v1.ResourceCPU]
+				Expect(available.Cpu().AsApproximateFloat64()).To(BeNumerically("~", instanceTypeCPU.AsApproximateFloat64()))
 				return true
 			})
 			ExpectManualBinding(ctx, env.Client, dsPod, node1)

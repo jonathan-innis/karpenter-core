@@ -34,7 +34,6 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	podutils "github.com/aws/karpenter-core/pkg/utils/pod"
 )
@@ -42,7 +41,7 @@ import (
 // Cluster maintains cluster state that is often needed but expensive to compute.
 type Cluster struct {
 	kubeClient    client.Client
-	cloudProvider cloudprovider.CloudProvider
+	cloudProvider *cloudprovider.Helper
 	clock         clock.Clock
 
 	mu               sync.RWMutex
@@ -62,7 +61,7 @@ func NewCluster(clk clock.Clock, client client.Client, cp cloudprovider.CloudPro
 	return &Cluster{
 		clock:            clk,
 		kubeClient:       client,
-		cloudProvider:    cp,
+		cloudProvider:    cloudprovider.NewHelper(cp),
 		nodes:            map[string]*Node{},
 		bindings:         map[types.NamespacedName]string{},
 		nameToProviderID: map[string]string{},
@@ -275,11 +274,10 @@ func (c *Cluster) populateInflight(ctx context.Context, n *Node) error {
 	if err := c.kubeClient.Get(ctx, client.ObjectKey{Name: n.Node.Labels[v1alpha5.ProvisionerNameLabelKey]}, provisioner); err != nil {
 		return client.IgnoreNotFound(fmt.Errorf("getting provisioner, %w", err))
 	}
-	instanceTypes, err := c.cloudProvider.GetInstanceTypes(ctx)
+	instanceTypes, err := c.cloudProvider.GetInstanceTypesWithKubelet(ctx, provisioner.Spec.KubeletConfiguration)
 	if err != nil {
 		return err
 	}
-	instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, provisioner)
 	instanceType, ok := lo.Find(instanceTypes, func(it *cloudprovider.InstanceType) bool { return it.Name == n.Node.Labels[v1.LabelInstanceTypeStable] })
 	if !ok {
 		return fmt.Errorf("instance type '%s' not found", n.Node.Labels[v1.LabelInstanceTypeStable])

@@ -23,18 +23,17 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/cloudprovider/overlay"
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 )
 
 // NodeShape detects nodes that have launched with 10% or less of any resource than was expected.
 type NodeShape struct {
-	provider cloudprovider.CloudProvider
+	provider *cloudprovider.Helper
 }
 
 func NewNodeShape(provider cloudprovider.CloudProvider) Check {
 	return &NodeShape{
-		provider: provider,
+		provider: cloudprovider.NewHelper(provider),
 	}
 }
 
@@ -47,12 +46,10 @@ func (n *NodeShape) Check(ctx context.Context, node *v1.Node, provisioner *v1alp
 	if node.Labels[v1alpha5.LabelNodeInitialized] != "true" {
 		return nil, nil
 	}
-
-	instanceTypes, err := n.provider.GetInstanceTypes(ctx)
+	instanceTypes, err := n.provider.GetInstanceTypesWithKubelet(ctx, provisioner.Spec.KubeletConfiguration)
 	if err != nil {
 		return nil, err
 	}
-	instanceTypes = overlay.WithProvisionerOverrides(instanceTypes, provisioner)
 
 	instanceType, ok := lo.Find(instanceTypes, func(it *cloudprovider.InstanceType) bool { return it.Name == node.Labels[v1.LabelInstanceTypeStable] })
 	if !ok {

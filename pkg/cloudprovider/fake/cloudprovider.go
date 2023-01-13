@@ -72,7 +72,7 @@ func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (
 	c.mu.Unlock()
 
 	requirements := scheduling.NewNodeSelectorRequirements(machine.Spec.Requirements...)
-	instanceTypes := lo.Filter(lo.Must(c.GetInstanceTypes(ctx, &v1alpha5.Provisioner{})), func(i *cloudprovider.InstanceType, _ int) bool {
+	instanceTypes := lo.Filter(lo.Must(c.GetInstanceTypes(ctx)), func(i *cloudprovider.InstanceType, _ int) bool {
 		return requirements.Get(v1.LabelInstanceTypeStable).Has(i.Name)
 	})
 	// Order instance types so that we get the cheapest instance types of the available offerings

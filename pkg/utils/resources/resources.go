@@ -130,6 +130,24 @@ func IsZero(r resource.Quantity) bool {
 	return r.IsZero()
 }
 
+func Sum(quantities ...resource.Quantity) resource.Quantity {
+	res := resource.Quantity{}
+	for _, q := range quantities {
+		res.Add(q)
+	}
+	return res
+}
+
+func Max(quantities ...resource.Quantity) resource.Quantity {
+	res := quantities[0].DeepCopy()
+	for _, q := range quantities {
+		if Cmp(q, res) == 1 {
+			res = q.DeepCopy()
+		}
+	}
+	return res
+}
+
 func Cmp(lhs resource.Quantity, rhs resource.Quantity) int {
 	return lhs.Cmp(rhs)
 }

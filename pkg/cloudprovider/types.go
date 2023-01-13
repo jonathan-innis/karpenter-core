@@ -81,7 +81,7 @@ type InstanceType struct {
 	Capacity v1.ResourceList
 	// Overhead is the amount of resource overhead expected to be used by kubelet and any other system daemons outside
 	// of Kubernetes.
-	Overhead *InstanceTypeOverhead
+	Overhead InstanceTypeOverhead
 }
 
 func (i *InstanceType) Allocatable() v1.ResourceList {

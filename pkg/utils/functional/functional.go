@@ -15,6 +15,8 @@ limitations under the License.
 package functional
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -63,4 +65,12 @@ func Unmarshal[T any](raw []byte) (*T, error) {
 		return nil, err
 	}
 	return &t, nil
+}
+
+func ParsePercentage(v string) (float64, error) {
+	p, err := strconv.ParseFloat(strings.Trim(v, "%"), 64)
+	if err != nil {
+		return 0, fmt.Errorf("expected percentage value to be a float but got %s, %w", v, err)
+	}
+	return p, nil
 }

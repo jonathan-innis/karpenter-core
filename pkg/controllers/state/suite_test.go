@@ -27,6 +27,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis"
 	"github.com/aws/karpenter-core/pkg/apis/config/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/state/informer"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
@@ -103,7 +104,9 @@ var _ = Describe("In-flight Nodes", func() {
 		ExpectResources(instanceType.Capacity, ExpectStateNodeExists(node).Capacity())
 	})
 	It("should consider the node capacity/allocatable as a combination of instance type and current node", func() {
-		instanceType := cloudProvider.InstanceTypes[0]
+		instanceTypes, err := cloudprovider.NewHelper(cloudProvider).GetInstanceTypesWithKubelet(ctx, provisioner.Spec.KubeletConfiguration)
+		Expect(err).To(BeNil())
+		instanceType := instanceTypes[0]
 		node := test.Node(test.NodeOptions{
 			ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
 				v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -120,8 +123,8 @@ var _ = Describe("In-flight Nodes", func() {
 		ExpectReconcileSucceeded(ctx, nodeController, client.ObjectKeyFromObject(node))
 		ExpectResources(v1.ResourceList{
 			v1.ResourceMemory:           resource.MustParse("100Mi"), // pulled from the node's real allocatable
-			v1.ResourceCPU:              *instanceType.Capacity.Cpu(),
-			v1.ResourceEphemeralStorage: *instanceType.Capacity.StorageEphemeral(),
+			v1.ResourceCPU:              instanceType.Allocatable()[v1.ResourceCPU],
+			v1.ResourceEphemeralStorage: instanceType.Allocatable()[v1.ResourceEphemeralStorage],
 		}, ExpectStateNodeExists(node).Allocatable())
 		ExpectResources(v1.ResourceList{
 			v1.ResourceMemory:           *instanceType.Capacity.Memory(),
