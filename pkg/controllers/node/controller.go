@@ -51,7 +51,6 @@ type Controller struct {
 	kubeClient client.Client
 	cluster    *state.Cluster
 	emptiness  *Emptiness
-	drift      *Drift
 }
 
 // NewController constructs a nodeController instance
@@ -60,7 +59,6 @@ func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider clou
 		kubeClient: kubeClient,
 		cluster:    cluster,
 		emptiness:  &Emptiness{kubeClient: kubeClient, clock: clk, cluster: cluster},
-		drift:      &Drift{kubeClient: kubeClient, cloudProvider: cloudProvider},
 	})
 }
 
@@ -90,7 +88,6 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 		Reconcile(context.Context, *v1alpha5.Provisioner, *v1.Node) (reconcile.Result, error)
 	}{
 		c.emptiness,
-		c.drift,
 	} {
 		res, err := reconciler.Reconcile(ctx, provisioner, node)
 		errs = multierr.Append(errs, err)
