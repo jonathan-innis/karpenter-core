@@ -19,28 +19,24 @@ import (
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-const (
-	nodeSubsystem = "nodes"
-)
-
 var (
-	NodesCreatedCounter = prometheus.NewCounterVec(
+	MachinesCreatedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: nodeSubsystem,
+			Subsystem: "machines",
 			Name:      "created",
-			Help:      "Number of nodes created in total by Karpenter. Labeled by reason the node was created.",
+			Help:      "Number of nodes created in total by Karpenter. Labeled by reason the machine was created.",
 		},
 		[]string{
 			"reason",
 		},
 	)
-	NodesTerminatedCounter = prometheus.NewCounterVec(
+	MachinesTerminatedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: nodeSubsystem,
+			Subsystem: "machines",
 			Name:      "terminated",
-			Help:      "Number of nodes terminated in total by Karpenter. Labeled by reason the node was terminated.",
+			Help:      "Number of machines terminated in total by Karpenter. Labeled by reason the machine was terminated.",
 		},
 		[]string{
 			"reason",
@@ -49,5 +45,5 @@ var (
 )
 
 func MustRegister() {
-	crmetrics.Registry.MustRegister(NodesCreatedCounter, NodesTerminatedCounter)
+	crmetrics.Registry.MustRegister(MachinesCreatedCounter, MachinesTerminatedCounter)
 }

@@ -53,20 +53,20 @@ func NewExpiration(clk clock.Clock, kubeClient client.Client, cluster *state.Clu
 }
 
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
-func (e *Expiration) ShouldDeprovision(ctx context.Context, n *state.Node, provisioner *v1alpha5.Provisioner, nodePods []*v1.Pod) bool {
-	return e.clock.Now().After(getExpirationTime(n.Node, provisioner))
+func (e *Expiration) ShouldDeprovision(ctx context.Context, c *CandidateNode) bool {
+	return e.clock.Now().After(getExpirationTime(c.Node.Node, c.provisioner))
 }
 
 // SortCandidates orders expired nodes by when they've expired
-func (e *Expiration) SortCandidates(nodes []CandidateNode) []CandidateNode {
+func (e *Expiration) SortCandidates(nodes []*CandidateNode) []*CandidateNode {
 	sort.Slice(nodes, func(i int, j int) bool {
-		return getExpirationTime(nodes[i].Node, nodes[i].provisioner).Before(getExpirationTime(nodes[j].Node, nodes[j].provisioner))
+		return getExpirationTime(nodes[i].Node.Node, nodes[i].provisioner).Before(getExpirationTime(nodes[j].Node.Node, nodes[j].provisioner))
 	})
 	return nodes
 }
 
 // ComputeCommand generates a deprovisioning command given deprovisionable nodes
-func (e *Expiration) ComputeCommand(ctx context.Context, candidates ...CandidateNode) (Command, error) {
+func (e *Expiration) ComputeCommand(ctx context.Context, candidates ...*CandidateNode) (Command, error) {
 	candidates = e.SortCandidates(candidates)
 	pdbs, err := NewPDBLimits(ctx, e.kubeClient)
 	if err != nil {
@@ -80,7 +80,7 @@ func (e *Expiration) ComputeCommand(ctx context.Context, candidates ...Candidate
 		}
 
 		// Check if we need to create any nodes.
-		newNodes, allPodsScheduled, err := simulateScheduling(ctx, e.kubeClient, e.cluster, e.provisioner, candidate)
+		newMachines, allPodsScheduled, err := simulateScheduling(ctx, e.kubeClient, e.cluster, e.provisioner, candidate)
 		if err != nil {
 			// if a candidate node is now deleting, just retry
 			if errors.Is(err, errCandidateNodeDeleting) {
@@ -94,19 +94,11 @@ func (e *Expiration) ComputeCommand(ctx context.Context, candidates ...Candidate
 		}
 
 		logging.FromContext(ctx).With("expirationTTL", time.Duration(ptr.Int64Value(candidates[0].provisioner.Spec.TTLSecondsUntilExpired))*time.Second).
-			With("delay", time.Since(getExpirationTime(candidates[0].Node, candidates[0].provisioner))).Infof("triggering termination for expired node after TTL")
-
-		// were we able to schedule all the pods on the inflight nodes?
-		if len(newNodes) == 0 {
-			return Command{
-				nodesToRemove: []*v1.Node{candidate.Node},
-				action:        actionDelete,
-			}, nil
-		}
+			With("delay", time.Since(getExpirationTime(candidates[0].Node.Node, candidates[0].provisioner))).Infof("triggering termination for expired node after TTL")
 		return Command{
-			nodesToRemove:    []*v1.Node{candidate.Node},
-			action:           actionReplace,
-			replacementNodes: newNodes,
+			nodesToRemove:       []*CandidateNode{candidate},
+			action:              actionReplace,
+			replacementMachines: newMachines,
 		}, nil
 	}
 	return Command{action: actionDoNothing}, nil

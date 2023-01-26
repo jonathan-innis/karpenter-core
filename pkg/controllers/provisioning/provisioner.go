@@ -120,8 +120,8 @@ func (p *Provisioner) Reconcile(ctx context.Context, _ reconcile.Request) (resul
 	machineNames, err := p.LaunchMachines(ctx, machines, RecordPodNomination)
 
 	// Any successfully created node is going to have the nodeName value filled in the slice
-	successfullyCreatedNodeCount := lo.CountBy(machineNames, func(name string) bool { return name != "" })
-	metrics.NodesCreatedCounter.WithLabelValues(metrics.ProvisioningReason).Add(float64(successfullyCreatedNodeCount))
+	successfullyCreatedMachineCount := lo.CountBy(machineNames, func(name string) bool { return name != "" })
+	metrics.MachinesCreatedCounter.WithLabelValues(metrics.ProvisioningReason).Add(float64(successfullyCreatedMachineCount))
 
 	return reconcile.Result{}, err
 }
@@ -302,24 +302,24 @@ func (p *Provisioner) Schedule(ctx context.Context) ([]*scheduler.Machine, []*sc
 	return scheduler.Solve(ctx, pods)
 }
 
-func (p *Provisioner) Launch(ctx context.Context, machine *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {
+func (p *Provisioner) Launch(ctx context.Context, m *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {
 	// Check limits
 	latest := &v1alpha5.Provisioner{}
-	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: node.ProvisionerName}, latest); err != nil {
+	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: m.ProvisionerName}, latest); err != nil {
 		return "", fmt.Errorf("getting current resource usage, %w", err)
 	}
 	if err := latest.Spec.Limits.ExceededBy(latest.Status.Resources); err != nil {
 		return "", err
 	}
 
-	logging.FromContext(ctx).Infof("launching %s", node)
-	machine := node.ToMachine(latest)
+	logging.FromContext(ctx).Infof("launching %s", m)
+	machine := m.ToMachine(latest)
 	if err := p.kubeClient.Create(ctx, machine); err != nil {
 		return "", err
 	}
 	p.cluster.NominateNodeForPod(ctx, machine.Name)
 	if functional.ResolveOptions(opts...).RecordPodNomination {
-		for _, pod := range node.Pods {
+		for _, pod := range m.Pods {
 			p.recorder.Publish(events.NominatePodForMachine(pod, machine))
 		}
 	}

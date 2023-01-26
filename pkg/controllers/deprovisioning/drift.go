@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
 	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,16 +46,16 @@ func NewDrift(kubeClient client.Client, cluster *state.Cluster, provisioner *pro
 }
 
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
-func (d *Drift) ShouldDeprovision(ctx context.Context, n *state.Node, provisioner *v1alpha5.Provisioner, nodePods []*v1.Pod) bool {
+func (d *Drift) ShouldDeprovision(ctx context.Context, c *CandidateNode) bool {
 	// Look up the feature flag to see if we should deprovision the node because of drift.
 	if !settings.FromContext(ctx).DriftEnabled {
 		return false
 	}
-	return n.Annotations()[v1alpha5.VoluntaryDisruptionAnnotationKey] == v1alpha5.VoluntaryDisruptionDriftedAnnotationValue
+	return c.Node.Annotations()[v1alpha5.VoluntaryDisruptionAnnotationKey] == v1alpha5.VoluntaryDisruptionDriftedAnnotationValue
 }
 
 // ComputeCommand generates a deprovisioning command given deprovisionable nodes
-func (d *Drift) ComputeCommand(ctx context.Context, candidates ...CandidateNode) (Command, error) {
+func (d *Drift) ComputeCommand(ctx context.Context, candidates ...*CandidateNode) (Command, error) {
 	pdbs, err := NewPDBLimits(ctx, d.kubeClient)
 	if err != nil {
 		return Command{}, fmt.Errorf("tracking PodDisruptionBudgets, %w", err)
@@ -69,7 +68,7 @@ func (d *Drift) ComputeCommand(ctx context.Context, candidates ...CandidateNode)
 		}
 
 		// Check if we need to create any nodes.
-		newNodes, allPodsScheduled, err := simulateScheduling(ctx, d.kubeClient, d.cluster, d.provisioner, candidate)
+		newMachines, allPodsScheduled, err := simulateScheduling(ctx, d.kubeClient, d.cluster, d.provisioner, candidate)
 		if err != nil {
 			// if a candidate node is now deleting, just retry
 			if errors.Is(err, errCandidateNodeDeleting) {
@@ -79,19 +78,12 @@ func (d *Drift) ComputeCommand(ctx context.Context, candidates ...CandidateNode)
 		}
 		// Log when all pods can't schedule, as the command will get executed immediately.
 		if !allPodsScheduled {
-			logging.FromContext(ctx).With("node", candidate.Name).Debug("Continuing to terminate drifted node after scheduling simulation failed to schedule all pods")
-		}
-		// were we able to schedule all the pods on the inflight nodes?
-		if len(newNodes) == 0 {
-			return Command{
-				nodesToRemove: []*v1.Node{candidate.Node},
-				action:        actionDelete,
-			}, nil
+			logging.FromContext(ctx).With("node", candidate.Name()).Debug("Continuing to terminate drifted node after scheduling simulation failed to schedule all pods")
 		}
 		return Command{
-			nodesToRemove:    []*v1.Node{candidate.Node},
-			action:           actionReplace,
-			replacementNodes: newNodes,
+			nodesToRemove:       []*CandidateNode{candidate},
+			action:              actionReplace,
+			replacementMachines: newMachines,
 		}, nil
 	}
 	return Command{action: actionDoNothing}, nil
