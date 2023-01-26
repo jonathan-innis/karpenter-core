@@ -305,20 +305,24 @@ func (p *Provisioner) Schedule(ctx context.Context) ([]*scheduler.Machine, []*sc
 func (p *Provisioner) Launch(ctx context.Context, machine *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {
 	// Check limits
 	latest := &v1alpha5.Provisioner{}
-	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: m.ProvisionerName}, latest); err != nil {
+	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: node.ProvisionerName}, latest); err != nil {
 		return "", fmt.Errorf("getting current resource usage, %w", err)
 	}
 	if err := latest.Spec.Limits.ExceededBy(latest.Status.Resources); err != nil {
 		return "", err
 	}
 
-	logging.FromContext(ctx).Infof("launching %s", m)
-	machine := m.ToMachine(latest)
+	logging.FromContext(ctx).Infof("launching %s", node)
+	machine := node.ToMachine(latest)
 	if err := p.kubeClient.Create(ctx, machine); err != nil {
 		return "", err
 	}
-	// TODO @joinnis: Consider storing pod nomination events on the machine
 	p.cluster.NominateNodeForPod(ctx, machine.Name)
+	if functional.ResolveOptions(opts...).RecordPodNomination {
+		for _, pod := range node.Pods {
+			p.recorder.Publish(events.NominatePodForMachine(pod, machine))
+		}
+	}
 	return machine.Name, nil
 }
 
