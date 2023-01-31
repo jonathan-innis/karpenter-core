@@ -117,6 +117,7 @@ func (p *Provisioner) Reconcile(ctx context.Context, _ reconcile.Request) (resul
 	if len(machines) == 0 {
 		return reconcile.Result{}, nil
 	}
+	// TODO @joinnis: Change this metric to be machine names so that we are tracking the correct thing here
 	machineNames, err := p.LaunchMachines(ctx, machines, RecordPodNomination)
 
 	// Any successfully created node is going to have the nodeName value filled in the slice
