@@ -66,7 +66,7 @@ var _ = BeforeSuite(func() {
 	}))
 	ctx = settings.ToContext(ctx, test.Settings())
 
-	cloudProvider = fake.NewCloudProvider()
+	cloudProvider = fake.NewCloudProvider(env.Client)
 	terminator := terminator.NewTerminator(fakeClock, env.Client, cloudProvider, terminator.NewEvictionQueue(ctx, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{})))
 	machineController = machine.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
 })
@@ -76,8 +76,9 @@ var _ = AfterSuite(func() {
 })
 
 var _ = Describe("Controller", func() {
+	var provisioner *v1alpha5.Provisioner
 	BeforeEach(func() {
-		ctx = settings.ToContext(ctx, test.Settings())
+		provisioner = test.Provisioner()
 	})
 	AfterEach(func() {
 		fakeClock.SetTime(time.Now())
@@ -87,8 +88,14 @@ var _ = Describe("Controller", func() {
 
 	Context("Finalizer", func() {
 		It("should add the finalizer if it doesn't exist", func() {
-			machine := test.Machine()
-			ExpectApplied(ctx, env.Client, machine)
+			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
+			})
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
 			machine = ExpectExists(ctx, env.Client, machine)
@@ -100,8 +107,14 @@ var _ = Describe("Controller", func() {
 	})
 	Context("Launch", func() {
 		It("should launch an instance when a new Machine is created", func() {
-			machine := test.Machine()
-			ExpectApplied(ctx, env.Client, machine)
+			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
+			})
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
 			Expect(cloudProvider.CreateCalls).To(HaveLen(1))
@@ -110,7 +123,14 @@ var _ = Describe("Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("should get an instance and hydrate the Machine when the Machine is already created", func() {
-			machine := test.Machine()
+			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
+			})
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			cloudProviderMachine := &v1alpha5.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: machine.Name,
@@ -136,7 +156,6 @@ var _ = Describe("Controller", func() {
 				},
 			}
 			cloudProvider.CreatedMachines[machine.Name] = cloudProviderMachine
-			ExpectApplied(ctx, env.Client, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
 			machine = ExpectExists(ctx, env.Client, machine)
@@ -151,8 +170,14 @@ var _ = Describe("Controller", func() {
 			Expect(machine.Labels).To(HaveKeyWithValue(v1alpha5.LabelCapacityType, v1alpha5.CapacityTypeSpot))
 		})
 		It("should add the MachineCreated status condition after creating the Machine", func() {
-			machine := test.Machine()
-			ExpectApplied(ctx, env.Client, machine)
+			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
+			})
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
 			machine = ExpectExists(ctx, env.Client, machine)
@@ -161,8 +186,14 @@ var _ = Describe("Controller", func() {
 	})
 	Context("Registration", func() {
 		It("should match the Machine to the Node when the Node comes online", func() {
-			machine := test.Machine()
-			ExpectApplied(ctx, env.Client, machine)
+			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
+			})
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -174,8 +205,14 @@ var _ = Describe("Controller", func() {
 			Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		})
 		It("should add the owner reference to the Node when the Node comes online", func() {
-			machine := test.Machine()
-			ExpectApplied(ctx, env.Client, machine)
+			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
+			})
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -190,12 +227,13 @@ var _ = Describe("Controller", func() {
 			machine := test.Machine(v1alpha5.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"custom-label":       "custom-value",
-						"other-custom-label": "other-custom-value",
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+						"custom-label":                   "custom-value",
+						"other-custom-label":             "other-custom-value",
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 			Expect(machine.Labels).To(HaveKeyWithValue("custom-label", "custom-value"))
@@ -214,13 +252,16 @@ var _ = Describe("Controller", func() {
 		It("should sync the annotations to the Node when the Node comes online", func() {
 			machine := test.Machine(v1alpha5.Machine{
 				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
 					Annotations: map[string]string{
 						v1alpha5.DoNotConsolidateNodeAnnotationKey: "true",
 						"my-custom-annotation":                     "my-custom-value",
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 			Expect(machine.Annotations).To(HaveKeyWithValue(v1alpha5.DoNotConsolidateNodeAnnotationKey, "true"))
@@ -238,6 +279,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should sync the taints to the Node when the Node comes online", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Taints: []v1.Taint{
 						{
@@ -253,7 +299,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 			Expect(machine.Spec.Taints).To(ContainElements(
@@ -289,6 +335,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should sync the startupTaints to the Node when the Node comes online", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Taints: []v1.Taint{
 						{
@@ -316,7 +367,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 			Expect(machine.Spec.StartupTaints).To(ContainElements(
@@ -362,6 +413,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should not re-sync the startupTaints to the Node when the startupTaints are removed", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					StartupTaints: []v1.Taint{
 						{
@@ -377,7 +433,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -409,6 +465,11 @@ var _ = Describe("Controller", func() {
 	Context("Initialization", func() {
 		It("should consider the Machine initialized when all initialization conditions are met", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -419,7 +480,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -453,6 +514,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should add the initialization label to the node when the Machine is initialized", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -463,7 +529,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -488,6 +554,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should not consider the Node to be initialized when the status of the Node is NotReady", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -498,7 +569,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -525,6 +596,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should not consider the Node to be initialized when all requested resources aren't registered", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -536,7 +612,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -568,6 +644,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should consider the node to be initialized once all the resources are registered", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -579,7 +660,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -623,6 +704,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should not consider the Node to be initialized when all startupTaints aren't removed", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -645,7 +731,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -688,6 +774,11 @@ var _ = Describe("Controller", func() {
 		})
 		It("should consider the Node to be initialized once the startup taints are removed", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -710,7 +801,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -749,6 +840,11 @@ var _ = Describe("Controller", func() {
 	Context("Liveness", func() {
 		It("should delete the Machine when the Node hasn't registered to the Machine past the liveness TTL", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -760,7 +856,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 
@@ -800,6 +896,11 @@ var _ = Describe("Controller", func() {
 	Context("Termination", func() {
 		It("should cordon, drain, and delete the Machine on terminate", func() {
 			machine := test.Machine(v1alpha5.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+					},
+				},
 				Spec: v1alpha5.MachineSpec{
 					Resources: v1alpha5.ResourceRequirements{
 						Requests: v1.ResourceList{
@@ -811,7 +912,7 @@ var _ = Describe("Controller", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine)
+			ExpectApplied(ctx, env.Client, provisioner, machine)
 			ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 			machine = ExpectExists(ctx, env.Client, machine)
 

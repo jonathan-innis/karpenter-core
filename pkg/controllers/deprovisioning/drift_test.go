@@ -172,7 +172,7 @@ var _ = Describe("Drift", func() {
 		ExpectReconcileSucceeded(ctx, machineStateController, client.ObjectKeyFromObject(machine))
 
 		// deprovisioning won't delete the old machine until the new machine is ready
-		wg := ExpectMakeNewMachinesReady(ctx, env.Client, nodeStateController, machineStateController, cloudProvider, 1, machine)
+		wg := ExpectMakeNewMachinesReady(ctx, env.Client, cluster, cloudProvider, 1, machine)
 		fakeClock.Step(10 * time.Minute)
 		go triggerVerifyAction()
 		ExpectReconcileSucceeded(ctx, deprovisioningController, types.NamespacedName{})
@@ -275,7 +275,7 @@ var _ = Describe("Drift", func() {
 		ExpectReconcileSucceeded(ctx, machineStateController, client.ObjectKeyFromObject(machine))
 
 		// deprovisioning won't delete the old node until the new node is ready
-		wg := ExpectMakeNewMachinesReady(ctx, env.Client, nodeStateController, machineStateController, cloudProvider, 3, machine)
+		wg := ExpectMakeNewMachinesReady(ctx, env.Client, cluster, cloudProvider, 3, machine)
 		fakeClock.Step(10 * time.Minute)
 		go triggerVerifyAction()
 		ExpectReconcileSucceeded(ctx, deprovisioningController, types.NamespacedName{})

@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	"github.com/aws/karpenter-core/pkg/scheduling"
 )
 
 type Launch struct {
@@ -48,15 +49,20 @@ func (l *Launch) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reco
 			return reconcile.Result{}, fmt.Errorf("getting machine, %w", err)
 		}
 	}
-	populateMachineDetails(machine, retrieved)
+	PopulateMachineDetails(machine, retrieved)
 	machine.StatusConditions().MarkTrue(v1alpha5.MachineCreated)
 	return reconcile.Result{}, nil
 }
 
-func populateMachineDetails(machine, retrieved *v1alpha5.Machine) {
-	machine.Labels = lo.Assign(machine.Labels, retrieved.Labels, map[string]string{
-		v1alpha5.MachineNameLabelKey: machine.Name,
-	})
+func PopulateMachineDetails(machine, retrieved *v1alpha5.Machine) {
+	machine.Labels = lo.Assign(
+		scheduling.NewNodeSelectorRequirements(machine.Spec.Requirements...).Labels(),
+		machine.Labels,
+		retrieved.Labels,
+		map[string]string{
+			v1alpha5.MachineNameLabelKey: machine.Name,
+		},
+	)
 	machine.Annotations = lo.Assign(machine.Annotations, retrieved.Annotations)
 	machine.Status.ProviderID = retrieved.Status.ProviderID
 	machine.Status.Allocatable = retrieved.Status.Allocatable
