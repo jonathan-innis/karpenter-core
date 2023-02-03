@@ -31,8 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
-	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 )
 
@@ -40,17 +38,13 @@ var _ corecontroller.FinalizingTypedController[*v1.Node] = (*Controller)(nil)
 
 // Controller for the resource
 type Controller struct {
-	terminator *terminator.Terminator
 	kubeClient client.Client
-	recorder   events.Recorder
 }
 
 // NewController constructs a controller instance
-func NewController(kubeClient client.Client, terminator *terminator.Terminator, recorder events.Recorder) corecontroller.Controller {
+func NewController(kubeClient client.Client) corecontroller.Controller {
 	return corecontroller.Typed[*v1.Node](kubeClient, &Controller{
 		kubeClient: kubeClient,
-		terminator: terminator,
-		recorder:   recorder,
 	})
 }
 

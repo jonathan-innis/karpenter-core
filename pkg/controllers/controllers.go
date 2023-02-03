@@ -66,7 +66,7 @@ func NewControllers(
 		informer.NewProvisionerController(kubeClient, cluster),
 		informer.NewMachineController(kubeClient, cluster),
 		node.NewController(clock, kubeClient, cloudProvider, cluster),
-		termination.NewController(kubeClient, terminator, recorder),
+		termination.NewController(kubeClient),
 		metricspod.NewController(kubeClient),
 		metricsprovisioner.NewController(kubeClient),
 		counter.NewController(kubeClient, cluster),
