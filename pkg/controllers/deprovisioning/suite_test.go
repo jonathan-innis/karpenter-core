@@ -62,7 +62,6 @@ var ctx context.Context
 var env *test.Environment
 var cluster *state.Cluster
 var deprovisioningController *deprovisioning.Controller
-var provisioningController controller.Controller
 var provisioner *provisioning.Provisioner
 var cloudProvider *fake.CloudProvider
 var nodeStateController controller.Controller
@@ -89,7 +88,6 @@ var _ = BeforeSuite(func() {
 	nodeStateController = informer.NewNodeController(env.Client, cluster)
 	machineStateController = informer.NewMachineController(env.Client, cluster)
 	provisioner = provisioning.NewProvisioner(ctx, env.Client, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{}), cloudProvider, cluster)
-	provisioningController = provisioning.NewController(env.Client, provisioner, events.NewRecorder(&record.FakeRecorder{}))
 })
 
 var _ = AfterSuite(func() {

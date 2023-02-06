@@ -82,6 +82,7 @@ func (c *consolidation) sortAndFilterCandidates(ctx context.Context, nodes []*Ca
 	nodes = lo.Filter(nodes, func(cn *CandidateNode, _ int) bool {
 		if reason, canTerminate := canBeTerminated(cn, pdbs); !canTerminate {
 			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, reason))
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(cn.Machine, reason))
 			return false
 		}
 		return true
@@ -96,15 +97,21 @@ func (c *consolidation) sortAndFilterCandidates(ctx context.Context, nodes []*Ca
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
 func (c *consolidation) ShouldDeprovision(_ context.Context, cn *CandidateNode) bool {
 	if val, ok := cn.Annotations()[v1alpha5.DoNotConsolidateNodeAnnotationKey]; ok {
-		c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, fmt.Sprintf("%s annotation exists", v1alpha5.DoNotConsolidateNodeAnnotationKey)))
+		reason := fmt.Sprintf("%s annotation exists", v1alpha5.DoNotConsolidateNodeAnnotationKey)
+		c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, reason))
+		c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(cn.Machine, reason))
 		return val != "true"
 	}
 	if cn.provisioner == nil {
-		c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, "provisioner is unknown"))
+		reason := "provisioner is unknown"
+		c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, reason))
+		c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(cn.Machine, reason))
 		return false
 	}
 	if cn.provisioner.Spec.Consolidation == nil || !ptr.BoolValue(cn.provisioner.Spec.Consolidation.Enabled) {
-		c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, fmt.Sprintf("provisioner %s has consolidation disabled", cn.provisioner.Name)))
+		reason := fmt.Sprintf("provisioner %s has consolidation disabled", cn.provisioner.Name)
+		c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(cn.Node.Node, reason))
+		c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(cn.Machine, reason))
 		return false
 	}
 	return true
@@ -193,7 +200,9 @@ func (c *consolidation) computeConsolidation(ctx context.Context, nodes ...*Cand
 	if !allPodsScheduled {
 		// This method is used by multi-node consolidation as well, so we'll only report in the single node case
 		if len(nodes) == 1 {
-			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, "not all pods would schedule"))
+			reason := "not all pods would schedule"
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, reason))
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(nodes[0].Machine, reason))
 		}
 		return Command{action: actionDoNothing}, nil
 	}
@@ -209,7 +218,9 @@ func (c *consolidation) computeConsolidation(ctx context.Context, nodes ...*Cand
 	// we're not going to turn a single node into multiple nodes
 	if len(newMachines) != 1 {
 		if len(nodes) == 1 {
-			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, fmt.Sprintf("can't remove without creating %d machines", len(newMachines))))
+			reason := fmt.Sprintf("can't remove without creating %d nodes", len(newMachines))
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, reason))
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(nodes[0].Machine, reason))
 		}
 		return Command{action: actionDoNothing}, nil
 	}
@@ -223,7 +234,9 @@ func (c *consolidation) computeConsolidation(ctx context.Context, nodes ...*Cand
 	newMachines[0].InstanceTypeOptions = filterByPrice(newMachines[0].InstanceTypeOptions, newMachines[0].Requirements, nodesPrice)
 	if len(newMachines[0].InstanceTypeOptions) == 0 {
 		if len(nodes) == 1 {
-			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, "can't replace with a cheaper node"))
+			reason := "can't replace with a cheaper node"
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, reason))
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(nodes[0].Machine, reason))
 		}
 		// no instance types remain after filtering by price
 		return Command{action: actionDoNothing}, nil
@@ -242,7 +255,9 @@ func (c *consolidation) computeConsolidation(ctx context.Context, nodes ...*Cand
 	if allExistingAreSpot &&
 		newMachines[0].Requirements.Get(v1alpha5.LabelCapacityType).Has(v1alpha5.CapacityTypeSpot) {
 		if len(nodes) == 1 {
-			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, "can't replace a spot node with a spot node"))
+			reason := "can't replace a spot node with a spot node"
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReason(nodes[0].Node.Node, reason))
+			c.recorder.Publish(deprovisioningevents.UnconsolidatableReasonMachine(nodes[0].Machine, reason))
 		}
 		return Command{action: actionDoNothing}, nil
 	}
