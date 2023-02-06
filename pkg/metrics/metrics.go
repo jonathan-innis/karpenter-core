@@ -25,7 +25,7 @@ var (
 			Namespace: Namespace,
 			Subsystem: "machines",
 			Name:      "created",
-			Help:      "Number of nodes created in total by Karpenter. Labeled by reason the machine was created.",
+			Help:      "Number of machines created in total by Karpenter. Labeled by reason the machine was created.",
 		},
 		[]string{
 			"reason",

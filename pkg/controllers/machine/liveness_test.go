@@ -70,6 +70,11 @@ var _ = Describe("Liveness", func() {
 		s.TTLAfterNotRegistered = nil
 		ctx = settings.ToContext(ctx, s)
 		machine := test.Machine(v1alpha5.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+				},
+			},
 			Spec: v1alpha5.MachineSpec{
 				Resources: v1alpha5.ResourceRequirements{
 					Requests: v1.ResourceList{
@@ -81,7 +86,7 @@ var _ = Describe("Liveness", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
 
