@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,25 +32,27 @@ import (
 type Launch struct {
 	kubeClient    client.Client
 	cloudProvider cloudprovider.CloudProvider
+	cache         *cache.Cache // exists due to eventual consistency on the cache
 }
 
 func (l *Launch) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
 	if machine.Status.ProviderID != "" {
 		return reconcile.Result{}, nil
 	}
-	retrieved, err := l.cloudProvider.Get(ctx, machine.Name, machine.Labels[v1alpha5.ProvisionerNameLabelKey])
-	if err != nil {
-		if cloudprovider.IsMachineNotFoundError(err) {
-			logging.FromContext(ctx).Debugf("creating machine")
-			retrieved, err = l.cloudProvider.Create(ctx, machine)
-			if err != nil {
-				return reconcile.Result{}, fmt.Errorf("creating machine, %w", err)
-			}
-		} else {
-			return reconcile.Result{}, fmt.Errorf("getting machine, %w", err)
+	var err error
+	var created *v1alpha5.Machine
+	ret, ok := l.cache.Get(client.ObjectKeyFromObject(machine).String())
+	if ok {
+		created = ret.(*v1alpha5.Machine)
+	} else {
+		logging.FromContext(ctx).Debugf("creating machine")
+		created, err = l.cloudProvider.Create(ctx, machine)
+		if err != nil {
+			return reconcile.Result{}, fmt.Errorf("creating machine, %w", err)
 		}
 	}
-	PopulateMachineDetails(machine, retrieved)
+	l.cache.SetDefault(client.ObjectKeyFromObject(machine).String(), created)
+	PopulateMachineDetails(machine, created)
 	machine.StatusConditions().MarkTrue(v1alpha5.MachineCreated)
 	return reconcile.Result{}, nil
 }

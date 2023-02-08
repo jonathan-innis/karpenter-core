@@ -130,7 +130,8 @@ func (in *Node) HostName() string {
 func (in *Node) Annotations() map[string]string {
 	// If the machine exists and the state node isn't initialized
 	// use the machine representation of the annotations
-	if in.Machine != nil && !in.Machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
+	if in.Node == nil ||
+		in.Machine != nil && !in.Machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
 		return in.Machine.Annotations
 	}
 	return in.Node.Annotations
@@ -139,7 +140,8 @@ func (in *Node) Annotations() map[string]string {
 func (in *Node) Labels() map[string]string {
 	// If the machine exists and the state node isn't initialized
 	// use the machine representation of the labels
-	if in.Machine != nil && !in.Machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
+	if in.Node == nil ||
+		in.Machine != nil && !in.Machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
 		return in.Machine.Labels
 	}
 	return in.Node.Labels

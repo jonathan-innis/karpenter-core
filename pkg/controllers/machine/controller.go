@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	"golang.org/x/time/rate"
@@ -77,7 +78,7 @@ func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider clou
 		recorder:      recorder,
 		terminator:    terminator,
 
-		launch:         &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider},
+		launch:         &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider, cache: cache.New(time.Minute*5, time.Second*10)},
 		registration:   &Registration{kubeClient: kubeClient},
 		initialization: &Initialization{kubeClient: kubeClient},
 		liveness:       &Liveness{clock: clk, kubeClient: kubeClient},
