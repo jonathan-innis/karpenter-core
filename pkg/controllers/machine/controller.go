@@ -93,6 +93,10 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 			return reconcile.Result{}, client.IgnoreNotFound(err)
 		}
 	}
+	// Don't reconcile this machine while it's adopting
+	if _, ok := machine.Labels[v1alpha5.AdoptingLabelKey]; ok {
+		return reconcile.Result{}, nil
+	}
 
 	stored = machine.DeepCopy()
 	var results []reconcile.Result
