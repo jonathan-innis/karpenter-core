@@ -29,7 +29,8 @@ import (
 
 type Deprovisioner interface {
 	ShouldDeprovision(context.Context, *state.Node, *v1alpha5.Provisioner, []*v1.Pod) bool
-	ComputeCommand(context.Context, ...CandidateNode) (Command, error)
+	Compute(context.Context, ...CandidateNode) (Command, error)
+	Validate(context.Context, Command) error
 	String() string
 }
 
@@ -61,6 +62,7 @@ func (a action) String() string {
 }
 
 type Command struct {
+	owner            string
 	nodesToRemove    []*v1.Node
 	action           action
 	replacementNodes []*scheduling.Machine

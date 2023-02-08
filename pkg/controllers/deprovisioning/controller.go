@@ -108,65 +108,69 @@ func (c *Controller) Builder(_ context.Context, m manager.Manager) controller.Bu
 }
 
 func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
-	// Attempt different deprovisioning methods. We'll only let one method perform an action
-	for _, d := range c.deprovisioners {
-		candidates, err := candidateNodes(ctx, c.cluster, c.kubeClient, c.clock, c.cloudProvider, d.ShouldDeprovision)
-		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("determining candidate nodes, %w", err)
-		}
-		// If there are no candidate nodes, move to the next deprovisioner
-		if len(candidates) == 0 {
-			continue
-		}
-
-		// Determine the deprovisioning action
-		cmd, err := d.ComputeCommand(ctx, candidates...)
-		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("computing deprovisioning decision, %w", err)
-		}
-		if cmd.action == actionDoNothing {
-			continue
-		}
-		if cmd.action == actionRetry {
-			return reconcile.Result{Requeue: true}, nil
-		}
-
-		// Attempt to deprovision
-		if err := c.executeCommand(ctx, d, cmd); err != nil {
-			return reconcile.Result{}, fmt.Errorf("deprovisioning nodes, %w", err)
-		}
-		return reconcile.Result{Requeue: true}, nil
+	cmd, err := c.ComputeCommand(ctx)
+	if err != nil || cmd == nil {
+		return reconcile.Result{}, err
 	}
+	if err := c.Execute(ctx, cmd); err != nil {
+		return reconcile.Result{}, fmt.Errorf("deprovisioning nodes, %w", err)
+	}
+	return reconcile.Result{Requeue: true}, nil
 
 	// All deprovisioners did nothing, so return nothing to do
 	c.cluster.SetConsolidated(true) // Mark cluster as consolidated
 	return reconcile.Result{RequeueAfter: pollingPeriod}, nil
 }
 
-func (c *Controller) executeCommand(ctx context.Context, d Deprovisioner, command Command) error {
-	deprovisioningActionsPerformedCounter.With(prometheus.Labels{"action": fmt.Sprintf("%s/%s", d, command.action)}).Add(1)
-	logging.FromContext(ctx).Infof("deprovisioning via %s %s", d, command)
+func (c *Controller) ComputeCommand(ctx context.Context) (*Command, error) {
+	var cmd *Command
+	// Attempt different deprovisioning methods. We'll only let one method perform an action
+	for _, d := range c.deprovisioners {
+		candidates, err := candidateNodes(ctx, c.cluster, c.kubeClient, c.clock, c.cloudProvider, d.ShouldDeprovision)
+		if err != nil {
+			return nil, fmt.Errorf("determining candidate nodes, %w", err)
+		}
+		// If there are no candidate nodes, move to the next deprovisioner
+		if len(candidates) == 0 {
+			continue
+		}
+		// Determine the deprovisioning action
+		cmd, err = d.Compute(ctx, candidates...)
+		if err != nil {
+			return nil, fmt.Errorf("computing deprovisioning decision, %w", err)
+		}
+		if cmd == nil {
+			continue
+		}
+		d.Validate(ctx, cmd)
+	}
+	return nil, nil
+}
 
-	if command.action == actionReplace {
-		if err := c.launchReplacementNodes(ctx, command); err != nil {
+func (c *Controller) Execute(ctx context.Context, cmd *Command) error {
+	deprovisioningActionsPerformedCounter.With(prometheus.Labels{"action": fmt.Sprintf("%s/%s", cmd.owner, cmd.action)}).Add(1)
+	logging.FromContext(ctx).Infof("deprovisioning via %s %s", cmd.owner, cmd)
+
+	if cmd.action == actionReplace {
+		if err := c.launchReplacementNodes(ctx, cmd); err != nil {
 			// If we failed to launch the replacement, don't deprovision.  If this is some permanent failure,
 			// we don't want to disrupt workloads with no way to provision new nodes for them.
 			return fmt.Errorf("launching replacement node, %w", err)
 		}
 	}
 
-	for _, oldNode := range command.nodesToRemove {
-		c.recorder.Publish(deprovisioningevents.TerminatingNode(oldNode, command.String()))
+	for _, oldNode := range cmd.nodesToRemove {
+		c.recorder.Publish(deprovisioningevents.TerminatingNode(oldNode, cmd.String()))
 		if err := c.kubeClient.Delete(ctx, oldNode); err != nil {
 			logging.FromContext(ctx).Errorf("Deleting node, %s", err)
 		} else {
-			metrics.NodesTerminatedCounter.WithLabelValues(fmt.Sprintf("%s/%s", d, command.action)).Inc()
+			metrics.NodesTerminatedCounter.WithLabelValues(fmt.Sprintf("%s/%s", cmd.owner, cmd.action)).Inc()
 		}
 	}
 
 	// We wait for nodes to delete to ensure we don't start another round of deprovisioning until this node is fully
 	// deleted.
-	for _, oldnode := range command.nodesToRemove {
+	for _, oldnode := range cmd.nodesToRemove {
 		c.waitForDeletion(ctx, oldnode)
 	}
 	return nil
@@ -198,7 +202,7 @@ func (c *Controller) waitForDeletion(ctx context.Context, node *v1.Node) {
 
 // launchReplacementNodes launches replacement nodes and blocks until it is ready
 // nolint:gocyclo
-func (c *Controller) launchReplacementNodes(ctx context.Context, action Command) error {
+func (c *Controller) launchReplacementNodes(ctx context.Context, action *Command) error {
 	defer metrics.Measure(deprovisioningReplacementNodeInitializedHistogram)()
 	nodeNamesToRemove := lo.Map(action.nodesToRemove, func(n *v1.Node, _ int) string { return n.Name })
 	// cordon the old nodes before we launch the replacements to prevent new pods from scheduling to the old nodes

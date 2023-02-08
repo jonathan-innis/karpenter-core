@@ -60,7 +60,7 @@ func NewValidation(validationPeriod time.Duration, clk clock.Clock, cluster *sta
 	}
 }
 
-func (v *Validation) IsValid(ctx context.Context, cmd Command) (bool, error) {
+func (v *Validation) IsValid(ctx context.Context, cmd *Command) (bool, error) {
 	var err error
 	v.once.Do(func() {
 		v.start = v.clock.Now()

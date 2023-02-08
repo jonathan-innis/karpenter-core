@@ -57,16 +57,18 @@ func (m *MultiNodeConsolidation) ComputeCommand(ctx context.Context, candidates 
 		return cmd, nil
 	}
 
+}
+
+func (m *MultiNodeConsolidation) Validate(ctx context.Context, cmd *Command) error {
 	v := NewValidation(consolidationTTL, m.clock, m.cluster, m.kubeClient, m.provisioner, m.cloudProvider)
 	isValid, err := v.IsValid(ctx, cmd)
 	if err != nil {
-		return Command{}, fmt.Errorf("validating, %w", err)
+		return fmt.Errorf("validating, %w", err)
 	}
-
 	if !isValid {
-		return Command{action: actionRetry}, nil
+		return fmt.Errorf("invalid command, %w", err)
 	}
-	return cmd, nil
+	return cmd
 }
 
 // firstNNodeConsolidationOption looks at the first N nodes to determine if they can all be consolidated at once.  The
