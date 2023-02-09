@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/utils/clock"
 	"knative.dev/pkg/logging"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,10 +63,11 @@ type Controller struct {
 	launch         *Launch
 	registration   *Registration
 	initialization *Initialization
+	liveness       *Liveness
 }
 
 // NewController is a constructor for the Machine Controller
-func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider,
+func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider,
 	terminator *terminator.Terminator, recorder events.Recorder) corecontroller.Controller {
 	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
 		kubeClient:    kubeClient,
@@ -76,6 +78,7 @@ func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudPr
 		launch:         &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider, cache: cache.New(time.Minute*5, time.Second*10)},
 		registration:   &Registration{kubeClient: kubeClient},
 		initialization: &Initialization{kubeClient: kubeClient},
+		liveness:       &Liveness{clock: clk, kubeClient: kubeClient},
 	})
 }
 
@@ -105,6 +108,7 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 		c.launch,
 		c.registration,
 		c.initialization,
+		c.liveness,
 	} {
 		res, err := reconciler.Reconcile(ctx, machine)
 		errs = multierr.Append(errs, err)

@@ -49,6 +49,7 @@ const (
 	InvoluntaryDisruptionAnnotationKey = Group + "/involuntary-disruption"
 
 	ProviderCompatabilityAnnotationKey = CompatabilityGroup + "/provider"
+	MachineLinkedAnnotationKey         = Group + "/linked"
 
 	// Karpenter specific annotation values
 	VoluntaryDisruptionDriftedAnnotationValue           = "drifted"

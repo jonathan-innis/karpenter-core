@@ -41,9 +41,18 @@ func (l *Launch) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reco
 	}
 	var err error
 	var created *v1alpha5.Machine
-	ret, ok := l.cache.Get(client.ObjectKeyFromObject(machine).String())
-	if ok {
-		created = ret.(*v1alpha5.Machine)
+	if providerID, ok := machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]; ok {
+		logging.FromContext(ctx).Debugf("linking machine")
+		created, err = l.cloudProvider.Get(ctx, providerID)
+		if err != nil {
+			if cloudprovider.IsMachineNotFoundError(err) {
+				if err = l.kubeClient.Delete(ctx, machine); err != nil {
+					return reconcile.Result{}, client.IgnoreNotFound(err)
+				}
+				return reconcile.Result{}, nil
+			}
+			return reconcile.Result{}, err
+		}
 	} else {
 		logging.FromContext(ctx).Debugf("creating machine")
 		created, err = l.cloudProvider.Create(ctx, machine)
@@ -51,7 +60,6 @@ func (l *Launch) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reco
 			return reconcile.Result{}, fmt.Errorf("creating machine, %w", err)
 		}
 	}
-	l.cache.SetDefault(client.ObjectKeyFromObject(machine).String(), created)
 	PopulateMachineDetails(machine, created)
 	machine.StatusConditions().MarkTrue(v1alpha5.MachineCreated)
 	return reconcile.Result{}, nil

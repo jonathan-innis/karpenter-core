@@ -125,18 +125,25 @@ func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (
 			Allocatable: functional.FilterMap(instanceType.Allocatable(), func(_ v1.ResourceName, v resource.Quantity) bool { return !resources.IsZero(v) }),
 		},
 	}
-	c.CreatedMachines[machine.Name] = created
+	c.CreatedMachines[created.Status.ProviderID] = created
 	return created, nil
 }
 
-func (c *CloudProvider) Get(_ context.Context, machineName string, _ string) (*v1alpha5.Machine, error) {
+func (c *CloudProvider) Get(_ context.Context, providerID string) (*v1alpha5.Machine, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if machine, ok := c.CreatedMachines[machineName]; ok {
+	if machine, ok := c.CreatedMachines[providerID]; ok {
 		return machine.DeepCopy(), nil
 	}
-	return nil, cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with name '%s'", machineName))
+	return nil, cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with provider id '%s'", providerID))
+}
+
+func (c *CloudProvider) List(_ context.Context) ([]*v1alpha5.Machine, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return lo.Map(lo.Values(c.CreatedMachines), func(m *v1alpha5.Machine, _ int) *v1alpha5.Machine { return m.DeepCopy() }), nil
 }
 
 func (c *CloudProvider) GetInstanceTypes(_ context.Context, _ *v1alpha5.Provisioner) ([]*cloudprovider.InstanceType, error) {
@@ -187,11 +194,11 @@ func (c *CloudProvider) Delete(_ context.Context, m *v1alpha5.Machine) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if _, ok := c.CreatedMachines[m.Name]; ok {
-		delete(c.CreatedMachines, m.Name)
+	if _, ok := c.CreatedMachines[m.Status.ProviderID]; ok {
+		delete(c.CreatedMachines, m.Status.ProviderID)
 		return nil
 	}
-	return cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with name '%s'", m.Name))
+	return cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with provider id '%s'", m.Status.ProviderID))
 }
 
 func (c *CloudProvider) IsMachineDrifted(context.Context, *v1alpha5.Machine) (bool, error) {

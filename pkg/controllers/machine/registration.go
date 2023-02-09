@@ -68,15 +68,18 @@ func (r *Registration) Reconcile(ctx context.Context, machine *v1alpha5.Machine)
 func (r *Registration) syncNode(ctx context.Context, machine *v1alpha5.Machine, node *v1.Node) error {
 	stored := node.DeepCopy()
 	controllerutil.AddFinalizer(node, v1alpha5.TerminationFinalizer)
-	node.Labels = lo.Assign(node.Labels, machine.Labels)
-	node.Annotations = lo.Assign(node.Annotations, machine.Annotations)
+	lo.Must0(controllerutil.SetOwnerReference(machine, node, scheme.Scheme))
 
-	// Sync all taints inside of Machine into the Machine taints
-	node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.Taints)
+	// If the machine wasn't linked from the cloudprovider, then sync it
+	if _, ok := machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]; !ok {
+		node.Labels = lo.Assign(node.Labels, machine.Labels)
+		node.Annotations = lo.Assign(node.Annotations, machine.Annotations)
+		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.Taints)
+	}
 	if !machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
 		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.StartupTaints)
 	}
-	lo.Must0(controllerutil.SetOwnerReference(machine, node, scheme.Scheme))
+
 	if !equality.Semantic.DeepEqual(stored, node) {
 		if err := r.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
 			return fmt.Errorf("syncing node labels, %w", err)

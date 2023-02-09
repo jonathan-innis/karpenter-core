@@ -26,9 +26,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/inflightchecks"
 	"github.com/aws/karpenter-core/pkg/controllers/machine"
-	machineadoption "github.com/aws/karpenter-core/pkg/controllers/machine/adoption"
-	machinegarbagecollect "github.com/aws/karpenter-core/pkg/controllers/machine/garbagecollect"
 	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
+	"github.com/aws/karpenter-core/pkg/controllers/machinesync"
 	metricspod "github.com/aws/karpenter-core/pkg/controllers/metrics/pod"
 	metricsprovisioner "github.com/aws/karpenter-core/pkg/controllers/metrics/provisioner"
 	metricsstate "github.com/aws/karpenter-core/pkg/controllers/metrics/state"
@@ -73,8 +72,7 @@ func NewControllers(
 		metricsprovisioner.NewController(kubeClient),
 		counter.NewController(kubeClient, cluster),
 		inflightchecks.NewController(clock, kubeClient, recorder, cloudProvider),
-		machine.NewController(kubeClient, cloudProvider, terminator, recorder),
-		machineadoption.NewController(kubeClient, cloudProvider),
-		machinegarbagecollect.NewController(kubeClient, cloudProvider, cluster),
+		machine.NewController(clock, kubeClient, cloudProvider, terminator, recorder),
+		machinesync.NewController(kubeClient, cloudProvider, cluster),
 	}
 }

@@ -16,7 +16,6 @@ package machine_test
 
 import (
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -44,58 +43,12 @@ var _ = Describe("Launch", func() {
 		})
 		ExpectApplied(ctx, env.Client, provisioner, machine)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		Expect(cloudProvider.CreateCalls).To(HaveLen(1))
 		Expect(cloudProvider.CreatedMachines).To(HaveLen(1))
-		_, err := cloudProvider.Get(ctx, machine.Name, "")
+		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
 		Expect(err).ToNot(HaveOccurred())
-	})
-	It("should get an instance and hydrate the Machine when the Machine is already created", func() {
-		machine := test.Machine(v1alpha5.Machine{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
-				},
-			},
-		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		cloudProviderMachine := &v1alpha5.Machine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: machine.Name,
-				Labels: map[string]string{
-					v1.LabelInstanceTypeStable: "small-instance-type",
-					v1.LabelTopologyZone:       "test-zone-1a",
-					v1.LabelTopologyRegion:     "test-zone",
-					v1alpha5.LabelCapacityType: v1alpha5.CapacityTypeSpot,
-				},
-			},
-			Status: v1alpha5.MachineStatus{
-				ProviderID: test.RandomProviderID(),
-				Capacity: v1.ResourceList{
-					v1.ResourceCPU:              resource.MustParse("10"),
-					v1.ResourceMemory:           resource.MustParse("100Mi"),
-					v1.ResourceEphemeralStorage: resource.MustParse("20Gi"),
-				},
-				Allocatable: v1.ResourceList{
-					v1.ResourceCPU:              resource.MustParse("8"),
-					v1.ResourceMemory:           resource.MustParse("80Mi"),
-					v1.ResourceEphemeralStorage: resource.MustParse("18Gi"),
-				},
-			},
-		}
-		cloudProvider.CreatedMachines[machine.Name] = cloudProviderMachine
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-
-		machine = ExpectExists(ctx, env.Client, machine)
-
-		Expect(machine.Status.ProviderID).To(Equal(cloudProviderMachine.Status.ProviderID))
-		ExpectResources(machine.Status.Capacity, cloudProviderMachine.Status.Capacity)
-		ExpectResources(machine.Status.Allocatable, cloudProviderMachine.Status.Allocatable)
-
-		Expect(machine.Labels).To(HaveKeyWithValue(v1.LabelInstanceTypeStable, "small-instance-type"))
-		Expect(machine.Labels).To(HaveKeyWithValue(v1.LabelTopologyZone, "test-zone-1a"))
-		Expect(machine.Labels).To(HaveKeyWithValue(v1.LabelTopologyRegion, "test-zone"))
-		Expect(machine.Labels).To(HaveKeyWithValue(v1alpha5.LabelCapacityType, v1alpha5.CapacityTypeSpot))
 	})
 	It("should add the MachineCreated status condition after creating the Machine", func() {
 		machine := test.Machine(v1alpha5.Machine{
