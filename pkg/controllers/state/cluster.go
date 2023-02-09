@@ -302,7 +302,7 @@ func (c *Cluster) Reset() {
 
 func (c *Cluster) newStateFromMachine(machine *v1alpha5.Machine, oldNode *Node) *Node {
 	if oldNode == nil {
-		oldNode = NewNode()
+		oldNode = NewNode(c.kubeClient)
 	}
 	n := &Node{
 		Node:              oldNode.Node,
@@ -340,7 +340,7 @@ func (c *Cluster) cleanupMachine(name string) {
 
 func (c *Cluster) newStateFromNode(ctx context.Context, node *v1.Node, oldNode *Node) (*Node, error) {
 	if oldNode == nil {
-		oldNode = NewNode()
+		oldNode = NewNode(c.kubeClient)
 	}
 	n := &Node{
 		Node:              node,

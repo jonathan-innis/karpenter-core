@@ -34,22 +34,25 @@ const (
 const (
 	ProvisionerNameLabelKey = Group + "/provisioner-name"
 	MachineNameLabelKey     = Group + "/machine-name"
-	MachineOwnedLabelKey    = Group + "/machine-owned"
+	OwnedLabelKey           = Group + "/owned"
+	AdoptingLabelKey        = Group + "adopting"
 	LabelNodeInitialized    = Group + "/initialized"
 	LabelCapacityType       = Group + "/capacity-type"
 )
 
 // Karpenter specific annotations
 const (
-	DoNotEvictPodAnnotationKey        = Group + "/do-not-evict"
-	DoNotConsolidateNodeAnnotationKey = Group + "/do-not-consolidate"
-	EmptinessTimestampAnnotationKey   = Group + "/emptiness-timestamp"
-	VoluntaryDisruptionAnnotationKey  = Group + "/voluntary-disruption"
+	DoNotEvictPodAnnotationKey         = Group + "/do-not-evict"
+	DoNotConsolidateNodeAnnotationKey  = Group + "/do-not-consolidate"
+	EmptinessTimestampAnnotationKey    = Group + "/emptiness-timestamp"
+	VoluntaryDisruptionAnnotationKey   = Group + "/voluntary-disruption"
+	InvoluntaryDisruptionAnnotationKey = Group + "/involuntary-disruption"
 
 	ProviderCompatabilityAnnotationKey = CompatabilityGroup + "/provider"
 
 	// Karpenter specific annotation values
-	VoluntaryDisruptionDriftedAnnotationValue = "drifted"
+	VoluntaryDisruptionDriftedAnnotationValue           = "drifted"
+	InvoluntaryDisruptionOverprovisionedAnnotationValue = "overprovisioned"
 )
 
 // Karpenter specific finalizers

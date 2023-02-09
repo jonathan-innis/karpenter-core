@@ -90,7 +90,7 @@ type Node struct {
 	nominatedUntil    metav1.Time
 }
 
-func NewNode() *Node {
+func NewNode(kubeClient client.Client) *Node {
 	return &Node{
 		inflightAllocatable: v1.ResourceList{},
 		inflightCapacity:    v1.ResourceList{},
@@ -99,13 +99,19 @@ func NewNode() *Node {
 		daemonSetLimits:     map[types.NamespacedName]v1.ResourceList{},
 		podRequests:         map[types.NamespacedName]v1.ResourceList{},
 		podLimits:           map[types.NamespacedName]v1.ResourceList{},
-		hostPortUsage:       &scheduling.HostPortUsage{},
-		volumeUsage:         &scheduling.VolumeUsage{},
+		hostPortUsage:       scheduling.NewHostPortUsage(),
+		volumeUsage:         scheduling.NewVolumeLimits(kubeClient),
 		volumeLimits:        scheduling.VolumeCount{},
 	}
 }
 
 func (in *Node) Name() string {
+	if in.Node == nil {
+		return in.Machine.Name
+	}
+	if in.Machine == nil {
+		return in.Node.Name
+	}
 	if in.Machine != nil && !in.Machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
 		return in.Machine.Name
 	}

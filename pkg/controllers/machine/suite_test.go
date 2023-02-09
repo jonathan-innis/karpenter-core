@@ -69,7 +69,7 @@ var _ = BeforeSuite(func() {
 	cloudProvider = fake.NewCloudProvider(env.Client)
 	evictionQueue = terminator.NewEvictionQueue(ctx, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{}))
 	terminator := terminator.NewTerminator(fakeClock, env.Client, cloudProvider, evictionQueue)
-	machineController = machine.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
+	machineController = machine.NewController(env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
 })
 
 var _ = AfterSuite(func() {

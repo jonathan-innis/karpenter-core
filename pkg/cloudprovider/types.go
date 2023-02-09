@@ -54,7 +54,7 @@ type CloudProvider interface {
 	// Delete removes a machine from the cloudprovider by its provider id
 	Delete(context.Context, *v1alpha5.Machine) error
 	// Get retrieves a machine from the cloudprovider by its provider id
-	Get(context.Context, string, string) (*v1alpha5.Machine, error)
+	Get(context.Context, string) (*v1alpha5.Machine, error)
 	// List retrieves all machines from the cloudprovider
 	List(context.Context) ([]*v1alpha5.Machine, error)
 	// GetInstanceTypes returns instance types supported by the cloudprovider.
@@ -144,6 +144,35 @@ func (ofs Offerings) Cheapest() Offering {
 	return lo.MinBy(ofs, func(a, b Offering) bool {
 		return a.Price < b.Price
 	})
+}
+
+type MachineNotOwnedError struct {
+	Err error
+}
+
+func NewMachineNotOwnedError(err error) *MachineNotOwnedError {
+	return &MachineNotOwnedError{
+		Err: err,
+	}
+}
+
+func (e *MachineNotOwnedError) Error() string {
+	return fmt.Sprintf("machine not found, %s", e.Err)
+}
+
+func IsMachineNotOwnedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var mnfErr *MachineNotOwnedError
+	return errors.As(err, &mnfErr)
+}
+
+func IgnoreMachineNotOwnedError(err error) error {
+	if IsMachineNotOwnedError(err) {
+		return nil
+	}
+	return err
 }
 
 // MachineNotFoundError is an error type returned by CloudProviders when the reason for failure is NotFound

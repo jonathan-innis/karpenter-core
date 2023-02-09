@@ -26,15 +26,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/utils/clock"
 	"knative.dev/pkg/logging"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -66,11 +62,10 @@ type Controller struct {
 	launch         *Launch
 	registration   *Registration
 	initialization *Initialization
-	liveness       *Liveness
 }
 
 // NewController is a constructor for the Machine Controller
-func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider,
+func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider,
 	terminator *terminator.Terminator, recorder events.Recorder) corecontroller.Controller {
 	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
 		kubeClient:    kubeClient,
@@ -81,7 +76,6 @@ func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider clou
 		launch:         &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider, cache: cache.New(time.Minute*5, time.Second*10)},
 		registration:   &Registration{kubeClient: kubeClient},
 		initialization: &Initialization{kubeClient: kubeClient},
-		liveness:       &Liveness{clock: clk, kubeClient: kubeClient},
 	})
 }
 
@@ -100,6 +94,10 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 		}
 	}
 
+	if _, ok := machine.Labels[v1alpha5.AdoptingLabelKey]; ok {
+		return reconcile.Result{}, nil
+	}
+
 	stored = machine.DeepCopy()
 	var results []reconcile.Result
 	var errs error
@@ -107,7 +105,6 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 		c.launch,
 		c.registration,
 		c.initialization,
-		c.liveness,
 	} {
 		res, err := reconciler.Reconcile(ctx, machine)
 		errs = multierr.Append(errs, err)
@@ -153,7 +150,7 @@ func (c *Controller) Finalize(ctx context.Context, machine *v1alpha5.Machine) (r
 func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		For(&v1alpha5.Machine{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
 			handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
