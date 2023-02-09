@@ -15,6 +15,9 @@ limitations under the License.
 package scheduling
 
 import (
+	"fmt"
+
+	"github.com/Pallinder/go-randomdata"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,9 +83,9 @@ func (i *MachineTemplate) ToMachine(owner *v1alpha5.Provisioner) *v1alpha5.Machi
 	})...))
 	m := &v1alpha5.Machine{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: i.ProvisionerName,
-			Annotations:  lo.Assign(i.Annotations, v1alpha5.ProviderAnnotation(i.Provider)),
-			Labels:       i.Labels,
+			Name:        fmt.Sprintf("%s-%s", i.ProvisionerName, randomdata.Alphanumeric(20)),
+			Annotations: lo.Assign(i.Annotations, v1alpha5.ProviderAnnotation(i.Provider)),
+			Labels:      i.Labels,
 		},
 		Spec: v1alpha5.MachineSpec{
 			Taints:        i.Taints,

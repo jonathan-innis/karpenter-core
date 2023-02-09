@@ -18,8 +18,6 @@ import (
 	"context"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -37,13 +35,6 @@ func (r *Finalizer) Reconcile(_ context.Context, provisioner *v1alpha5.Provision
 	if !node.DeletionTimestamp.IsZero() {
 		return reconcile.Result{}, nil
 	}
-	node.OwnerReferences = []metav1.OwnerReference{{
-		APIVersion:         v1alpha5.SchemeGroupVersion.String(),
-		Kind:               "Provisioner",
-		Name:               provisioner.Name,
-		UID:                provisioner.UID,
-		BlockOwnerDeletion: ptr.Bool(true),
-	}}
 	controllerutil.AddFinalizer(node, v1alpha5.TerminationFinalizer)
 	return reconcile.Result{}, nil
 }

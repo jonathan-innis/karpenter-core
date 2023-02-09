@@ -54,6 +54,7 @@ func (c *NodeController) Reconcile(ctx context.Context, req reconcile.Request) (
 	if err := c.kubeClient.Get(ctx, req.NamespacedName, node); err != nil {
 		if errors.IsNotFound(err) {
 			// notify cluster state of the node deletion
+			c.cluster.DeleteMachine(req.Name)
 			c.cluster.DeleteNode(req.Name)
 		}
 		return reconcile.Result{}, client.IgnoreNotFound(err)

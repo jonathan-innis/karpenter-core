@@ -203,29 +203,32 @@ func (c *Controller) launchReplacementNodes(ctx context.Context, action Command)
 		return fmt.Errorf("cordoning nodes, %w", err)
 	}
 
-	nodeNames, err := c.provisioner.LaunchMachines(ctx, action.replacementNodes)
+	providerIDs, err := c.provisioner.LaunchMachines(ctx, action.replacementNodes)
 	if err != nil {
 		// uncordon the nodes as the launch may fail (e.g. ICE or incompatible AMI)
 		err = multierr.Append(err, c.setNodesUnschedulable(ctx, false, nodeNamesToRemove...))
 		return err
 	}
-	if len(nodeNames) != len(action.replacementNodes) {
+	if len(providerIDs) != len(action.replacementNodes) {
 		// shouldn't ever occur since a partially failed LaunchMachines should return an error
-		return fmt.Errorf("expected %d node names, got %d", len(action.replacementNodes), len(nodeNames))
+		return fmt.Errorf("expected %d node names, got %d", len(action.replacementNodes), len(providerIDs))
 	}
-	metrics.NodesCreatedCounter.WithLabelValues(metrics.DeprovisioningReason).Add(float64(len(nodeNames)))
+	metrics.NodesCreatedCounter.WithLabelValues(metrics.DeprovisioningReason).Add(float64(len(providerIDs)))
 
 	// We have the new nodes created at the API server so mark the old nodes for deletion
 	c.cluster.MarkForDeletion(nodeNamesToRemove...)
 	// Wait for nodes to be ready
 	// TODO @njtran: Allow to bypass this check for certain deprovisioners
-	errs := make([]error, len(nodeNames))
-	workqueue.ParallelizeUntil(ctx, len(nodeNames), len(nodeNames), func(i int) {
+	errs := make([]error, len(providerIDs))
+	workqueue.ParallelizeUntil(ctx, len(providerIDs), len(providerIDs), func(i int) {
 		var k8Node v1.Node
 		// Wait for the node to be ready
 		var once sync.Once
 		if err := retry.Do(func() error {
-			if err := c.kubeClient.Get(ctx, client.ObjectKey{Name: nodeNames[i]}, &k8Node); err != nil {
+			nodeList := &v1.NodeList{}
+			if err := c.kubeClient.List(ctx, nodeList, client.MatchingFields{
+				"spec.providerID": providerIDs[i],
+			}); err != nil {
 				return fmt.Errorf("getting node, %w", err)
 			}
 			once.Do(func() {

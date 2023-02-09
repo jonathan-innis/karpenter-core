@@ -32,6 +32,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
+	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 )
@@ -43,6 +44,7 @@ type Controller struct {
 	kubeClient  client.Client
 	checks      []Check
 	recorder    events.Recorder
+	cluster     *state.Cluster
 	lastScanned *cache.Cache
 }
 
@@ -61,7 +63,7 @@ type Issue struct {
 const scanPeriod = 10 * time.Minute
 
 func NewController(clk clock.Clock, kubeClient client.Client, recorder events.Recorder,
-	provider cloudprovider.CloudProvider) corecontroller.Controller {
+	cluster *state.Cluster, provider cloudprovider.CloudProvider) corecontroller.Controller {
 
 	return corecontroller.Typed[*v1.Node](kubeClient, &Controller{
 		clock:       clk,
@@ -69,7 +71,7 @@ func NewController(clk clock.Clock, kubeClient client.Client, recorder events.Re
 		recorder:    recorder,
 		lastScanned: cache.New(scanPeriod, 1*time.Minute),
 		checks: []Check{
-			NewFailedInit(clk, provider),
+			NewFailedInit(clk, cluster),
 			NewTermination(kubeClient),
 			NewNodeShape(provider),
 		}},

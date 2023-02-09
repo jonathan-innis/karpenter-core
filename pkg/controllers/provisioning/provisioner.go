@@ -18,14 +18,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/imdario/mergo"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -75,7 +72,7 @@ type Provisioner struct {
 	cm             *pretty.ChangeMonitor
 }
 
-func NewProvisioner(ctx context.Context, kubeClient client.Client, coreV1Client corev1.CoreV1Interface,
+func NewProvisioner(kubeClient client.Client, coreV1Client corev1.CoreV1Interface,
 	recorder events.Recorder, cloudProvider cloudprovider.CloudProvider, cluster *state.Cluster) *Provisioner {
 	p := &Provisioner{
 		batcher:        NewBatcher(),
@@ -116,12 +113,10 @@ func (p *Provisioner) Reconcile(ctx context.Context, _ reconcile.Request) (resul
 	if len(machines) == 0 {
 		return reconcile.Result{}, nil
 	}
-	machineNames, err := p.LaunchMachines(ctx, machines, RecordPodNomination)
+	providerIDs, err := p.LaunchMachines(ctx, machines, RecordPodNomination)
 
 	// Any successfully created node is going to have the nodeName value filled in the slice
-	successfullyCreatedNodeCount := lo.CountBy(machineNames, func(name string) bool { return name != "" })
-	metrics.NodesCreatedCounter.WithLabelValues(metrics.ProvisioningReason).Add(float64(successfullyCreatedNodeCount))
-
+	metrics.NodesCreatedCounter.WithLabelValues(metrics.ProvisioningReason).Add(float64(lo.CountBy(providerIDs, func(id string) bool { return id != "" })))
 	return reconcile.Result{}, err
 }
 
@@ -130,23 +125,19 @@ func (p *Provisioner) Reconcile(ctx context.Context, _ reconcile.Request) (resul
 func (p *Provisioner) LaunchMachines(ctx context.Context, machines []*scheduler.Machine, opts ...functional.Option[LaunchOptions]) ([]string, error) {
 	// Launch capacity and bind pods
 	errs := make([]error, len(machines))
-	machineNames := make([]string, len(machines))
+	providerIDs := make([]string, len(machines))
 	workqueue.ParallelizeUntil(ctx, len(machines), len(machines), func(i int) {
-		// create a new context to avoid a data race on the ctx variable
-		ctx := logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", machines[i].Labels[v1alpha5.ProvisionerNameLabelKey]))
 		// register the provisioner on the context so we can pull it off for tagging purposes
-		// TODO: rethink this, maybe just pass the provisioner down instead of hiding it in the context?
-		ctx = injection.WithNamespacedName(ctx, types.NamespacedName{Name: machines[i].Labels[v1alpha5.ProvisionerNameLabelKey]})
-		if machineName, err := p.Launch(ctx, machines[i], opts...); err != nil {
+		if providerID, err := p.Launch(ctx, machines[i], opts...); err != nil {
 			errs[i] = fmt.Errorf("launching machine, %w", err)
 		} else {
-			machineNames[i] = machineName
+			providerIDs[i] = providerID
 		}
 	})
 	if err := multierr.Combine(errs...); err != nil {
-		return machineNames, err
+		return providerIDs, err
 	}
-	return machineNames, nil
+	return providerIDs, nil
 }
 
 func (p *Provisioner) GetPendingPods(ctx context.Context) ([]*v1.Pod, error) {
@@ -301,63 +292,46 @@ func (p *Provisioner) Schedule(ctx context.Context) ([]*scheduler.Machine, []*sc
 	return scheduler.Solve(ctx, pods)
 }
 
-func (p *Provisioner) Launch(ctx context.Context, machine *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {
+func (p *Provisioner) Launch(ctx context.Context, m *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", m.Labels[v1alpha5.ProvisionerNameLabelKey]))
+
 	// Check limits
 	latest := &v1alpha5.Provisioner{}
-	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: machine.ProvisionerName}, latest); err != nil {
+	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: m.ProvisionerName}, latest); err != nil {
 		return "", fmt.Errorf("getting current resource usage, %w", err)
 	}
 	if err := latest.Spec.Limits.ExceededBy(latest.Status.Resources); err != nil {
 		return "", err
 	}
 
-	logging.FromContext(ctx).Infof("launching %s", machine)
+	logging.FromContext(ctx).Infof("launching %s", m)
+	machine := m.ToMachine(latest)
 	created, err := p.cloudProvider.Create(
 		logging.WithLogger(ctx, logging.FromContext(ctx).Named("cloudprovider")),
-		machine.ToMachine(latest),
+		machine,
 	)
 	if err != nil {
-		return "", fmt.Errorf("creating cloud provider instance, %w", err)
+		return "", fmt.Errorf("creating machine, %w", err)
 	}
-	k8sNode := &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   created.Name,
-			Labels: created.Labels,
-		},
-		Spec: v1.NodeSpec{
-			ProviderID: created.Status.ProviderID,
-		},
-	}
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", k8sNode.Name))
+	populateMachineDetails(machine, created)
+	p.cluster.UpdateMachine(machine)
+	p.cluster.NominateNodeForPod(ctx, machine.Name)
+	//if functional.ResolveOptions(opts...).RecordPodNomination {
+	//	for _, pod := range machine.Pods {
+	//		p.recorder.Publish(events.NominatePod(pod, created.Status.ProviderID))
+	//	}
+	//}
+	return machine.Status.ProviderID, nil
+}
 
-	if err := mergo.Merge(k8sNode, machine.ToNode()); err != nil {
-		return "", fmt.Errorf("merging cloud provider node, %w", err)
-	}
-	// ensure we clear out the status
-	k8sNode.Status = v1.NodeStatus{}
-
-	// Idempotently create a node. In rare cases, nodes can come online and
-	// self register before the controller is able to register a node object
-	// with the API server. In the common case, we create the node object
-	// ourselves to enforce the binding decision and enable images to be pulled
-	// before the node is fully Ready.
-	if _, err := p.coreV1Client.Nodes().Create(ctx, k8sNode, metav1.CreateOptions{}); err != nil {
-		if errors.IsAlreadyExists(err) {
-			logging.FromContext(ctx).Debugf("node already registered")
-		} else {
-			return "", fmt.Errorf("creating node %s, %w", k8sNode.Name, err)
-		}
-	}
-	if err := p.cluster.UpdateNode(ctx, k8sNode); err != nil {
-		return "", fmt.Errorf("updating cluster state, %w", err)
-	}
-	p.cluster.NominateNodeForPod(ctx, k8sNode.Name)
-	if functional.ResolveOptions(opts...).RecordPodNomination {
-		for _, pod := range machine.Pods {
-			p.recorder.Publish(events.NominatePod(pod, k8sNode))
-		}
-	}
-	return k8sNode.Name, nil
+func populateMachineDetails(machine, retrieved *v1alpha5.Machine) {
+	machine.Labels = lo.Assign(machine.Labels, retrieved.Labels, map[string]string{
+		v1alpha5.MachineNameLabelKey: machine.Name,
+	})
+	machine.Annotations = lo.Assign(machine.Annotations, retrieved.Annotations)
+	machine.Status.ProviderID = retrieved.Status.ProviderID
+	machine.Status.Allocatable = retrieved.Status.Allocatable
+	machine.Status.Capacity = retrieved.Status.Capacity
 }
 
 func (p *Provisioner) getDaemonSetPods(ctx context.Context) ([]*v1.Pod, error) {

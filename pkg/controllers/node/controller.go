@@ -20,6 +20,7 @@ import (
 	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
 	"knative.dev/pkg/logging"
@@ -62,7 +63,7 @@ func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider clou
 	return corecontroller.Typed[*v1.Node](kubeClient, &Controller{
 		kubeClient:     kubeClient,
 		cluster:        cluster,
-		initialization: &Initialization{kubeClient: kubeClient, cloudProvider: cloudProvider},
+		initialization: &Initialization{kubeClient: kubeClient, cluster: cluster},
 		emptiness:      &Emptiness{kubeClient: kubeClient, clock: clk, cluster: cluster},
 		drift:          &Drift{kubeClient: kubeClient, cloudProvider: cloudProvider},
 	})
@@ -84,7 +85,11 @@ func (c *Controller) Reconcile(ctx context.Context, node *v1.Node) (reconcile.Re
 
 	provisioner := &v1alpha5.Provisioner{}
 	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: node.Labels[v1alpha5.ProvisionerNameLabelKey]}, provisioner); err != nil {
-		return reconcile.Result{}, client.IgnoreNotFound(err)
+		// Provisioner owner is gone so node should be removed
+		if errors.IsNotFound(err) {
+			return reconcile.Result{}, client.IgnoreNotFound(c.kubeClient.Delete(ctx, node))
+		}
+		return reconcile.Result{}, err
 	}
 
 	// Execute Reconcilers

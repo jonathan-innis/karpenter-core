@@ -75,39 +75,22 @@ func NewCluster(clk clock.Clock, client client.Client, cp cloudprovider.CloudPro
 // of the cluster is as close to correct as it can be when we begin to perform operations
 // utilizing the cluster state as our source of truth
 func (c *Cluster) Synced(ctx context.Context) bool {
-	machineList := &v1alpha5.MachineList{}
-	if err := c.kubeClient.List(ctx, machineList); err != nil {
-		logging.FromContext(ctx).Errorf("checking cluster state sync, %v", err)
-		return false
-	}
 	nodeList := &v1.NodeList{}
 	if err := c.kubeClient.List(ctx, nodeList); err != nil {
 		logging.FromContext(ctx).Errorf("checking cluster state sync, %v", err)
 		return false
 	}
 	c.mu.RLock()
-	stateProviderIDs := sets.New(lo.Keys(c.nodes)...)
+	resolvedNodes := lo.Filter(lo.Values(c.nodes), func(n *Node, _ int) bool { return n.Node != nil })
+	nodeNames := sets.New[string](lo.Map(resolvedNodes, func(n *Node, _ int) string { return n.Node.Name })...)
 	c.mu.RUnlock()
 
-	providerIDs := sets.New[string]()
-	for _, machine := range machineList.Items {
-		// If the machine hasn't resolved its provider id, then it hasn't resolved its status
-		if machine.Status.ProviderID == "" {
+	for _, node := range nodeList.Items {
+		if !nodeNames.Has(node.Name) {
 			return false
 		}
-		providerIDs.Insert(machine.Status.ProviderID)
 	}
-	for _, node := range nodeList.Items {
-		if node.Spec.ProviderID == "" {
-			node.Spec.ProviderID = node.Name
-		}
-		providerIDs.Insert(node.Spec.ProviderID)
-	}
-	// The provider ids tracked in-memory should at least have all the data that is in the api-server
-	// This doesn't ensure that the two states are exactly aligned (we could still not be tracking a node
-	// that exists on the apiserver but not in the cluster state) but it ensures that we have a state
-	// representation for every node/machine that exists on the apiserver
-	return stateProviderIDs.IsSuperset(providerIDs)
+	return true
 }
 
 // ForPodsWithAntiAffinity calls the supplied function once for each pod with required anti affinity terms that is
@@ -142,6 +125,35 @@ func (c *Cluster) ForEachNode(f func(n *Node) bool) {
 			return
 		}
 	}
+}
+
+func (c *Cluster) Get(providerID string) *Node {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	node, ok := c.nodes[providerID]
+	if !ok {
+		return nil
+	}
+	return node.DeepCopy()
+}
+
+func (c *Cluster) Delete(providerID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	node, ok := c.nodes[providerID]
+	if !ok {
+		return
+	}
+	if node.Node != nil {
+		delete(c.nameToProviderID, node.Node.Name)
+	}
+	if node.Machine != nil {
+		delete(c.nameToProviderID, node.Machine.Name)
+	}
+	delete(c.nodes, providerID)
+	c.SetConsolidated(false)
 }
 
 // Nodes creates a DeepCopy of all state nodes.
@@ -271,9 +283,7 @@ func (c *Cluster) SetConsolidated(consolidated bool) {
 	c.consolidatedAt.Store(c.clock.Now().UnixMilli())
 }
 
-// ClusterConsolidationState returns a number representing the state of the cluster with respect to consolidation.  If
-// consolidation can't occur and this number hasn't changed, there is no point in re-attempting consolidation. This
-// allows reducing overall CPU utilization by pausing consolidation when the cluster is in a static state.
+// Consolidated returns whether the cluster state is currently consolidated
 func (c *Cluster) Consolidated() bool {
 	consolidatedAt := time.UnixMilli(c.consolidatedAt.Load())
 	// If 5 minutes elapsed since the last time the consolidation state was changed, we change the state anyway. This
@@ -375,12 +385,15 @@ func (c *Cluster) newStateFromNode(ctx context.Context, node *v1.Node, oldNode *
 
 func (c *Cluster) cleanupNode(name string) {
 	if id := c.nameToProviderID[name]; id != "" {
-		if c.nodes[id].Machine == nil {
+		if node, ok := c.nodes[id]; ok {
+			if node.Node != nil {
+				delete(c.nameToProviderID, node.Node.Name)
+			}
+			if node.Machine != nil {
+				delete(c.nameToProviderID, node.Machine.Name)
+			}
 			delete(c.nodes, id)
-		} else {
-			c.nodes[id].Node = nil
 		}
-		delete(c.nameToProviderID, name)
 		c.SetConsolidated(false)
 	}
 }

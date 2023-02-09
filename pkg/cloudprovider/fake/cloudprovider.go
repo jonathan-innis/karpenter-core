@@ -118,18 +118,17 @@ func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (
 			Allocatable: functional.FilterMap(instanceType.Allocatable(), func(_ v1.ResourceName, v resource.Quantity) bool { return !resources.IsZero(v) }),
 		},
 	}
-	c.CreatedMachines[machine.Name] = created
+	c.CreatedMachines[machine.Status.ProviderID] = created
 	return created, nil
 }
 
-func (c *CloudProvider) Get(_ context.Context, machineName string, _ string) (*v1alpha5.Machine, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *CloudProvider) List(_ context.Context) ([]*v1alpha5.Machine, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if machine, ok := c.CreatedMachines[machineName]; ok {
-		return machine.DeepCopy(), nil
-	}
-	return nil, cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with name '%s'", machineName))
+	return lo.MapToSlice(c.CreatedMachines, func(_ string, m *v1alpha5.Machine) *v1alpha5.Machine {
+		return m.DeepCopy()
+	}), nil
 }
 
 func (c *CloudProvider) GetInstanceTypes(_ context.Context, _ *v1alpha5.Provisioner) ([]*cloudprovider.InstanceType, error) {

@@ -106,10 +106,10 @@ func NewNode() *Node {
 }
 
 func (in *Node) Name() string {
-	if !in.Initialized() && in.Machine != nil {
-		return in.Machine.Name
+	if in.Node != nil {
+		return in.Node.Name
 	}
-	return in.Node.Name
+	return in.Machine.Name
 }
 
 // Pods gets the pods assigned to the Node based on the kubernetes api-server bindings
@@ -128,21 +128,17 @@ func (in *Node) HostName() string {
 }
 
 func (in *Node) Annotations() map[string]string {
-	// If the machine exists and the state node isn't initialized
-	// use the machine representation of the annotations
-	if !in.Initialized() && in.Machine != nil {
-		return in.Machine.Annotations
+	if in.Node != nil {
+		return in.Node.Annotations
 	}
-	return in.Node.Annotations
+	return in.Machine.Annotations
 }
 
 func (in *Node) Labels() map[string]string {
-	// If the machine exists and the state node isn't initialized
-	// use the machine representation of the labels
-	if !in.Initialized() && in.Machine != nil {
-		return in.Machine.Labels
+	if in.Node != nil {
+		return in.Node.Labels
 	}
-	return in.Node.Labels
+	return in.Machine.Labels
 }
 
 func (in *Node) Taints() []v1.Taint {
@@ -179,12 +175,6 @@ func (in *Node) Taints() []v1.Taint {
 // exists inside of cluster state. If the node is not initialized, it is possible that it is represented by a Node or
 // by a Machine inside of cluster state
 func (in *Node) Initialized() bool {
-	if in.Machine != nil {
-		if in.Node != nil && in.Machine.StatusConditions().GetCondition(v1alpha5.MachineInitialized).IsTrue() {
-			return true
-		}
-		return false
-	}
 	if in.Node != nil {
 		return in.Node.Labels[v1alpha5.LabelNodeInitialized] == "true"
 	}
@@ -205,17 +195,6 @@ func (in *Node) Capacity() v1.ResourceList {
 		}
 		return in.Machine.Status.Capacity
 	}
-	// TODO @joinnis: Remove this when machine migration is complete
-	if !in.Initialized() && in.Owned() {
-		// Override any zero quantity values in the node status
-		ret := lo.Assign(in.Node.Status.Capacity)
-		for resourceName, quantity := range in.inflightCapacity {
-			if resources.IsZero(ret[resourceName]) {
-				ret[resourceName] = quantity
-			}
-		}
-		return ret
-	}
 	return in.Node.Status.Capacity
 }
 
@@ -232,17 +211,6 @@ func (in *Node) Allocatable() v1.ResourceList {
 			return ret
 		}
 		return in.Machine.Status.Allocatable
-	}
-	// TODO @joinnis: Remove this when machine migration is complete
-	if !in.Initialized() && in.Owned() {
-		// Override any zero quantity values in the node status
-		ret := lo.Assign(in.Node.Status.Allocatable)
-		for resourceName, quantity := range in.inflightAllocatable {
-			if resources.IsZero(ret[resourceName]) {
-				ret[resourceName] = quantity
-			}
-		}
-		return ret
 	}
 	return in.Node.Status.Allocatable
 }

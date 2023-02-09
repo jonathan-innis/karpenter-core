@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/zapr"
 	"github.com/samber/lo"
+	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -41,11 +42,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/aws/karpenter-core/pkg/apis"
+	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/injection"
 	"github.com/aws/karpenter-core/pkg/operator/options"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
+	"github.com/aws/karpenter-core/pkg/utils/sets"
 )
 
 const (
@@ -151,7 +154,9 @@ func (o *Operator) WithWebhooks(webhooks ...knativeinjection.ControllerConstruct
 	return o
 }
 
-func (o *Operator) Start(ctx context.Context) {
+func (o *Operator) Start(ctx context.Context, cloudProvider cloudprovider.CloudProvider) {
+	lo.Must0(o.cleanupUntrackedMachines(ctx, cloudProvider), "cleaning up untracked machines")
+
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -166,4 +171,27 @@ func (o *Operator) Start(ctx context.Context) {
 		}()
 	}
 	wg.Wait()
+}
+
+func (o *Operator) cleanupUntrackedMachines(ctx context.Context, cloudProvider cloudprovider.CloudProvider) error {
+	c := lo.Must(client.New(o.RESTConfig, client.Options{}))
+
+	nodeList := &v1.NodeList{}
+	if err := c.List(ctx, nodeList); err != nil {
+		return err
+	}
+	machines, err := cloudProvider.List(ctx)
+	if err != nil {
+		return err
+	}
+	nodeProviderIds := sets.New[string](lo.Map(nodeList.Items, func(n v1.Node, _ int) string { return n.Spec.ProviderID })...)
+	for _, machine := range machines {
+		if !nodeProviderIds.Has(machine.Status.ProviderID) {
+			if e := cloudProvider.Delete(ctx, machine); cloudprovider.IgnoreMachineNotFoundError(e) != nil {
+				err = multierr.Append(err, e)
+			}
+			logging.FromContext(ctx).With("provider-id", machine.Status.ProviderID).Debugf("garbage collected machine")
+		}
+	}
+	return err
 }
