@@ -25,8 +25,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/counter"
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/inflightchecks"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/adoption"
 	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
-	"github.com/aws/karpenter-core/pkg/controllers/machineadoption"
 	metricspod "github.com/aws/karpenter-core/pkg/controllers/metrics/pod"
 	metricsprovisioner "github.com/aws/karpenter-core/pkg/controllers/metrics/provisioner"
 	metricsstate "github.com/aws/karpenter-core/pkg/controllers/metrics/state"
@@ -70,6 +70,6 @@ func NewControllers(
 		metricsprovisioner.NewController(kubeClient),
 		counter.NewController(kubeClient, cluster),
 		inflightchecks.NewController(clock, kubeClient, recorder, cloudProvider),
-		machineadoption.NewController(kubeClient, cloudProvider),
+		adoption.NewController(kubeClient, cloudProvider),
 	}
 }

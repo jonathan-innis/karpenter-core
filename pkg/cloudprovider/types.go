@@ -53,6 +53,7 @@ type CloudProvider interface {
 	Create(context.Context, *v1alpha5.Machine) (*v1alpha5.Machine, error)
 	// Delete removes a machine from the cloudprovider by its machine name
 	Delete(context.Context, *v1alpha5.Machine) error
+	List(context.Context) ([]*v1alpha5.Machine, error)
 	// Get retrieves a machine from the cloudprovider by its machine name
 	Get(context.Context, string) (*v1alpha5.Machine, error)
 	// GetInstanceTypes returns instance types supported by the cloudprovider.
