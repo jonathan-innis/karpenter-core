@@ -64,6 +64,7 @@ type Controller struct {
 	registration   *Registration
 	initialization *Initialization
 	liveness       *Liveness
+	drift          *Drift
 }
 
 // NewController is a constructor for the Machine Controller
@@ -80,6 +81,7 @@ func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider clou
 		registration:   &Registration{kubeClient: kubeClient},
 		initialization: &Initialization{kubeClient: kubeClient},
 		liveness:       &Liveness{clock: clk, kubeClient: kubeClient},
+		drift:          &Drift{kubeClient: kubeClient, cloudProvider: cloudProvider, lastChecked: cache.New(time.Minute*5, time.Second*10)},
 	})
 }
 
@@ -107,6 +109,7 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 		c.registration,
 		c.initialization,
 		c.liveness,
+		c.drift,
 	} {
 		res, err := reconciler.Reconcile(ctx, machine)
 		errs = multierr.Append(errs, err)
