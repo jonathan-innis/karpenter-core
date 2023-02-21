@@ -16,6 +16,7 @@ package settings
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -41,8 +42,14 @@ type Settings struct {
 	BatchMaxDuration      *metav1.Duration
 	BatchIdleDuration     *metav1.Duration
 	TTLAfterNotRegistered *metav1.Duration
+	InstanceTypeOverrides []InstanceTypeOverride
 	// This feature flag is temporary and will be removed in the near future.
 	DriftEnabled bool
+}
+
+type InstanceTypeOverride struct {
+	Requirements []v1.NodeSelectorRequirement `json:"requirements"`
+	Capacity     v1.ResourceList              `json:"capacity" hash:"string"`
 }
 
 func (*Settings) ConfigMap() string {
@@ -57,6 +64,7 @@ func (*Settings) Inject(ctx context.Context, cm *v1.ConfigMap) (context.Context,
 		AsMetaDuration("batchMaxDuration", &s.BatchMaxDuration),
 		AsMetaDuration("batchIdleDuration", &s.BatchIdleDuration),
 		AsMetaDuration("ttlAfterNotRegistered", &s.TTLAfterNotRegistered),
+		AsInstanceTypeOverrides("instanceTypeOverrides", &s.InstanceTypeOverrides),
 		configmap.AsBool("featureGates.driftEnabled", &s.DriftEnabled),
 	); err != nil {
 		return ctx, fmt.Errorf("parsing settings, %w", err)
@@ -97,6 +105,19 @@ func AsMetaDuration(key string, target **metav1.Duration) configmap.ParseFunc {
 				return fmt.Errorf("failed to parse %q: %w", key, err)
 			}
 			*target = &metav1.Duration{Duration: val}
+		}
+		return nil
+	}
+}
+
+func AsInstanceTypeOverrides(key string, target *[]InstanceTypeOverride) configmap.ParseFunc {
+	return func(data map[string]string) error {
+		if raw, ok := data[key]; ok {
+			var m []InstanceTypeOverride
+			if err := json.Unmarshal([]byte(raw), &m); err != nil {
+				return err
+			}
+			*target = m
 		}
 		return nil
 	}
