@@ -71,16 +71,17 @@ func (m *Machine) Add(ctx context.Context, pod *v1.Pod) error {
 	}
 
 	machineRequirements := scheduling.NewRequirements(m.Requirements.Values()...)
-	podRequirements := scheduling.NewPodRequirements(pod)
+	podRequirements := scheduling.NewPodRequirements(pod, false)
 
 	// Check Machine Affinity Requirements
-	if err := machineRequirements.Compatible(podRequirements); err != nil {
+	reqs, err := machineRequirements.FlexibleCompatible(podRequirements)
+	if err != nil {
 		return fmt.Errorf("incompatible requirements, %w", err)
 	}
-	machineRequirements.Add(podRequirements.Values()...)
+	machineRequirements.Add(reqs.Values()...)
 
 	// Check Topology Requirements
-	topologyRequirements, err := m.topology.AddRequirements(podRequirements, machineRequirements, pod)
+	topologyRequirements, err := m.topology.AddRequirements(reqs, machineRequirements, pod)
 	if err != nil {
 		return err
 	}

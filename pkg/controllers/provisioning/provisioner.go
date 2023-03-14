@@ -386,23 +386,23 @@ func (p *Provisioner) getDaemonSetPods(ctx context.Context) ([]*v1.Pod, error) {
 
 func (p *Provisioner) Validate(ctx context.Context, pod *v1.Pod) error {
 	return multierr.Combine(
-		validateProvisionerNameCanExist(pod),
+		//validateProvisionerNameCanExist(pod),
 		validateAffinity(pod),
 		p.volumeTopology.validatePersistentVolumeClaims(ctx, pod),
 	)
 }
 
-// validateProvisionerNameCanExist provides a more clear error message in the event of scheduling a pod that specifically doesn't
-// want to run on a Karpenter node (e.g. a Karpenter controller replica).
-func validateProvisionerNameCanExist(p *v1.Pod) error {
-	for _, req := range scheduling.NewPodRequirements(p) {
-		if req.Key == v1alpha5.ProvisionerNameLabelKey && req.Operator() == v1.NodeSelectorOpDoesNotExist {
-			return fmt.Errorf("configured to not run on a Karpenter provisioned node via %s %s requirement",
-				v1alpha5.ProvisionerNameLabelKey, v1.NodeSelectorOpDoesNotExist)
-		}
-	}
-	return nil
-}
+//// validateProvisionerNameCanExist provides a more clear error message in the event of scheduling a pod that specifically doesn't
+//// want to run on a Karpenter node (e.g. a Karpenter controller replica).
+//func validateProvisionerNameCanExist(p *v1.Pod) error {
+//	for _, req := range scheduling.NewPodRequirements(p) {
+//		if req.Key == v1alpha5.ProvisionerNameLabelKey && req.Operator() == v1.NodeSelectorOpDoesNotExist {
+//			return fmt.Errorf("configured to not run on a Karpenter provisioned node via %s %s requirement",
+//				v1alpha5.ProvisionerNameLabelKey, v1.NodeSelectorOpDoesNotExist)
+//		}
+//	}
+//	return nil
+//}
 
 func (p *Provisioner) injectTopology(ctx context.Context, pods []*v1.Pod) []*v1.Pod {
 	var schedulablePods []*v1.Pod

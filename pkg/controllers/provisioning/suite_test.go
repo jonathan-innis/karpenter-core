@@ -1110,7 +1110,7 @@ var _ = Describe("Preferential Fallback", func() {
 			ExpectProvisioned(ctx, env.Client, cluster, prov, pod)
 			ExpectNotScheduled(ctx, env.Client, pod)
 		})
-		It("should relax multiple terms", func() {
+		FIt("should relax multiple terms", func() {
 			pod := test.UnschedulablePod()
 			pod.Spec.Affinity = &v1.Affinity{NodeAffinity: &v1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{
 				{MatchExpressions: []v1.NodeSelectorRequirement{

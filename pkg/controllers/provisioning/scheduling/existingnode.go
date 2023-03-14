@@ -87,15 +87,17 @@ func (n *ExistingNode) Add(ctx context.Context, pod *v1.Pod) error {
 	}
 
 	nodeRequirements := scheduling.NewRequirements(n.requirements.Values()...)
-	podRequirements := scheduling.NewPodRequirements(pod)
+	podRequirements := scheduling.NewPodRequirements(pod, false)
+
 	// Check Node Affinity Requirements
-	if err = nodeRequirements.Compatible(podRequirements); err != nil {
+	reqs, err := nodeRequirements.FlexibleCompatible(podRequirements)
+	if err != nil {
 		return err
 	}
-	nodeRequirements.Add(podRequirements.Values()...)
+	nodeRequirements.Add(reqs.Values()...)
 
 	// Check Topology Requirements
-	topologyRequirements, err := n.topology.AddRequirements(podRequirements, nodeRequirements, pod)
+	topologyRequirements, err := n.topology.AddRequirements(reqs, nodeRequirements, pod)
 	if err != nil {
 		return err
 	}

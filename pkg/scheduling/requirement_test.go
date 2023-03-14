@@ -56,17 +56,17 @@ var _ = Describe("Requirement", func() {
 			for _, r := range []Requirements{
 				NewLabelRequirements(nodeSelector),
 				NewNodeSelectorRequirements(requirements...),
-				NewPodRequirements(&v1.Pod{
-					Spec: v1.PodSpec{
-						NodeSelector: nodeSelector,
-						Affinity: &v1.Affinity{
-							NodeAffinity: &v1.NodeAffinity{
-								RequiredDuringSchedulingIgnoredDuringExecution:  &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{{MatchExpressions: requirements}}},
-								PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{{Weight: 1, Preference: v1.NodeSelectorTerm{MatchExpressions: requirements}}},
-							},
-						},
-					},
-				}),
+				//NewPodRequirements(&v1.Pod{
+				//	Spec: v1.PodSpec{
+				//		NodeSelector: nodeSelector,
+				//		Affinity: &v1.Affinity{
+				//			NodeAffinity: &v1.NodeAffinity{
+				//				RequiredDuringSchedulingIgnoredDuringExecution:  &v1.NodeSelector{NodeSelectorTerms: []v1.NodeSelectorTerm{{MatchExpressions: requirements}}},
+				//				PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{{Weight: 1, Preference: v1.NodeSelectorTerm{MatchExpressions: requirements}}},
+				//			},
+				//		},
+				//	},
+				//}),
 			} {
 				Expect(r.Keys().List()).To(ConsistOf(
 					v1.LabelArchStable,

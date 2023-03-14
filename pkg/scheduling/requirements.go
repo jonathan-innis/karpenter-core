@@ -58,29 +58,52 @@ func NewLabelRequirements(labels map[string]string) Requirements {
 }
 
 // NewPodRequirements constructs requirements from a pod
-func NewPodRequirements(pod *v1.Pod) Requirements {
+func NewPodRequirements(pod *v1.Pod, ignorePreferred bool) FlexibleRequirements {
 	requirements := NewLabelRequirements(pod.Spec.NodeSelector)
 	if pod.Spec.Affinity == nil || pod.Spec.Affinity.NodeAffinity == nil {
-		return requirements
+		ret := NewFlexibleRequirements()
+		ret.Add(requirements.Values()...)
+		return ret
 	}
-	// The legal operators for pod affinity and anti-affinity are In, NotIn, Exists, DoesNotExist.
-	// Select heaviest preference and treat as a requirement. An outer loop will iteratively unconstrain them if unsatisfiable.
-	if preferred := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution; len(preferred) > 0 {
-		sort.Slice(preferred, func(i int, j int) bool { return preferred[i].Weight > preferred[j].Weight })
-		requirements.Add(NewNodeSelectorRequirements(preferred[0].Preference.MatchExpressions...).Values()...)
+	var flexibleRequirements FlexibleRequirements
+	if pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		flexibleRequirements = NewFlexibleRequirements(lo.Map(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms, func(t v1.NodeSelectorTerm, _ int) Requirements {
+			return NewNodeSelectorRequirements(t.MatchExpressions...)
+		})...)
+	} else {
+		flexibleRequirements = NewFlexibleRequirements()
 	}
-	// Select first requirement. An outer loop will iteratively remove OR requirements if unsatisfiable
-	if pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil &&
-		len(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms) > 0 {
-		requirements.Add(NewNodeSelectorRequirements(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions...).Values()...)
+	flexibleRequirements.Add(requirements.Values()...)
+	if !ignorePreferred {
+		// The legal operators for pod affinity and anti-affinity are In, NotIn, Exists, DoesNotExist.
+		// Select heaviest preference and treat as a requirement. An outer loop will iteratively unconstrain them if unsatisfiable.
+		if preferred := pod.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution; len(preferred) > 0 {
+			sort.Slice(preferred, func(i int, j int) bool { return preferred[i].Weight > preferred[j].Weight })
+			flexibleRequirements.Add(NewNodeSelectorRequirements(preferred[0].Preference.MatchExpressions...).Values()...)
+		}
 	}
-	return requirements
+	return flexibleRequirements
 }
 
 func (r Requirements) NodeSelectorRequirements() []v1.NodeSelectorRequirement {
 	return lo.Map(lo.Values(r), func(req *Requirement, _ int) v1.NodeSelectorRequirement {
 		return req.NodeSelectorRequirement()
 	})
+}
+
+type FlexibleRequirements []Requirements
+
+func NewFlexibleRequirements(flexible ...Requirements) FlexibleRequirements {
+	if len(flexible) == 0 {
+		return []Requirements{NewNodeSelectorRequirements()}
+	}
+	return flexible
+}
+
+func (r FlexibleRequirements) Add(requirements ...*Requirement) {
+	for _, req := range r {
+		req.Add(requirements...)
+	}
 }
 
 // Add requirements to provided requirements. Mutates existing requirements
@@ -130,6 +153,19 @@ func (r Requirements) Compatible(requirements Requirements) (errs error) {
 	}
 	// Well Known Labels must intersect, but if not defined, are allowed.
 	return multierr.Append(errs, r.Intersects(requirements))
+}
+
+func (r Requirements) FlexibleCompatible(requirements FlexibleRequirements) (reqs FlexibleRequirements, errs error) {
+	var newReqs []Requirements
+	for _, reqs := range requirements {
+		if err := r.Compatible(reqs); err == nil {
+			newReqs = append(newReqs, reqs)
+		}
+	}
+	if len(newReqs) == 0 {
+		return nil, fmt.Errorf("flexible requirements are incompatible with requirements")
+	}
+	return newReqs, nil
 }
 
 // editDistance is an implementation of edit distance from Algorithms/DPV

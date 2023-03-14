@@ -234,7 +234,7 @@ func (s *Scheduler) calculateExistingMachines(stateNodes []*state.Node, daemonSe
 			if err := scheduling.Taints(node.Taints()).Tolerates(p); err != nil {
 				continue
 			}
-			if err := scheduling.NewLabelRequirements(node.Labels()).Compatible(scheduling.NewPodRequirements(p)); err != nil {
+			if _, err := scheduling.NewLabelRequirements(node.Labels()).FlexibleCompatible(scheduling.NewPodRequirements(p, true)); err != nil {
 				continue
 			}
 			daemons = append(daemons, p)
@@ -259,7 +259,7 @@ func getDaemonOverhead(nodeTemplates []*MachineTemplate, daemonSetPods []*v1.Pod
 			if err := nodeTemplate.Taints.Tolerates(p); err != nil {
 				continue
 			}
-			if err := nodeTemplate.Requirements.Compatible(scheduling.NewPodRequirements(p)); err != nil {
+			if _, err := nodeTemplate.Requirements.FlexibleCompatible(scheduling.NewPodRequirements(p, true)); err != nil {
 				continue
 			}
 			daemons = append(daemons, p)

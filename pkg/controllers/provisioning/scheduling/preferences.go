@@ -36,7 +36,6 @@ type Preferences struct {
 func (p *Preferences) Relax(ctx context.Context, pod *v1.Pod) bool {
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("pod", client.ObjectKeyFromObject(pod)))
 	relaxations := []func(*v1.Pod) *string{
-		p.removeRequiredNodeAffinityTerm,
 		p.removePreferredPodAffinityTerm,
 		p.removePreferredPodAntiAffinityTerm,
 		p.removePreferredNodeAffinityTerm,
@@ -70,21 +69,21 @@ func (p *Preferences) removePreferredNodeAffinityTerm(pod *v1.Pod) *string {
 	return nil
 }
 
-func (p *Preferences) removeRequiredNodeAffinityTerm(pod *v1.Pod) *string {
-	if pod.Spec.Affinity == nil ||
-		pod.Spec.Affinity.NodeAffinity == nil ||
-		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil ||
-		len(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms) == 0 {
-		return nil
-	}
-	terms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-	// Remove the first term if there's more than one (terms are an OR semantic), Unlike preferred affinity, we cannot remove all terms
-	if len(terms) > 1 {
-		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = terms[1:]
-		return ptr.String(fmt.Sprintf("removing: spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution[0]=%s", pretty.Concise(terms[0])))
-	}
-	return nil
-}
+//func (p *Preferences) removeRequiredNodeAffinityTerm(pod *v1.Pod) *string {
+//	if pod.Spec.Affinity == nil ||
+//		pod.Spec.Affinity.NodeAffinity == nil ||
+//		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil ||
+//		len(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms) == 0 {
+//		return nil
+//	}
+//	terms := pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+//	// Remove the first term if there's more than one (terms are an OR semantic), Unlike preferred affinity, we cannot remove all terms
+//	if len(terms) > 1 {
+//		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = terms[1:]
+//		return ptr.String(fmt.Sprintf("removing: spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution[0]=%s", pretty.Concise(terms[0])))
+//	}
+//	return nil
+//}
 
 func (p *Preferences) removeTopologySpreadScheduleAnyway(pod *v1.Pod) *string {
 	for i, tsc := range pod.Spec.TopologySpreadConstraints {
