@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine
+package garbagecollect
 
 import (
 	"context"
@@ -37,7 +37,7 @@ type GarbageCollect struct {
 }
 
 func (g *GarbageCollect) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	if !machine.StatusConditions().GetCondition(v1alpha5.MachineCreated).IsTrue() {
+	if !machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue() {
 		return reconcile.Result{}, nil
 	}
 	// If there is no node representation for the machine, then check if there is a representation at the cloudprovider

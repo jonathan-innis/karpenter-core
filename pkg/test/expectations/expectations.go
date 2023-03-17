@@ -45,7 +45,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/controllers/machine"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/launch"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
@@ -308,8 +308,8 @@ func ExpectMachineDeployedWithOffset(offset int, ctx context.Context, c client.C
 	ExpectWithOffset(offset+1, err).To(Succeed())
 
 	// Make the machine ready in the status conditions
-	machine.PopulateMachineDetails(m, resolved)
-	m.StatusConditions().MarkTrue(v1alpha5.MachineCreated)
+	launch.PopulateMachineDetails(m, resolved)
+	m.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
 	m.StatusConditions().MarkTrue(v1alpha5.MachineRegistered)
 
 	// Mock the machine launch and node joining at the apiserver
@@ -342,7 +342,7 @@ func ExpectMakeMachinesReady(ctx context.Context, c client.Client, machines ...*
 func ExpectMakeMachinesReadyWithOffset(offset int, ctx context.Context, c client.Client, machines ...*v1alpha5.Machine) {
 	for i := range machines {
 		machines[i] = ExpectExistsWithOffset(offset+1, ctx, c, machines[i])
-		machines[i].StatusConditions().MarkTrue(v1alpha5.MachineCreated)
+		machines[i].StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
 		machines[i].StatusConditions().MarkTrue(v1alpha5.MachineRegistered)
 		machines[i].StatusConditions().MarkTrue(v1alpha5.MachineInitialized)
 		ExpectAppliedWithOffset(offset+1, ctx, c, machines[i])

@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine
+package initialization
 
 import (
 	"context"
@@ -42,7 +42,7 @@ type Initialization struct {
 // This method handles both nil provisioners and nodes without extended resources gracefully.
 func (i *Initialization) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
 	if machine.Status.ProviderID == "" {
-		machine.StatusConditions().MarkUnknown(v1alpha5.MachineInitialized, "", "")
+		machine.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "MachineNotLaunched", "Machine isn't launched yet")
 		return reconcile.Result{}, nil
 	}
 	if machine.StatusConditions().GetCondition(v1alpha5.MachineInitialized).IsTrue() {

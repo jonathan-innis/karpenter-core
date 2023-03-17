@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine_test
+package liveness_test
 
 import (
 	"time"
@@ -25,6 +25,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
 	"github.com/aws/karpenter-core/pkg/test"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -40,7 +41,7 @@ var _ = Describe("Liveness", func() {
 		provisioner = test.Provisioner()
 	})
 	It("should delete the Machine when the Machine hasn't created past the creation TTL", func() {
-		cloudProvider.AllowedCreateCalls = 0
+		monitor.cloudProvider.AllowedCreateCalls = 0
 		machine := test.Machine(v1alpha5.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
@@ -58,16 +59,16 @@ var _ = Describe("Liveness", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileFailed(ctx, machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(ctx, env.Client, machine)
-		Expect(machine.StatusConditions().GetCondition(v1alpha5.MachineCreated).IsTrue()).To(BeFalse())
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileFailed(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		Expect(machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue()).To(BeFalse())
 
 		// If the node hasn't registered in the creation timeframe, then we deprovision the Machine
-		fakeClock.Step(time.Minute * 3)
-		ExpectReconcileFailed(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
-		ExpectNotFound(ctx, env.Client, machine)
+		monitor.fakeClock.Step(time.Minute * 3)
+		ExpectReconcileFailed(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should delete the Machine when the Node hasn't registered to the Machine past the registration TTL", func() {
 		machine := test.Machine(v1alpha5.Machine{
@@ -87,20 +88,20 @@ var _ = Describe("Liveness", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(ctx, env.Client, machine)
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
 		// If the node hasn't registered in the liveness timeframe, then we deprovision the Machine
-		fakeClock.Step(time.Minute * 20)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
-		ExpectNotFound(ctx, env.Client, machine)
+		monitor.fakeClock.Step(time.Minute * 20)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should not delete the Machine when the Node hasn't registered to the Machine past the registration TTL if ttlAfterNotRegistered is disabled", func() {
 		s := test.Settings()
 		s.TTLAfterNotRegistered = nil
-		ctx = settings.ToContext(ctx, s)
+		monitor.ctx = settings.ToContext(monitor.ctx, s)
 		machine := test.Machine(v1alpha5.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
@@ -118,14 +119,14 @@ var _ = Describe("Liveness", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(ctx, env.Client, machine)
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
 		// If the node hasn't registered in the liveness timeframe, then we deprovision the Machine
-		fakeClock.Step(time.Minute * 20)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
-		ExpectExists(ctx, env.Client, machine)
+		monitor.fakeClock.Step(time.Minute * 20)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
+		ExpectExists(monitor.ctx, monitor.env.Client, machine)
 	})
 })

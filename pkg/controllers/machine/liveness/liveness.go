@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine
+package liveness
 
 import (
 	"context"
@@ -41,23 +41,26 @@ type Liveness struct {
 const launchTTL = time.Minute * 2
 
 func (l *Liveness) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	creationRes, creationErr := l.launchTTL(ctx, machine)
+	launchRes, launchErr := l.launchTTL(ctx, machine)
 	registrationRes, registrationErr := l.registrationTTL(ctx, machine)
-	return result.Min(creationRes, registrationRes), multierr.Combine(creationErr, registrationErr)
+	return result.Min(launchRes, registrationRes), multierr.Combine(launchErr, registrationErr)
 }
 
 func (l *Liveness) launchTTL(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	if machine.StatusConditions().GetCondition(v1alpha5.MachineCreated).IsTrue() {
+	if !machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsFalse() {
 		return reconcile.Result{}, nil
 	}
-	if machine.CreationTimestamp.IsZero() || l.clock.Since(machine.CreationTimestamp.Time) < launchTTL {
+	if machine.CreationTimestamp.IsZero() {
+		return reconcile.Result{Requeue: true}, nil
+	}
+	if l.clock.Since(machine.CreationTimestamp.Time) < launchTTL {
 		return reconcile.Result{RequeueAfter: launchTTL - l.clock.Since(machine.CreationTimestamp.Time)}, nil
 	}
 	// Delete the machine if we believe the machine won't create
 	if err := l.kubeClient.Delete(ctx, machine); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	logging.FromContext(ctx).With("ttl", time.Minute).Debugf("terminating machine since node hasn't created within creation ttl")
+	logging.FromContext(ctx).With("ttl", time.Minute).Infof("terminating machine since node hasn't created within creation ttl")
 	metrics.MachinesTerminatedCounter.With(prometheus.Labels{
 		metrics.ReasonLabel:      "machine_creation_timeout",
 		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
@@ -69,10 +72,13 @@ func (l *Liveness) registrationTTL(ctx context.Context, machine *v1alpha5.Machin
 	if settings.FromContext(ctx).TTLAfterNotRegistered == nil {
 		return reconcile.Result{}, nil
 	}
-	if machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
+	if !machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsFalse() {
 		return reconcile.Result{}, nil
 	}
-	if machine.CreationTimestamp.IsZero() || l.clock.Since(machine.CreationTimestamp.Time) < settings.FromContext(ctx).TTLAfterNotRegistered.Duration {
+	if machine.CreationTimestamp.IsZero() {
+		return reconcile.Result{Requeue: true}, nil
+	}
+	if l.clock.Since(machine.CreationTimestamp.Time) < settings.FromContext(ctx).TTLAfterNotRegistered.Duration {
 		return reconcile.Result{RequeueAfter: settings.FromContext(ctx).TTLAfterNotRegistered.Duration - l.clock.Since(machine.CreationTimestamp.Time)}, nil
 	}
 	// Delete the machine if we believe the machine won't register since we haven't seen the node

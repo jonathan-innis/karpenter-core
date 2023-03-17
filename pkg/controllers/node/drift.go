@@ -47,7 +47,7 @@ func (d *Drift) Reconcile(ctx context.Context, provisioner *v1alpha5.Provisioner
 	if err := d.kubeClient.Get(ctx, types.NamespacedName{Name: machineName}, machine); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	if !machine.StatusConditions().GetCondition(v1alpha5.MachineCreated).IsTrue() {
+	if !machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue() {
 		return reconcile.Result{Requeue: true}, nil
 	}
 	// TODO: Add Provisioner Drift

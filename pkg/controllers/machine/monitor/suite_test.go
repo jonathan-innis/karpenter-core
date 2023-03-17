@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine_test
+package monitor_test
 
 import (
 	"context"
@@ -21,9 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
 	. "knative.dev/pkg/logging/testing"
@@ -32,10 +30,9 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis"
 	"github.com/aws/karpenter-core/pkg/apis/settings"
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	"github.com/aws/karpenter-core/pkg/controllers/machine"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
+	terminator2 "github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
@@ -46,7 +43,7 @@ import (
 
 var ctx context.Context
 var machineController controller.Controller
-var evictionQueue *terminator.EvictionQueue
+var evictionQueue *terminator2.EvictionQueue
 var env *test.Environment
 var fakeClock *clock.FakeClock
 var cloudProvider *fake.CloudProvider
@@ -67,9 +64,9 @@ var _ = BeforeSuite(func() {
 	ctx = settings.ToContext(ctx, test.Settings())
 
 	cloudProvider = fake.NewCloudProvider()
-	evictionQueue = terminator.NewEvictionQueue(ctx, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{}))
-	terminator := terminator.NewTerminator(fakeClock, env.Client, evictionQueue)
-	machineController = machine.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
+	evictionQueue = terminator2.NewEvictionQueue(ctx, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{}))
+	terminator := terminator2.NewTerminator(fakeClock, env.Client, evictionQueue)
+	machineController = monitor.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
 })
 
 var _ = AfterSuite(func() {
@@ -80,29 +77,4 @@ var _ = AfterEach(func() {
 	fakeClock.SetTime(time.Now())
 	ExpectCleanedUp(ctx, env.Client)
 	cloudProvider.Reset()
-})
-
-var _ = Describe("Finalizer", func() {
-	var provisioner *v1alpha5.Provisioner
-
-	BeforeEach(func() {
-		provisioner = test.Provisioner()
-	})
-	It("should add the finalizer if it doesn't exist", func() {
-		machine := test.Machine(v1alpha5.Machine{
-			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{
-					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
-				},
-			},
-		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-
-		machine = ExpectExists(ctx, env.Client, machine)
-		_, ok := lo.Find(machine.Finalizers, func(f string) bool {
-			return f == v1alpha5.TerminationFinalizer
-		})
-		Expect(ok).To(BeTrue())
-	})
 })

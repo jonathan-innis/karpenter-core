@@ -24,7 +24,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/controllers/machine"
+	machinemonitor "github.com/aws/karpenter-core/pkg/controllers/machine/initialization"
 )
 
 // initFailureTime is the time after which we start reporting a node as having failed to initialize. This is set
@@ -55,11 +55,11 @@ func (f FailedInit) Check(_ context.Context, node *v1.Node, m *v1alpha5.Machine)
 
 	// detect startup taints which should be removed
 	var result []Issue
-	if taint, ok := machine.IsStartupTaintRemoved(node, m); !ok {
+	if taint, ok := machinemonitor.IsStartupTaintRemoved(node, m); !ok {
 		result = append(result, Issue(fmt.Sprintf("Startup taint %q is still on the node", formatTaint(taint))))
 	}
 	// and extended resources which never registered
-	if resource, ok := machine.RequestedResourcesRegistered(node, m); !ok {
+	if resource, ok := machinemonitor.RequestedResourcesRegistered(node, m); !ok {
 		result = append(result, Issue(fmt.Sprintf("Expected resource %q didn't register on the node", resource)))
 	}
 	return result, nil

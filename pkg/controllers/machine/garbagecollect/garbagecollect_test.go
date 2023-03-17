@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine_test
+package garbagecollect_test
 
 import (
 	"time"
@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
 	"github.com/aws/karpenter-core/pkg/test"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -43,20 +44,20 @@ var _ = Describe("GarbageCollection", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(ctx, env.Client, machine)
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
 		// Delete the machine from the cloudprovider
-		Expect(cloudProvider.Delete(ctx, machine)).To(Succeed())
+		Expect(monitor.cloudProvider.Delete(monitor.ctx, machine)).To(Succeed())
 
 		// Wait for the cache expiration to complete
 		time.Sleep(time.Second)
 
 		// Expect the Machine to be removed now that the Instance is gone
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
-		ExpectNotFound(ctx, env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("shouldn't delete the Machine when the Node isn't there but the instance is there", func() {
 		machine := test.Machine(v1alpha5.Machine{
@@ -66,15 +67,15 @@ var _ = Describe("GarbageCollection", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(ctx, env.Client, machine)
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
 		// Wait for the cache expiration to complete
 		time.Sleep(time.Second)
 
 		// Reconcile the Machine. It should not be deleted by this flow since it has never been registered
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectExists(ctx, env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectExists(monitor.ctx, monitor.env.Client, machine)
 	})
 })

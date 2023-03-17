@@ -35,8 +35,8 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
-	terminatorevents "github.com/aws/karpenter-core/pkg/controllers/machine/terminator/events"
+	terminator2 "github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator"
+	terminatorevents "github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator/events"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
@@ -49,12 +49,12 @@ var _ corecontroller.FinalizingTypedController[*v1.Node] = (*Controller)(nil)
 type Controller struct {
 	kubeClient    client.Client
 	cloudProvider cloudprovider.CloudProvider
-	terminator    *terminator.Terminator
+	terminator    *terminator2.Terminator
 	recorder      events.Recorder
 }
 
 // NewController constructs a controller instance
-func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, terminator *terminator.Terminator, recorder events.Recorder) corecontroller.Controller {
+func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, terminator *terminator2.Terminator, recorder events.Recorder) corecontroller.Controller {
 	return corecontroller.Typed[*v1.Node](kubeClient, &Controller{
 		kubeClient:    kubeClient,
 		cloudProvider: cloudProvider,
@@ -91,7 +91,7 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 		return reconcile.Result{}, fmt.Errorf("cordoning node, %w", err)
 	}
 	if err := c.terminator.Drain(ctx, node); err != nil {
-		if terminator.IsNodeDrainError(err) {
+		if terminator2.IsNodeDrainError(err) {
 			c.recorder.Publish(terminatorevents.NodeFailedToDrain(node, err))
 			return reconcile.Result{Requeue: true}, nil
 		}
