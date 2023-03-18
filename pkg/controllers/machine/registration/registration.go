@@ -17,7 +17,6 @@ package registration
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
@@ -29,11 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/garbagecollect"
-	initialization2 "github.com/aws/karpenter-core/pkg/controllers/machine/initialization"
-	liveness2 "github.com/aws/karpenter-core/pkg/controllers/machine/liveness"
-	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -45,17 +39,14 @@ type Controller struct {
 }
 
 // NewController is a constructor for the Machine Controller
-func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, recorder events.Recorder) corecontroller.Controller {
+func NewController(kubeClient client.Client) corecontroller.Controller {
 	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
-		kubeClient:    kubeClient,
-		cloudProvider: cloudProvider,
-		recorder:      recorder,
-
-		garbageCollect: &garbagecollect.GarbageCollect{kubeClient: kubeClient, cloudProvider: cloudProvider, lastChecked: cache.New(time.Minute*10, time.Second*10)},
-		registration:   &registration2.Registration{kubeClient: kubeClient},
-		initialization: &initialization2.Initialization{kubeClient: kubeClient},
-		liveness:       &liveness2.Liveness{clock: clk, kubeClient: kubeClient},
+		kubeClient: kubeClient,
 	})
+}
+
+func (r *Controller) Name() string {
+	return "machine_registration"
 }
 
 func (r *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
@@ -88,7 +79,7 @@ func (r *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 	return reconcile.Result{}, nil
 }
 
-func (r *Registration) syncNode(ctx context.Context, machine *v1alpha5.Machine, node *v1.Node) error {
+func (r *Controller) syncNode(ctx context.Context, machine *v1alpha5.Machine, node *v1.Node) error {
 	stored := node.DeepCopy()
 	controllerutil.AddFinalizer(node, v1alpha5.TerminationFinalizer)
 	lo.Must0(controllerutil.SetOwnerReference(machine, node, scheme.Scheme))
