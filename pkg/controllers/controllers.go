@@ -25,10 +25,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/counter"
 	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/inflightchecks"
-	machinelaunch "github.com/aws/karpenter-core/pkg/controllers/machine/launch"
-	machinemonitor "github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
-	machinetermination "github.com/aws/karpenter-core/pkg/controllers/machine/termination"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator"
+	"github.com/aws/karpenter-core/pkg/controllers/machine"
 	metricspod "github.com/aws/karpenter-core/pkg/controllers/metrics/pod"
 	metricsprovisioner "github.com/aws/karpenter-core/pkg/controllers/metrics/provisioner"
 	metricsstate "github.com/aws/karpenter-core/pkg/controllers/metrics/state"
@@ -37,6 +34,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/controllers/state/informer"
 	"github.com/aws/karpenter-core/pkg/controllers/termination"
+	"github.com/aws/karpenter-core/pkg/controllers/termination/terminator"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
@@ -58,7 +56,8 @@ func NewControllers(
 
 	provisioner := provisioning.NewProvisioner(kubeClient, kubernetesInterface.CoreV1(), recorder, cloudProvider, cluster)
 	terminator := terminator.NewTerminator(clock, kubeClient, terminator.NewEvictionQueue(ctx, kubernetesInterface.CoreV1(), recorder))
-	return []controller.Controller{
+
+	controllers := []controller.Controller{
 		provisioner,
 		metricsstate.NewController(cluster),
 		deprovisioning.NewController(clock, kubeClient, provisioner, cloudProvider, recorder, cluster),
@@ -74,8 +73,7 @@ func NewControllers(
 		metricsprovisioner.NewController(kubeClient),
 		counter.NewController(kubeClient, cluster),
 		inflightchecks.NewController(clock, kubeClient, recorder, cloudProvider),
-		machinelaunch.NewController(clock, kubeClient, cloudProvider, recorder),
-		machinetermination.NewController(kubeClient, cloudProvider, terminator, recorder),
-		machinemonitor.NewController(clock, kubeClient, cloudProvider, recorder),
 	}
+	controllers = append(controllers, machine.NewControllers(kubeClient, clock, cloudProvider)...)
+	return controllers
 }

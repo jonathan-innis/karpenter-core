@@ -137,7 +137,7 @@ func (p *Provisioner) LaunchMachines(ctx context.Context, machines []*scheduler.
 	// Launch capacity and bind pods
 	errs := make([]error, len(machines))
 	machineNames := make([]string, len(machines))
-	workqueue.ParallelizeUntil(ctx, len(machines), len(machines), func(i int) {
+	workqueue.ParallelizeUntil(ctx, 100, len(machines), func(i int) {
 		// create a new context to avoid a data race on the ctx variable
 		if machineName, err := p.Launch(ctx, machines[i], opts...); err != nil {
 			errs[i] = fmt.Errorf("launching machine, %w", err)
@@ -324,8 +324,6 @@ func (p *Provisioner) Launch(ctx context.Context, m *scheduler.Machine, opts ...
 		return "", err
 	}
 	options := functional.ResolveOptions(opts...)
-
-	logging.FromContext(ctx).Infof("launching %s", m)
 	machine := m.ToMachine(latest)
 	if err := p.kubeClient.Create(ctx, machine); err != nil {
 		return "", err

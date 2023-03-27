@@ -22,7 +22,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clock "k8s.io/utils/clock/testing"
 	. "knative.dev/pkg/logging/testing"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -30,10 +31,11 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis"
 	"github.com/aws/karpenter-core/pkg/apis/settings"
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
-	terminator2 "github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator"
-	"github.com/aws/karpenter-core/pkg/events"
+	"github.com/aws/karpenter-core/pkg/controllers/machine"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/termination"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
 	. "github.com/aws/karpenter-core/pkg/test/expectations"
@@ -42,11 +44,11 @@ import (
 )
 
 var ctx context.Context
-var machineController controller.Controller
-var evictionQueue *terminator2.EvictionQueue
 var env *test.Environment
 var fakeClock *clock.FakeClock
 var cloudProvider *fake.CloudProvider
+var machineController controller.Controller
+var terminationController controller.Controller
 
 func TestAPIs(t *testing.T) {
 	ctx = TestContextWithLogger(t)
@@ -62,11 +64,9 @@ var _ = BeforeSuite(func() {
 		})
 	}))
 	ctx = settings.ToContext(ctx, test.Settings())
-
 	cloudProvider = fake.NewCloudProvider()
-	evictionQueue = terminator2.NewEvictionQueue(ctx, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{}))
-	terminator := terminator2.NewTerminator(fakeClock, env.Client, evictionQueue)
-	machineController = monitor.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
+	machineController = machine.NewController(fakeClock, env.Client, cloudProvider)
+	terminationController = termination.NewController(env.Client, cloudProvider)
 })
 
 var _ = AfterSuite(func() {
@@ -77,4 +77,107 @@ var _ = AfterEach(func() {
 	fakeClock.SetTime(time.Now())
 	ExpectCleanedUp(ctx, env.Client)
 	cloudProvider.Reset()
+})
+
+var _ = Describe("Termination", func() {
+	var provisioner *v1alpha5.Provisioner
+	var machine *v1alpha5.Machine
+
+	BeforeEach(func() {
+		provisioner = test.Provisioner()
+		machine = test.Machine(v1alpha5.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
+				},
+			},
+			Spec: v1alpha5.MachineSpec{
+				Resources: v1alpha5.ResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceCPU:          resource.MustParse("2"),
+						v1.ResourceMemory:       resource.MustParse("50Mi"),
+						v1.ResourcePods:         resource.MustParse("5"),
+						fake.ResourceGPUVendorA: resource.MustParse("1"),
+					},
+				},
+			},
+		})
+	})
+	It("should delete the node and the CloudProvider Machine when Machine deletion is triggered", func() {
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+
+		machine = ExpectExists(ctx, env.Client, machine)
+		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
+		Expect(err).ToNot(HaveOccurred())
+
+		node := test.MachineLinkedNode(machine)
+		ExpectApplied(ctx, env.Client, node)
+
+		// Expect the node and the machine to both be gone
+		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // triggers the node deletion
+		ExpectFinalizersRemoved(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // now all nodes are gone so machine deletion continues
+		ExpectNotFound(ctx, env.Client, machine, node)
+
+		// Expect the machine to be gone from the cloudprovider
+		_, err = cloudProvider.Get(ctx, machine.Status.ProviderID)
+		Expect(cloudprovider.IsMachineNotFoundError(err)).To(BeTrue())
+	})
+	It("should delete multiple Nodes if multiple Nodes map to the Machine", func() {
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+
+		machine = ExpectExists(ctx, env.Client, machine)
+		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
+		Expect(err).ToNot(HaveOccurred())
+
+		node1 := test.MachineLinkedNode(machine)
+		node2 := test.MachineLinkedNode(machine)
+		node3 := test.MachineLinkedNode(machine)
+		ExpectApplied(ctx, env.Client, node1, node2, node3)
+
+		// Expect the node and the machine to both be gone
+		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // triggers the node deletion
+		ExpectFinalizersRemoved(ctx, env.Client, node1, node2, node3)
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // now all nodes are gone so machine deletion continues
+		ExpectNotFound(ctx, env.Client, machine, node1, node2, node3)
+
+		// Expect the machine to be gone from the cloudprovider
+		_, err = cloudProvider.Get(ctx, machine.Status.ProviderID)
+		Expect(cloudprovider.IsMachineNotFoundError(err)).To(BeTrue())
+	})
+	It("should not delete the Machine until all the Nodes are removed", func() {
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+
+		machine = ExpectExists(ctx, env.Client, machine)
+		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
+		Expect(err).ToNot(HaveOccurred())
+
+		node := test.MachineLinkedNode(machine)
+		ExpectApplied(ctx, env.Client, node)
+
+		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // triggers the node deletion
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // the node still hasn't been deleted, so the machine should remain
+
+		ExpectExists(ctx, env.Client, machine)
+		ExpectExists(ctx, env.Client, node)
+
+		ExpectFinalizersRemoved(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine)) // now the machine should be gone
+
+		ExpectNotFound(ctx, env.Client, machine, node)
+	})
+	It("should not delete the CloudProvider Machine if the machine hasn't been launched yet", func() {
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+
+		// Expect the machine to be gone
+		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
+		ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(ctx, env.Client, machine)
+	})
 })

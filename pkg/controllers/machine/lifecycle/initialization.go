@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package initialization
+package lifecycle
 
 import (
 	"context"
@@ -41,8 +41,8 @@ type Initialization struct {
 // c) all extended resources have been registered
 // This method handles both nil provisioners and nodes without extended resources gracefully.
 func (i *Initialization) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	if machine.Status.ProviderID == "" {
-		machine.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "MachineNotLaunched", "Machine isn't launched yet")
+	if !machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue() {
+		machine.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "MachineNotLaunched", "Machine is not launched")
 		return reconcile.Result{}, nil
 	}
 	if machine.StatusConditions().GetCondition(v1alpha5.MachineInitialized).IsTrue() {

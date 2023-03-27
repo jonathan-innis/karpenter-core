@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package launch
+package lifecycle
 
 import (
 	"context"
@@ -21,11 +21,13 @@ import (
 	"github.com/patrickmn/go-cache"
 	"go.uber.org/multierr"
 	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	controllerruntime "sigs.k8s.io/controller-runtime"
@@ -33,11 +35,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
 	"github.com/aws/karpenter-core/pkg/utils/result"
 )
 
@@ -47,31 +50,39 @@ type machineReconciler interface {
 
 var _ corecontroller.TypedController[*v1alpha5.Machine] = (*Controller)(nil)
 
-// Controller is a Machine Controller
+// Controller is a Machine Lifecycle controller that manages the lifecycle of the machine up until its termination
+// The controller is responsible for ensuring that new machines get launched, that they have properly registered with
+// the cluster as nodes and that they are properly initialized
 type Controller struct {
-	kubeClient    client.Client
-	cloudProvider cloudprovider.CloudProvider
-	recorder      events.Recorder
+	kubeClient client.Client
 
-	launch *Launch
+	launch              *Launch
+	launchTimeout       *LaunchTimeout
+	registration        *Registration
+	registrationTimeout *RegistrationTimeout
+	initialization      *Initialization
 }
 
-// NewController is a constructor for the Machine Controller
-func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, recorder events.Recorder) corecontroller.Controller {
+func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
 	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
-		kubeClient:    kubeClient,
-		cloudProvider: cloudProvider,
-		recorder:      recorder,
+		kubeClient: kubeClient,
 
-		launch: &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider, cache: cache.New(time.Minute, time.Second*10)},
+		launch:              &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider, cache: cache.New(time.Minute, time.Second*10)},
+		launchTimeout:       &LaunchTimeout{clock: clk, kubeClient: kubeClient},
+		registration:        &Registration{kubeClient: kubeClient},
+		registrationTimeout: &RegistrationTimeout{clock: clk, kubeClient: kubeClient},
+		initialization:      &Initialization{kubeClient: kubeClient},
 	})
 }
 
 func (*Controller) Name() string {
-	return "machine"
+	return "machine_lifecycle"
 }
 
 func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
+	if !machine.DeletionTimestamp.IsZero() {
+		return reconcile.Result{}, nil
+	}
 	// Add the finalizer immediately since we shouldn't launch if we don't yet have the finalizer.
 	// Otherwise, we could leak resources
 	stored := machine.DeepCopy()
@@ -87,6 +98,10 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 	var errs error
 	for _, reconciler := range []machineReconciler{
 		c.launch,
+		c.registration,
+		c.initialization,
+		c.launchTimeout, // we check timeouts last, since we don't want to delete the machine, and then still launch
+		c.registrationTimeout,
 	} {
 		res, err := reconciler.Reconcile(ctx, machine)
 		errs = multierr.Append(errs, err)
@@ -107,13 +122,23 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		For(&v1alpha5.Machine{}, builder.WithPredicates(
+			predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool { return true },
+				UpdateFunc: func(e event.UpdateEvent) bool { return false },
+				DeleteFunc: func(e event.DeleteEvent) bool { return false },
+			},
+		)).
+		Watches(
+			&source.Kind{Type: &v1.Node{}},
+			machineutil.NodeEventHandler(ctx, c.kubeClient),
+		).
 		WithOptions(controller.Options{
 			RateLimiter: workqueue.NewMaxOfRateLimiter(
 				workqueue.NewItemExponentialFailureRateLimiter(time.Second, time.Minute),
 				// 10 qps, 100 bucket size
 				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
 			),
-			MaxConcurrentReconciles: 300, // higher concurrency limit since we want fast reaction to node syncing and launch
+			MaxConcurrentReconciles: 100, // higher concurrency limit since we want fast reaction to node syncing and launch
 		}))
 }

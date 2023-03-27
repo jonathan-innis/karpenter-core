@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package initialization_test
+package lifecycle_test
 
 import (
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +22,6 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
 	"github.com/aws/karpenter-core/pkg/test"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -54,21 +53,21 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		node := test.Node(test.NodeOptions{
 			ProviderID: machine.Status.ProviderID,
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 
-		node = ExpectExists(monitor.ctx, monitor.env.Client, node)
+		node = ExpectExists(ctx, env.Client, node)
 		node.Status.Capacity = v1.ResourceList{
 			v1.ResourceCPU:    resource.MustParse("10"),
 			v1.ResourceMemory: resource.MustParse("100Mi"),
@@ -79,10 +78,10 @@ var _ = Describe("Initialization", func() {
 			v1.ResourceMemory: resource.MustParse("80Mi"),
 			v1.ResourcePods:   resource.MustParse("110"),
 		}
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionTrue))
 	})
@@ -103,9 +102,9 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		node := test.Node(test.NodeOptions{
 			ProviderID: machine.Status.ProviderID,
@@ -120,10 +119,10 @@ var _ = Describe("Initialization", func() {
 				v1.ResourcePods:   resource.MustParse("110"),
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
-		node = ExpectExists(monitor.ctx, monitor.env.Client, node)
+		node = ExpectExists(ctx, env.Client, node)
 		Expect(node.Labels).To(HaveKeyWithValue(v1alpha5.LabelNodeInitialized, "true"))
 	})
 	It("should not consider the Node to be initialized when the status of the Node is NotReady", func() {
@@ -143,9 +142,9 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		node := test.Node(test.NodeOptions{
 			ProviderID: machine.Status.ProviderID,
@@ -161,10 +160,10 @@ var _ = Describe("Initialization", func() {
 			},
 			ReadyStatus: v1.ConditionFalse,
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
@@ -186,14 +185,14 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		// Update the machine to add mock the instance type having an extended resource
 		machine.Status.Capacity[fake.ResourceGPUVendorA] = resource.MustParse("2")
 		machine.Status.Allocatable[fake.ResourceGPUVendorA] = resource.MustParse("2")
-		ExpectApplied(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, machine)
 
 		// Extended resource hasn't registered yet by the daemonset
 		node := test.Node(test.NodeOptions{
@@ -209,10 +208,10 @@ var _ = Describe("Initialization", func() {
 				v1.ResourcePods:   resource.MustParse("110"),
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
@@ -234,14 +233,14 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		// Update the machine to add mock the instance type having an extended resource
 		machine.Status.Capacity[fake.ResourceGPUVendorA] = resource.MustParse("2")
 		machine.Status.Allocatable[fake.ResourceGPUVendorA] = resource.MustParse("2")
-		ExpectApplied(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, machine)
 
 		// Extended resource hasn't registered yet by the daemonset
 		node := test.Node(test.NodeOptions{
@@ -257,22 +256,22 @@ var _ = Describe("Initialization", func() {
 				v1.ResourcePods:   resource.MustParse("110"),
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(ctx, env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 
 		// Node now registers the resource
-		node = ExpectExists(monitor.ctx, monitor.env.Client, node)
+		node = ExpectExists(ctx, env.Client, node)
 		node.Status.Capacity[fake.ResourceGPUVendorA] = resource.MustParse("2")
 		node.Status.Allocatable[fake.ResourceGPUVendorA] = resource.MustParse("2")
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
+		ExpectApplied(ctx, env.Client, node)
 
 		// Reconcile the machine and the Machine/Node should now be initilized
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionTrue))
 	})
@@ -305,9 +304,9 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		node := test.Node(test.NodeOptions{
 			ProviderID: machine.Status.ProviderID,
@@ -322,11 +321,11 @@ var _ = Describe("Initialization", func() {
 				v1.ResourcePods:   resource.MustParse("110"),
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
+		ExpectApplied(ctx, env.Client, node)
 
 		// Should add the startup taints to the node
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		node = ExpectExists(monitor.ctx, monitor.env.Client, node)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		node = ExpectExists(ctx, env.Client, node)
 		Expect(node.Spec.Taints).To(ContainElements(
 			v1.Taint{
 				Key:    "custom-startup-taint",
@@ -341,8 +340,8 @@ var _ = Describe("Initialization", func() {
 		))
 
 		// Shouldn't consider the node ready since the startup taints still exist
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
@@ -375,9 +374,9 @@ var _ = Describe("Initialization", func() {
 				},
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectApplied(ctx, env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 
 		node := test.Node(test.NodeOptions{
 			ProviderID: machine.Status.ProviderID,
@@ -392,21 +391,21 @@ var _ = Describe("Initialization", func() {
 				v1.ResourcePods:   resource.MustParse("110"),
 			},
 		})
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
+		ExpectApplied(ctx, env.Client, node)
 
 		// Shouldn't consider the node ready since the startup taints still exist
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 
-		node = ExpectExists(monitor.ctx, monitor.env.Client, node)
+		node = ExpectExists(ctx, env.Client, node)
 		node.Spec.Taints = []v1.Taint{}
-		ExpectApplied(monitor.ctx, monitor.env.Client, node)
+		ExpectApplied(ctx, env.Client, node)
 
 		// Machine should now be ready since all startup taints are removed
-		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
-		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionTrue))
 	})

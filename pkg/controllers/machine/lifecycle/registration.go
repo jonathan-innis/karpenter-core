@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package registration
+package lifecycle
 
 import (
 	"context"
@@ -28,30 +28,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
 )
 
-type Controller struct {
+type Registration struct {
 	kubeClient client.Client
 }
 
-// NewController is a constructor for the Machine Controller
-func NewController(kubeClient client.Client) corecontroller.Controller {
-	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
-		kubeClient: kubeClient,
-	})
-}
-
-func (r *Controller) Name() string {
-	return "machine_registration"
-}
-
-func (r *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	if machine.Status.ProviderID == "" {
-		machine.StatusConditions().MarkFalse(v1alpha5.MachineRegistered, "MachineNotLaunched", "Machine isn't launched yet")
+func (r *Registration) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
+	if !machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue() {
+		machine.StatusConditions().MarkFalse(v1alpha5.MachineRegistered, "MachineNotLaunched", "Machine is not launched")
 		return reconcile.Result{}, nil
 	}
 	if machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
@@ -79,7 +67,7 @@ func (r *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 	return reconcile.Result{}, nil
 }
 
-func (r *Controller) syncNode(ctx context.Context, machine *v1alpha5.Machine, node *v1.Node) error {
+func (r *Registration) syncNode(ctx context.Context, machine *v1alpha5.Machine, node *v1.Node) error {
 	stored := node.DeepCopy()
 	controllerutil.AddFinalizer(node, v1alpha5.TerminationFinalizer)
 	lo.Must0(controllerutil.SetOwnerReference(machine, node, scheme.Scheme))
@@ -95,11 +83,9 @@ func (r *Controller) syncNode(ctx context.Context, machine *v1alpha5.Machine, no
 		node.Annotations = lo.Assign(node.Annotations, machine.Annotations)
 		// Sync all taints inside of Machine into the Machine taints
 		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.Taints)
-	}
-	node.Labels[v1alpha5.MachineNameLabelKey] = machine.Labels[v1alpha5.MachineNameLabelKey]
-	if !machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
 		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.StartupTaints)
 	}
+	node.Labels[v1alpha5.MachineNameLabelKey] = machine.Labels[v1alpha5.MachineNameLabelKey]
 	if !equality.Semantic.DeepEqual(stored, node) {
 		if err := r.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
 			return fmt.Errorf("syncing node labels, %w", err)

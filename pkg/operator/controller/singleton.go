@@ -17,6 +17,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -73,7 +74,7 @@ func (s *Singleton) initMetrics() {
 var singletonRequest = reconcile.Request{}
 
 func (s *Singleton) Start(ctx context.Context) error {
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).Named(s.Name()))
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).Named(strings.ReplaceAll(s.Name(), "_", ".")))
 	logging.FromContext(ctx).Infof("starting controller")
 	defer logging.FromContext(ctx).Infof("stopping controller")
 

@@ -22,12 +22,13 @@ import (
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/operator/scheme"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 )
 
@@ -121,17 +122,26 @@ func IgnoreDuplicateNodeError(err error) error {
 //  1. No v1.Nodes match the v1alpha5.Machine providerID
 //  2. Multiple v1.Nodes match the v1alpha5.Machine providerID
 func NodeForMachine(ctx context.Context, c client.Client, machine *v1alpha5.Machine) (*v1.Node, error) {
-	nodeList := v1.NodeList{}
-	if err := c.List(ctx, &nodeList, client.MatchingFields{"spec.providerID": machine.Status.ProviderID}, client.Limit(2)); err != nil {
-		return nil, fmt.Errorf("listing nodes, %w", err)
+	nodes, err := AllNodesForMachine(ctx, c, machine)
+	if err != nil {
+		return nil, err
 	}
-	if len(nodeList.Items) > 1 {
+	if len(nodes) > 1 {
 		return nil, &DuplicateNodeError{ProviderID: machine.Status.ProviderID}
 	}
-	if len(nodeList.Items) == 0 {
+	if len(nodes) == 0 {
 		return nil, &NodeNotFoundError{ProviderID: machine.Status.ProviderID}
 	}
-	return &nodeList.Items[0], nil
+	return nodes[0], nil
+}
+
+// AllNodesForMachine is a helper function that takes a v1alpha5.Machine and finds ALL matching v1.Nodes by their providerID
+func AllNodesForMachine(ctx context.Context, c client.Client, machine *v1alpha5.Machine) ([]*v1.Node, error) {
+	nodeList := v1.NodeList{}
+	if err := c.List(ctx, &nodeList, client.MatchingFields{"spec.providerID": machine.Status.ProviderID}); err != nil {
+		return nil, fmt.Errorf("listing nodes, %w", err)
+	}
+	return lo.ToSlicePtr(nodeList.Items), nil
 }
 
 // New converts a node into a Machine using known values from the node and provisioner spec values
@@ -140,20 +150,12 @@ func New(node *v1.Node, provisioner *v1alpha5.Provisioner) *v1alpha5.Machine {
 	machine := NewFromNode(node)
 	machine.Annotations = lo.Assign(provisioner.Annotations, v1alpha5.ProviderAnnotation(provisioner.Spec.Provider))
 	machine.Labels = lo.Assign(provisioner.Labels, map[string]string{v1alpha5.ProvisionerNameLabelKey: provisioner.Name})
-	machine.OwnerReferences = []metav1.OwnerReference{
-		{
-			APIVersion:         v1alpha5.SchemeGroupVersion.String(),
-			Kind:               "Provisioner",
-			Name:               provisioner.Name,
-			UID:                provisioner.UID,
-			BlockOwnerDeletion: ptr.Bool(true),
-		},
-	}
 	machine.Spec.Kubelet = provisioner.Spec.KubeletConfiguration
 	machine.Spec.Taints = provisioner.Spec.Taints
 	machine.Spec.StartupTaints = provisioner.Spec.StartupTaints
 	machine.Spec.Requirements = provisioner.Spec.Requirements
 	machine.Spec.MachineTemplateRef = provisioner.Spec.ProviderRef
+	lo.Must0(controllerutil.SetOwnerReference(provisioner, machine, scheme.Scheme))
 	return machine
 }
 

@@ -61,7 +61,7 @@ func (t *typedDecorator[T]) Name() string {
 func (t *typedDecorator[T]) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	obj := reflect.New(reflect.TypeOf(*new(T)).Elem()).Interface().(T) // Create a new pointer to a client.Object
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).
-		Named(t.typedController.Name()).
+		Named(strings.ReplaceAll(t.typedController.Name(), "_", ".")).
 		With(
 			strings.ToLower(lo.Must(apiutil.GVKForObject(obj, scheme.Scheme)).Kind),
 			lo.Ternary(req.NamespacedName.Namespace != "", req.NamespacedName.String(), req.Name),

@@ -31,12 +31,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	terminator2 "github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator"
-	terminatorevents "github.com/aws/karpenter-core/pkg/controllers/machine/termination/terminator/events"
+	"github.com/aws/karpenter-core/pkg/controllers/termination/terminator"
+	terminatorevents "github.com/aws/karpenter-core/pkg/controllers/termination/terminator/events"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
@@ -49,12 +48,12 @@ var _ corecontroller.FinalizingTypedController[*v1.Node] = (*Controller)(nil)
 type Controller struct {
 	kubeClient    client.Client
 	cloudProvider cloudprovider.CloudProvider
-	terminator    *terminator2.Terminator
+	terminator    *terminator.Terminator
 	recorder      events.Recorder
 }
 
 // NewController constructs a controller instance
-func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, terminator *terminator2.Terminator, recorder events.Recorder) corecontroller.Controller {
+func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, terminator *terminator.Terminator, recorder events.Recorder) corecontroller.Controller {
 	return corecontroller.Typed[*v1.Node](kubeClient, &Controller{
 		kubeClient:    kubeClient,
 		cloudProvider: cloudProvider,
@@ -76,12 +75,8 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 	if !controllerutil.ContainsFinalizer(node, v1alpha5.TerminationFinalizer) {
 		return reconcile.Result{}, nil
 	}
-	allRemoved, err := c.ensureMachinesRemoved(ctx, node)
-	if err != nil {
+	if err := c.deleteAllMachines(ctx, node); err != nil {
 		return reconcile.Result{}, fmt.Errorf("removing machines, %w", err)
-	}
-	if !allRemoved {
-		return reconcile.Result{}, nil
 	}
 	// TODO @joinnis: Remove this section after v1beta1 migration is completed
 	// We need to keep the full termination flow in here during the migration timeframe
@@ -91,7 +86,7 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 		return reconcile.Result{}, fmt.Errorf("cordoning node, %w", err)
 	}
 	if err := c.terminator.Drain(ctx, node); err != nil {
-		if terminator2.IsNodeDrainError(err) {
+		if terminator.IsNodeDrainError(err) {
 			c.recorder.Publish(terminatorevents.NodeFailedToDrain(node, err))
 			return reconcile.Result{Requeue: true}, nil
 		}
@@ -112,28 +107,24 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 	return reconcile.Result{}, nil
 }
 
-func (c *Controller) ensureMachinesRemoved(ctx context.Context, n *v1.Node) (allRemoved bool, err error) {
+func (c *Controller) deleteAllMachines(ctx context.Context, n *v1.Node) (err error) {
 	machineList := &v1alpha5.MachineList{}
 	if err = c.kubeClient.List(ctx, machineList, client.MatchingFields{"status.providerID": n.Spec.ProviderID}); err != nil {
-		return false, err
+		return err
 	}
 	if len(machineList.Items) == 0 {
-		return true, nil
+		return nil
 	}
 	for i := range machineList.Items {
 		err = multierr.Append(err, client.IgnoreNotFound(c.kubeClient.Delete(ctx, &machineList.Items[i])))
 	}
-	return false, err
+	return err
 }
 
-func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
+func (c *Controller) Builder(_ context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
 		For(&v1.Node{}).
-		Watches(
-			&source.Kind{Type: &v1alpha5.Machine{}},
-			machineutil.EventHandler(ctx, c.kubeClient),
-		).
 		WithOptions(
 			controller.Options{
 				RateLimiter: workqueue.NewMaxOfRateLimiter(

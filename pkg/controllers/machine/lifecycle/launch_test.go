@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package launch_test
+package lifecycle_test
 
 import (
 	"fmt"
@@ -55,7 +55,7 @@ var _ = Describe("Launch", func() {
 		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
 		Expect(err).ToNot(HaveOccurred())
 	})
-	It("should add the MachineLaunched status condition after creating the Machine", func() {
+	It("should add the MachineCreated status condition after creating the Machine", func() {
 		machine := test.Machine(v1alpha5.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
