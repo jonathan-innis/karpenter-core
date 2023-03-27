@@ -12,7 +12,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package machine_test
+package monitor_test
 
 import (
 	"time"
@@ -32,7 +32,7 @@ import (
 	. "github.com/aws/karpenter-core/pkg/test/expectations"
 )
 
-var _ = Describe("Liveness", func() {
+var _ = Describe("Timeout", func() {
 	var provisioner *v1alpha5.Provisioner
 
 	BeforeEach(func() {

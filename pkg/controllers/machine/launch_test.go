@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
 	"github.com/aws/karpenter-core/pkg/test"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -45,14 +46,14 @@ var _ = Describe("Launch", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
-		Expect(cloudProvider.CreateCalls).To(HaveLen(1))
-		Expect(cloudProvider.CreatedMachines).To(HaveLen(1))
-		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
+		Expect(monitor.cloudProvider.CreateCalls).To(HaveLen(1))
+		Expect(monitor.cloudProvider.CreatedMachines).To(HaveLen(1))
+		_, err := monitor.cloudProvider.Get(monitor.ctx, machine.Status.ProviderID)
 		Expect(err).ToNot(HaveOccurred())
 	})
 	It("should add the MachineCreated status condition after creating the Machine", func() {
@@ -63,10 +64,10 @@ var _ = Describe("Launch", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineCreated).Status).To(Equal(v1.ConditionTrue))
 	})
 	It("should link an instance with the karpenter.sh/linked annotation", func() {
@@ -93,7 +94,7 @@ var _ = Describe("Launch", func() {
 				},
 			},
 		}
-		cloudProvider.CreatedMachines[cloudProviderMachine.Status.ProviderID] = cloudProviderMachine
+		monitor.cloudProvider.CreatedMachines[cloudProviderMachine.Status.ProviderID] = cloudProviderMachine
 		machine := test.Machine(v1alpha5.Machine{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -104,10 +105,10 @@ var _ = Describe("Launch", func() {
 				},
 			},
 		})
-		ExpectApplied(ctx, env.Client, provisioner, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		ExpectApplied(monitor.ctx, monitor.env.Client, provisioner, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
-		machine = ExpectExists(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
 		Expect(machine.Status.ProviderID).To(Equal(cloudProviderMachine.Status.ProviderID))
 		ExpectResources(machine.Status.Capacity, cloudProviderMachine.Status.Capacity)
@@ -119,12 +120,12 @@ var _ = Describe("Launch", func() {
 		Expect(machine.Labels).To(HaveKeyWithValue(v1alpha5.LabelCapacityType, v1alpha5.CapacityTypeSpot))
 	})
 	It("should delete the machine if InsufficientCapacity is returned from the cloudprovider", func() {
-		cloudProvider.NextCreateErr = cloudprovider.NewInsufficientCapacityError(fmt.Errorf("all instance types were unavailable"))
+		monitor.cloudProvider.NextCreateErr = cloudprovider.NewInsufficientCapacityError(fmt.Errorf("all instance types were unavailable"))
 		machine := test.Machine()
-		ExpectApplied(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine)) // Reconcile again to handle termination flow
 
-		ExpectNotFound(ctx, env.Client, machine)
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 })

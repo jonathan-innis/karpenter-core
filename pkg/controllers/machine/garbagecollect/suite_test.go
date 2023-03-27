@@ -31,8 +31,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	"github.com/aws/karpenter-core/pkg/controllers/machine"
 	"github.com/aws/karpenter-core/pkg/controllers/machine/garbagecollect"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
 	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 
 	evictionQueue := terminator.NewEvictionQueue(ctx, env.KubernetesInterface.CoreV1(), events.NewRecorder(&record.FakeRecorder{}))
 	terminator := terminator.NewTerminator(fakeClock, env.Client, evictionQueue)
-	machineController = machine.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
+	machineController = monitor.NewController(fakeClock, env.Client, cloudProvider, terminator, events.NewRecorder(&record.FakeRecorder{}))
 	garbageCollectionController = garbagecollect.NewController(env.Client, cloudProvider, fakeClock)
 })
 

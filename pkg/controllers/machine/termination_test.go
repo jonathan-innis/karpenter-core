@@ -28,6 +28,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
+	"github.com/aws/karpenter-core/pkg/controllers/machine/monitor"
 	"github.com/aws/karpenter-core/pkg/controllers/machine/terminator"
 	"github.com/aws/karpenter-core/pkg/test"
 
@@ -86,34 +87,34 @@ var _ = Describe("Termination", func() {
 			test.Pod(test.PodOptions{NodeName: node.Name, ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}}),
 			test.Pod(test.PodOptions{NodeName: node.Name, ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}}),
 		}
-		ExpectApplied(ctx, env.Client, machine, node, pods[0], pods[1])
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, pods[0], pods[1])
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Expect the pods to be evicted
-		ExpectEvicted(env.Client, pods[0], pods[1])
+		ExpectEvicted(monitor.env.Client, pods[0], pods[1])
 
 		// Expect node to exist and be draining, but not deleted
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNodeDraining(env.Client, node.Name)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
-		ExpectDeleted(ctx, env.Client, pods[1])
+		ExpectDeleted(monitor.ctx, monitor.env.Client, pods[1])
 
 		// Expect node to exist and be draining, but not deleted
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNodeDraining(env.Client, node.Name)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
-		ExpectDeleted(ctx, env.Client, pods[0])
+		ExpectDeleted(monitor.ctx, monitor.env.Client, pods[0])
 
 		// Reconcile to delete node
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should not race if deleting machines in parallel", func() {
 		var machines []*v1alpha5.Machine
@@ -151,8 +152,8 @@ var _ = Describe("Termination", func() {
 					},
 				},
 			})
-			ExpectApplied(ctx, env.Client, machine, node)
-			Expect(env.Client.Delete(ctx, machine)).To(Succeed())
+			ExpectApplied(monitor.ctx, monitor.env.Client, machine, node)
+			Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
 			machines = append(machines, machine)
 		}
 
@@ -163,11 +164,11 @@ var _ = Describe("Termination", func() {
 			go func(machine *v1alpha5.Machine) {
 				defer GinkgoRecover()
 				defer wg.Done()
-				ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+				ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 			}(machines[i])
 		}
 		wg.Wait()
-		ExpectNotFound(ctx, env.Client, lo.Map(machines, func(m *v1alpha5.Machine, _ int) client.Object { return m })...)
+		ExpectNotFound(monitor.ctx, monitor.env.Client, lo.Map(machines, func(m *v1alpha5.Machine, _ int) client.Object { return m })...)
 	})
 	It("should exclude machines from load balancers when terminating", func() {
 		// This is a kludge to prevent the node from being deleted before we can
@@ -180,15 +181,15 @@ var _ = Describe("Termination", func() {
 			},
 		})
 
-		ExpectApplied(ctx, env.Client, machine, node, podNoEvict)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, podNoEvict)
 
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Node should now have the nodeExcludeLoadBalancer label
-		machine = ExpectExists(ctx, env.Client, machine)
-		node = ExpectExists(ctx, env.Client, node)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		node = ExpectExists(monitor.ctx, monitor.env.Client, node)
 		Expect(node.Labels[v1.LabelNodeExcludeBalancers]).Should(Equal("karpenter"))
 	})
 	It("should not evict pods that tolerate unschedulable taint", func() {
@@ -198,23 +199,23 @@ var _ = Describe("Termination", func() {
 			Tolerations: []v1.Toleration{{Key: v1.TaintNodeUnschedulable, Operator: v1.TolerationOpExists, Effect: v1.TaintEffectNoSchedule}},
 			ObjectMeta:  metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs},
 		})
-		ExpectApplied(ctx, env.Client, machine, node, podEvict, podSkip)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, podEvict, podSkip)
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Expect node to exist and be draining
-		ExpectNodeDraining(env.Client, node.Name)
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
 		// Expect podEvict to be evicting, and delete it
-		ExpectEvicted(env.Client, podEvict)
-		ExpectDeleted(ctx, env.Client, podEvict)
+		ExpectEvicted(monitor.env.Client, podEvict)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, podEvict)
 
 		// Reconcile to delete the machine
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should delete machines that have pods without an ownerRef", func() {
 		pod := test.Pod(test.PodOptions{
@@ -224,28 +225,28 @@ var _ = Describe("Termination", func() {
 			},
 		})
 
-		ExpectApplied(ctx, env.Client, machine, node, pod)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, pod)
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Expect pod with no owner ref to be enqueued for eviction
-		ExpectEvicted(env.Client, pod)
+		ExpectEvicted(monitor.env.Client, pod)
 
 		// Expect node to exist and be draining
-		ExpectNodeDraining(env.Client, node.Name)
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
 		// Delete no owner refs pod to simulate successful eviction
-		ExpectDeleted(ctx, env.Client, pod)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, pod)
 
 		// Reconcile node to evict pod
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Reconcile to delete machine
-		ExpectNotFound(ctx, env.Client, machine)
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should delete machines with terminal pods", func() {
 		podEvictPhaseSucceeded := test.Pod(test.PodOptions{
@@ -256,15 +257,15 @@ var _ = Describe("Termination", func() {
 			NodeName: node.Name,
 			Phase:    v1.PodFailed,
 		})
-		ExpectApplied(ctx, env.Client, machine, node, podEvictPhaseSucceeded, podEvictPhaseFailed)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, podEvictPhaseSucceeded, podEvictPhaseFailed)
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
 
 		// Trigger Finalization Flow, which should ignore these pods and delete the node
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should fail to evict pods that violate a PDB", func() {
 		minAvailable := intstr.FromInt(1)
@@ -283,65 +284,65 @@ var _ = Describe("Termination", func() {
 			Phase: v1.PodRunning,
 		})
 
-		ExpectApplied(ctx, env.Client, machine, node, podNoEvict, pdb)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, podNoEvict, pdb)
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Expect node to exist and be draining
-		ExpectNodeDraining(env.Client, node.Name)
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
 		// Expect podNoEvict to fail eviction due to PDB, and be retried
 		Eventually(func() int {
-			return evictionQueue.NumRequeues(client.ObjectKeyFromObject(podNoEvict))
+			return monitor.evictionQueue.NumRequeues(client.ObjectKeyFromObject(podNoEvict))
 		}).Should(BeNumerically(">=", 1))
 
 		// Delete pod to simulate successful eviction
-		ExpectDeleted(ctx, env.Client, podNoEvict)
-		ExpectNotFound(ctx, env.Client, podNoEvict)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, podNoEvict)
+		ExpectNotFound(monitor.ctx, monitor.env.Client, podNoEvict)
 
 		// Reconcile to delete node
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should evict non-critical pods first", func() {
 		podEvict := test.Pod(test.PodOptions{NodeName: node.Name, ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}})
 		podNodeCritical := test.Pod(test.PodOptions{NodeName: node.Name, PriorityClassName: "system-node-critical", ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}})
 		podClusterCritical := test.Pod(test.PodOptions{NodeName: node.Name, PriorityClassName: "system-cluster-critical", ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}})
 
-		ExpectApplied(ctx, env.Client, machine, node, podEvict, podNodeCritical, podClusterCritical)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, podEvict, podNodeCritical, podClusterCritical)
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Expect node to exist and be draining
-		ExpectNodeDraining(env.Client, node.Name)
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
 		// Expect podEvict to be evicting, and delete it
-		ExpectEvicted(env.Client, podEvict)
-		ExpectDeleted(ctx, env.Client, podEvict)
+		ExpectEvicted(monitor.env.Client, podEvict)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, podEvict)
 
 		// Expect the critical pods to be evicted and deleted
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectEvicted(env.Client, podNodeCritical)
-		ExpectDeleted(ctx, env.Client, podNodeCritical)
-		ExpectEvicted(env.Client, podClusterCritical)
-		ExpectDeleted(ctx, env.Client, podClusterCritical)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectEvicted(monitor.env.Client, podNodeCritical)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, podNodeCritical)
+		ExpectEvicted(monitor.env.Client, podClusterCritical)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, podClusterCritical)
 
 		// Reconcile to delete node
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 	It("should not evict static pods", func() {
 		podEvict := test.Pod(test.PodOptions{NodeName: node.Name, ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}})
-		ExpectApplied(ctx, env.Client, machine, node, podEvict)
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, podEvict)
 
 		podNoEvict := test.Pod(test.PodOptions{
 			NodeName: node.Name,
@@ -354,52 +355,52 @@ var _ = Describe("Termination", func() {
 				}},
 			},
 		})
-		ExpectApplied(ctx, env.Client, podNoEvict)
+		ExpectApplied(monitor.ctx, monitor.env.Client, podNoEvict)
 
 		// Trigger Finalization Flow
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Expect mirror pod to not be queued for eviction
-		ExpectNotEnqueuedForEviction(evictionQueue, podNoEvict)
+		ExpectNotEnqueuedForEviction(monitor.evictionQueue, podNoEvict)
 
 		// Expect podEvict to be enqueued for eviction then be successful
-		ExpectEvicted(env.Client, podEvict)
+		ExpectEvicted(monitor.env.Client, podEvict)
 
 		// Expect node to exist and be draining
-		ExpectNodeDraining(env.Client, node.Name)
+		ExpectNodeDraining(monitor.env.Client, node.Name)
 
 		// Reconcile node to evict pod
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
 
 		// Delete pod to simulate successful eviction
-		ExpectDeleted(ctx, env.Client, podEvict)
+		ExpectDeleted(monitor.ctx, monitor.env.Client, podEvict)
 
 		// Reconcile to delete node
-		machine = ExpectExists(ctx, env.Client, machine)
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		machine = ExpectExists(monitor.ctx, monitor.env.Client, machine)
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 
 	})
 	It("should wait for pods to terminate", func() {
 		pod := test.Pod(test.PodOptions{NodeName: node.Name, ObjectMeta: metav1.ObjectMeta{OwnerReferences: defaultOwnerRefs}})
-		fakeClock.SetTime(time.Now()) // make our fake clock match the pod creation time
-		ExpectApplied(ctx, env.Client, machine, node, pod)
+		monitor.fakeClock.SetTime(time.Now()) // make our fake clock match the pod creation time
+		ExpectApplied(monitor.ctx, monitor.env.Client, machine, node, pod)
 
 		// Before grace period, node should not delete
-		Expect(env.Client.Delete(ctx, machine)).To(Succeed())
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNodeExists(ctx, env.Client, node.Name)
-		ExpectEvicted(env.Client, pod)
+		Expect(monitor.env.Client.Delete(monitor.ctx, machine)).To(Succeed())
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNodeExists(monitor.ctx, monitor.env.Client, node.Name)
+		ExpectEvicted(monitor.env.Client, pod)
 
 		// After grace period, node should delete. The deletion timestamps are from etcd which we can't control, so
 		// to eliminate test-flakiness we reset the time to current time + 90 seconds instead of just advancing
 		// the clock by 90 seconds.
-		fakeClock.SetTime(time.Now().Add(90 * time.Second))
-		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
-		ExpectNotFound(ctx, env.Client, machine)
+		monitor.fakeClock.SetTime(time.Now().Add(90 * time.Second))
+		ExpectReconcileSucceeded(monitor.ctx, monitor.machineController, client.ObjectKeyFromObject(machine))
+		ExpectNotFound(monitor.ctx, monitor.env.Client, machine)
 	})
 })
 
@@ -412,7 +413,7 @@ func ExpectNotEnqueuedForEviction(e *terminator.EvictionQueue, pods ...*v1.Pod) 
 func ExpectEvicted(c client.Client, pods ...*v1.Pod) {
 	for _, pod := range pods {
 		EventuallyWithOffset(1, func() bool {
-			return ExpectPodExists(ctx, c, pod.Name, pod.Namespace).GetDeletionTimestamp().IsZero()
+			return ExpectPodExists(monitor.ctx, c, pod.Name, pod.Namespace).GetDeletionTimestamp().IsZero()
 		}, ReconcilerPropagationTime, RequestInterval).Should(BeFalse(), func() string {
 			return fmt.Sprintf("expected %s/%s to be evicting, but it isn't", pod.Namespace, pod.Name)
 		})
@@ -420,7 +421,7 @@ func ExpectEvicted(c client.Client, pods ...*v1.Pod) {
 }
 
 func ExpectNodeDraining(c client.Client, nodeName string) *v1.Node {
-	node := ExpectNodeExistsWithOffset(1, ctx, c, nodeName)
+	node := ExpectNodeExistsWithOffset(1, monitor.ctx, c, nodeName)
 	ExpectWithOffset(1, node.Spec.Unschedulable).To(BeTrue())
 	ExpectWithOffset(1, lo.Contains(node.Finalizers, v1alpha5.TerminationFinalizer)).To(BeTrue())
 	return node
