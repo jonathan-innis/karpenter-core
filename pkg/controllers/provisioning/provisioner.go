@@ -123,16 +123,57 @@ func (p *Provisioner) Reconcile(ctx context.Context, _ reconcile.Request) (resul
 	}
 
 	// Schedule pods to potential nodes, exit if nothing to do
-	machines, _, err := p.Schedule(ctx)
+	solution, err := p.Schedule(ctx)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if len(machines) == 0 {
+	if len(solution.NewMachines) == 0 {
 		return reconcile.Result{}, nil
 	}
-	_, err = p.LaunchMachines(ctx, machines, WithReason(metrics.ProvisioningReason), RecordPodNomination)
+
+	//recordSchedulingResults inside LaunchMachines?
+	_, err = p.LaunchMachines(ctx, solution.NewMachines, WithReason(metrics.ProvisioningReason), RecordPodNomination)
 	return reconcile.Result{}, err
 }
+
+// func (s *Scheduler) recordSchedulingResults(ctx context.Context, pods []*v1.Pod, failedToSchedule []*v1.Pod, errors map[*v1.Pod]error) {
+// 	// Report failures and nominations
+// 	for _, pod := range failedToSchedule {
+// 		logging.FromContext(ctx).With("pod", client.ObjectKeyFromObject(pod)).Errorf("Could not schedule pod, %s", errors[pod])
+// 		s.recorder.Publish(schedulingevents.PodFailedToSchedule(pod, errors[pod]))
+// 	}
+
+// 	for _, existing := range s.existingNodes {
+// 		if len(existing.Pods) > 0 {
+// 			s.cluster.NominateNodeForPod(ctx, existing.Name())
+// 		}
+// 		for _, pod := range existing.Pods {
+// 			s.recorder.Publish(schedulingevents.NominatePod(pod, existing.Node)...)
+// 		}
+// 	}
+
+// 	// Report new nodes, or exit to avoid log spam
+// 	newCount := 0
+// 	for _, machine := range s.newMachines {
+// 		newCount += len(machine.Pods)
+// 	}
+// 	if newCount == 0 {
+// 		return
+// 	}
+// 	logging.FromContext(ctx).With("pods", len(pods)).Infof("found provisionable pod(s)")
+// 	logging.FromContext(ctx).With("machines", len(s.newMachines), "pods", newCount).Infof("computed new machine(s) to fit pod(s)")
+// 	// Report in flight newNodes, or exit to avoid log spam
+// 	inflightCount := 0
+// 	existingCount := 0
+// 	for _, node := range lo.Filter(s.existingNodes, func(node *ExistingNode, _ int) bool { return len(node.Pods) > 0 }) {
+// 		inflightCount++
+// 		existingCount += len(node.Pods)
+// 	}
+// 	if existingCount == 0 {
+// 		return
+// 	}
+// 	logging.FromContext(ctx).Infof("computed %d unready node(s) will fit %d pod(s)", inflightCount, existingCount)
+// }
 
 // LaunchMachines launches nodes passed into the function in parallel. It returns a slice of the successfully created node
 // names as well as a multierr of any errors that occurred while launching nodes
@@ -197,7 +238,7 @@ func (p *Provisioner) consolidationWarnings(ctx context.Context, po v1.Pod) {
 }
 
 //nolint:gocyclo
-func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNodes []*state.StateNode, opts scheduler.SchedulerOptions) (*scheduler.Scheduler, error) {
+func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNodes []*state.StateNode) (*scheduler.Scheduler, error) {
 	// Build node templates
 	var machines []*scheduler.MachineTemplate
 	var provisionerList v1alpha5.ProvisionerList
@@ -274,10 +315,10 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 	if err != nil {
 		return nil, fmt.Errorf("getting daemon pods, %w", err)
 	}
-	return scheduler.NewScheduler(ctx, p.kubeClient, machines, provisionerList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder, opts), nil
+	return scheduler.NewScheduler(ctx, p.kubeClient, machines, provisionerList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods), nil
 }
 
-func (p *Provisioner) Schedule(ctx context.Context) ([]*scheduler.Machine, []*scheduler.ExistingNode, error) {
+func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Solution, error) {
 	defer metrics.Measure(schedulingDuration)()
 
 	// We collect the nodes with their used capacities before we get the list of pending pods. This ensures that
@@ -294,7 +335,7 @@ func (p *Provisioner) Schedule(ctx context.Context) ([]*scheduler.Machine, []*sc
 	// Get pods, exit if nothing to do
 	pendingPods, err := p.GetPendingPods(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Get pods from nodes that are preparing for deletion
 	// We do this after getting the pending pods so that we undershoot if pods are
@@ -302,17 +343,17 @@ func (p *Provisioner) Schedule(ctx context.Context) ([]*scheduler.Machine, []*sc
 	// NOTE: The assumption is that these nodes are cordoned and no additional pods will schedule to them
 	deletingNodePods, err := nodes.Deleting().Pods(ctx, p.kubeClient)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	pods := append(pendingPods, deletingNodePods...)
 	if len(pods) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
-	scheduler, err := p.NewScheduler(ctx, pods, nodes.Active(), scheduler.SchedulerOptions{})
+	scheduler, err := p.NewScheduler(ctx, pods, nodes.Active())
 	if err != nil {
-		return nil, nil, fmt.Errorf("creating scheduler, %w", err)
+		return nil, fmt.Errorf("creating scheduler, %w", err)
 	}
-	return scheduler.Solve(ctx, pods)
+	return scheduler.Solve(ctx, pods), nil
 }
 
 func (p *Provisioner) Launch(ctx context.Context, m *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {

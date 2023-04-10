@@ -99,31 +99,26 @@ func simulateScheduling(ctx context.Context, kubeClient client.Client, cluster *
 		pods = append(pods, n.pods...)
 	}
 	pods = append(pods, deletingNodePods...)
-	scheduler, err := provisioner.NewScheduler(ctx, pods, stateNodes, pscheduling.SchedulerOptions{
-		SimulationMode: true,
-	})
+	scheduler, err := provisioner.NewScheduler(ctx, pods, stateNodes)
 
 	if err != nil {
 		return nil, false, fmt.Errorf("creating scheduler, %w", err)
 	}
 
-	newMachines, ifn, err := scheduler.Solve(ctx, pods)
-	if err != nil {
-		return nil, false, fmt.Errorf("simulating scheduling, %w", err)
-	}
+	solution := scheduler.Solve(ctx, pods)
 
 	podsScheduled := 0
-	for _, n := range newMachines {
+	for _, n := range solution.NewMachines {
 		podsScheduled += len(n.Pods)
 	}
-	for _, n := range ifn {
+	for _, n := range solution.ExistingMachines {
 		podsScheduled += len(n.Pods)
 	}
 
 	// check if the scheduling relied on an existing node that isn't ready yet, if so we fail
 	// to schedule since we want to assume that we can delete a node and its pods will immediately
 	// move to an existing node which won't occur if that node isn't ready.
-	for _, n := range ifn {
+	for _, n := range solution.ExistingMachines {
 		if !n.Initialized() {
 			return nil, false, nil
 		}

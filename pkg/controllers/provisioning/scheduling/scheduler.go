@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
 	"knative.dev/pkg/logging"
@@ -27,23 +26,14 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	schedulingevents "github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling/events"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
-	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	"github.com/aws/karpenter-core/pkg/utils/resources"
 )
 
-// SchedulerOptions can be used to control the scheduling, these options are currently only used during consolidation.
-type SchedulerOptions struct {
-	// SimulationMode if true will prevent recording of the pod nomination decisions as events
-	SimulationMode bool
-}
-
 func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*MachineTemplate,
 	provisioners []v1alpha5.Provisioner, cluster *state.Cluster, stateNodes []*state.StateNode, topology *Topology,
-	instanceTypes map[string][]*cloudprovider.InstanceType, daemonSetPods []*v1.Pod,
-	recorder events.Recorder, opts SchedulerOptions) *Scheduler {
+	instanceTypes map[string][]*cloudprovider.InstanceType, daemonSetPods []*v1.Pod) *Scheduler {
 
 	// if any of the provisioners add a taint with a prefer no schedule effect, we add a toleration for the taint
 	// during preference relaxation
@@ -64,8 +54,6 @@ func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*Mac
 		cluster:            cluster,
 		instanceTypes:      instanceTypes,
 		daemonOverhead:     getDaemonOverhead(machines, daemonSetPods),
-		recorder:           recorder,
-		opts:               opts,
 		preferences:        &Preferences{ToleratePreferNoSchedule: toleratePreferNoSchedule},
 		remainingResources: map[string]v1.ResourceList{},
 	}
@@ -89,12 +77,16 @@ type Scheduler struct {
 	preferences        *Preferences
 	topology           *Topology
 	cluster            *state.Cluster
-	recorder           events.Recorder
-	opts               SchedulerOptions
 	kubeClient         client.Client
 }
 
-func (s *Scheduler) Solve(ctx context.Context, pods []*v1.Pod) ([]*Machine, []*ExistingNode, error) {
+type Solution struct {
+	NewMachines      []*Machine
+	ExistingMachines []*ExistingNode
+	Unschedulable    map[*v1.Pod]error
+}
+
+func (s *Scheduler) Solve(ctx context.Context, pods []*v1.Pod) *Solution {
 	// We loop trying to schedule unschedulable pods as long as we are making progress.  This solves a few
 	// issues including pods with affinity to another pod in the batch. We could topo-sort to solve this, but it wouldn't
 	// solve the problem of scheduling pods where a particular order is needed to prevent a max-skew violation. E.g. if we
@@ -127,49 +119,12 @@ func (s *Scheduler) Solve(ctx context.Context, pods []*v1.Pod) ([]*Machine, []*E
 	for _, m := range s.newMachines {
 		m.FinalizeScheduling()
 	}
-	if !s.opts.SimulationMode {
-		s.recordSchedulingResults(ctx, pods, q.List(), errors)
-	}
-	return s.newMachines, s.existingNodes, nil
-}
 
-func (s *Scheduler) recordSchedulingResults(ctx context.Context, pods []*v1.Pod, failedToSchedule []*v1.Pod, errors map[*v1.Pod]error) {
-	// Report failures and nominations
-	for _, pod := range failedToSchedule {
-		logging.FromContext(ctx).With("pod", client.ObjectKeyFromObject(pod)).Errorf("Could not schedule pod, %s", errors[pod])
-		s.recorder.Publish(schedulingevents.PodFailedToSchedule(pod, errors[pod]))
+	return &Solution{
+		NewMachines:      s.newMachines,
+		ExistingMachines: s.existingNodes,
+		Unschedulable:    errors,
 	}
-
-	for _, existing := range s.existingNodes {
-		if len(existing.Pods) > 0 {
-			s.cluster.NominateNodeForPod(ctx, existing.Name())
-		}
-		for _, pod := range existing.Pods {
-			s.recorder.Publish(schedulingevents.NominatePod(pod, existing.Node)...)
-		}
-	}
-
-	// Report new nodes, or exit to avoid log spam
-	newCount := 0
-	for _, machine := range s.newMachines {
-		newCount += len(machine.Pods)
-	}
-	if newCount == 0 {
-		return
-	}
-	logging.FromContext(ctx).With("pods", len(pods)).Infof("found provisionable pod(s)")
-	logging.FromContext(ctx).With("machines", len(s.newMachines), "pods", newCount).Infof("computed new machine(s) to fit pod(s)")
-	// Report in flight newNodes, or exit to avoid log spam
-	inflightCount := 0
-	existingCount := 0
-	for _, node := range lo.Filter(s.existingNodes, func(node *ExistingNode, _ int) bool { return len(node.Pods) > 0 }) {
-		inflightCount++
-		existingCount += len(node.Pods)
-	}
-	if existingCount == 0 {
-		return
-	}
-	logging.FromContext(ctx).Infof("computed %d unready node(s) will fit %d pod(s)", inflightCount, existingCount)
 }
 
 func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
@@ -200,10 +155,11 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 			if len(instanceTypes) == 0 {
 				errs = multierr.Append(errs, fmt.Errorf("all available instance types exceed provisioner limits"))
 				continue
-			} else if len(s.instanceTypes[machineTemplate.ProvisionerName]) != len(instanceTypes) && !s.opts.SimulationMode {
-				logging.FromContext(ctx).Debugf("%d out of %d instance types were excluded because they would breach provisioner limits",
-					len(s.instanceTypes[machineTemplate.ProvisionerName])-len(instanceTypes), len(s.instanceTypes[machineTemplate.ProvisionerName]))
 			}
+			// else if len(s.instanceTypes[machineTemplate.ProvisionerName]) != len(instanceTypes) && !s.opts.SimulationMode {
+			// 	logging.FromContext(ctx).Debugf("%d out of %d instance types were excluded because they would breach provisioner limits",
+			// 		len(s.instanceTypes[machineTemplate.ProvisionerName])-len(instanceTypes), len(s.instanceTypes[machineTemplate.ProvisionerName]))
+			// }
 		}
 
 		machine := NewMachine(machineTemplate, s.topology, s.daemonOverhead[machineTemplate], instanceTypes)
