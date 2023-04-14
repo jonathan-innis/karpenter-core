@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -47,6 +49,56 @@ func (c *Controller) Name() string {
 
 func (c *Controller) Builder(_ context.Context, mgr manager.Manager) controller.Builder {
 	return controller.NewSingletonManagedBy(mgr)
+}
+
+type MetricCollector[T any] struct {
+	collector Collector[T]
+	labelsSet []prometheus.Labels
+}
+
+func (m *MetricCollector[T]) Scrape(objs []T) {
+	metric := m.collector.Get()
+	newLabelsSet := m.collector.Collect(objs)
+
+	for _, labels := range m.labelsSet {
+		if _, ok := lo.Find(newLabelsSet, func(p prometheus.Labels) bool {
+			return equality.Semantic.DeepEqual(p, labels)
+		}); !ok {
+			metric.Delete(labels)
+		}
+	}
+	m.labelsSet = newLabelsSet
+}
+
+type Collector[T any] interface {
+	Get() *prometheus.MetricVec
+	Collect([]T) []prometheus.Labels
+}
+
+type NodeCollectorFamily struct {
+	cluster    *state.Cluster
+	collectors []*MetricCollector[*state.StateNode]
+}
+
+func NewNodeCollectorFamily(cluster *state.Cluster) *NodeCollectorFamily {
+	return &NodeCollectorFamily{
+		cluster: cluster,
+		collectors: [],
+	}
+}
+
+func (f *NodeCollectorFamily) Collect() {
+	nodes := f.cluster.Nodes()
+
+	for _, c := range f.collectors {
+		c.Scrape(nodes)
+	}
+}
+
+type NodeOverheadCollector struct{}
+
+func (c *NodeOverheadCollector) Collect() []prometheus.Labels {
+
 }
 
 func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
