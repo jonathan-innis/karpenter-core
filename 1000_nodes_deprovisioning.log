@@ -1,0 +1,106 @@
+2023-04-18T20:33:47.775Z	DEBUG	Successfully created the logger.
+2023-04-18T20:33:47.776Z	DEBUG	Logging level set to: debug
+{"level":"info","ts":1681850027.7801223,"logger":"fallback","caller":"injection/injection.go:63","msg":"Starting informers..."}
+2023-04-18T20:33:47.880Z	DEBUG	controller	waiting for configmaps	{"commit": "6bdd213-dirty"}
+2023-04-18T20:33:48.403Z	DEBUG	controller	waiting for configmaps	{"commit": "6bdd213-dirty"}
+2023-04-18T20:33:48.904Z	DEBUG	controller	waiting for configmaps	{"commit": "6bdd213-dirty"}
+2023-04-18T20:33:49.405Z	DEBUG	controller	waiting for configmaps	{"commit": "6bdd213-dirty"}
+2023-04-18T20:33:49.906Z	DEBUG	controller	waiting for configmaps	{"commit": "6bdd213-dirty"}
+2023-04-18T20:33:50.460Z	DEBUG	controller	discovered region	{"commit": "6bdd213-dirty", "region": "us-west-2"}
+2023-04-18T20:33:50.461Z	DEBUG	controller	discovered cluster endpoint	{"commit": "6bdd213-dirty", "cluster-endpoint": "https://2B3A0347E5BF8D9935288F4311843065.gr7.us-west-2.eks.amazonaws.com"}
+2023-04-18T20:33:50.467Z	DEBUG	controller	discovered kube dns	{"commit": "6bdd213-dirty", "kube-dns-ip": "10.100.0.10"}
+2023-04-18T20:33:50.468Z	DEBUG	controller	discovered version	{"commit": "6bdd213-dirty", "version": "v0.27.1-55-g6bdd2138"}
+2023/04/18 20:33:50 Registering 2 clients
+2023/04/18 20:33:50 Registering 2 informer factories
+2023/04/18 20:33:50 Registering 3 informers
+2023/04/18 20:33:50 Registering 5 controllers
+2023-04-18T20:33:50.468Z	INFO	controller	Starting server	{"commit": "6bdd213-dirty", "kind": "health probe", "addr": "[::]:8081"}
+2023-04-18T20:33:50.468Z	INFO	controller	Starting server	{"commit": "6bdd213-dirty", "path": "/metrics", "kind": "metrics", "addr": "[::]:8080"}
+2023-04-18T20:33:50.660Z	INFO	controller	Starting informers...	{"commit": "6bdd213-dirty"}
+I0418 20:33:51.069535       1 leaderelection.go:248] attempting to acquire leader lease karpenter/karpenter-leader-election...
+I0418 20:38:20.697237       1 leaderelection.go:258] successfully acquired lease karpenter/karpenter-leader-election
+2023-04-18T20:38:20.697Z	INFO	controller.provisioner	starting controller	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:20.697Z	INFO	controller.metric_scraper	starting controller	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:20.697Z	INFO	controller.deprovisioning	starting controller	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "daemonset", "controllerGroup": "apps", "controllerKind": "DaemonSet", "source": "kind source: *v1.DaemonSet"}
+2023-04-18T20:38:20.697Z	INFO	controller.interruption	starting controller	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "daemonset", "controllerGroup": "apps", "controllerKind": "DaemonSet"}
+2023-04-18T20:38:20.697Z	INFO	controller.pricing	starting controller	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "pod_metrics", "controllerGroup": "", "controllerKind": "Pod", "source": "kind source: *v1.Pod"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "pod_metrics", "controllerGroup": "", "controllerKind": "Pod"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "provisioner_metrics", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "source": "kind source: *v1alpha5.Provisioner"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "provisioner_metrics", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner"}
+2023-04-18T20:38:20.697Z	DEBUG	controller.interruption	watching interruption queue	{"commit": "6bdd213-dirty", "queue": "joinnis-karpenter-demo"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "provisioner_state", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "source": "kind source: *v1alpha5.Provisioner"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "provisioner_state", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "node", "controllerGroup": "", "controllerKind": "Node", "source": "kind source: *v1.Node"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "node", "controllerGroup": "", "controllerKind": "Node", "source": "kind source: *v1alpha5.Provisioner"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "node", "controllerGroup": "", "controllerKind": "Node", "source": "kind source: *v1.Pod"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "node", "controllerGroup": "", "controllerKind": "Node"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "termination", "controllerGroup": "", "controllerKind": "Node", "source": "kind source: *v1.Node"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "termination", "controllerGroup": "", "controllerKind": "Node"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "pod_state", "controllerGroup": "", "controllerKind": "Pod", "source": "kind source: *v1.Pod"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "pod_state", "controllerGroup": "", "controllerKind": "Pod"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "node_state", "controllerGroup": "", "controllerKind": "Node", "source": "kind source: *v1.Node"}
+2023-04-18T20:38:20.697Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "node_state", "controllerGroup": "", "controllerKind": "Node"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "counter", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "source": "kind source: *v1alpha5.Provisioner"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "counter", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "source": "kind source: *v1.Node"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "provisioner_trigger", "controllerGroup": "", "controllerKind": "Pod", "source": "kind source: *v1.Pod"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "provisioner_trigger", "controllerGroup": "", "controllerKind": "Pod"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "counter", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "awsnodetemplate", "controllerGroup": "karpenter.k8s.aws", "controllerKind": "AWSNodeTemplate", "source": "kind source: *v1alpha1.AWSNodeTemplate"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "awsnodetemplate", "controllerGroup": "karpenter.k8s.aws", "controllerKind": "AWSNodeTemplate"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting EventSource	{"commit": "6bdd213-dirty", "controller": "consistency", "controllerGroup": "", "controllerKind": "Node", "source": "kind source: *v1.Node"}
+2023-04-18T20:38:20.698Z	INFO	controller	Starting Controller	{"commit": "6bdd213-dirty", "controller": "consistency", "controllerGroup": "", "controllerKind": "Node"}
+2023-04-18T20:38:20.896Z	DEBUG	controller	hydrated launch template cache	{"commit": "6bdd213-dirty", "tag-key": "karpenter.k8s.aws/cluster", "tag-value": "joinnis-karpenter-demo", "count": 0}
+2023-04-18T20:38:21.154Z	INFO	controller.pricing	updated spot pricing with instance types and offerings	{"commit": "6bdd213-dirty", "instance-type-count": 636, "offering-count": 2178}
+2023-04-18T20:38:22.772Z	INFO	controller.pricing	updated on-demand pricing	{"commit": "6bdd213-dirty", "instance-type-count": 631}
+2023-04-18T20:38:25.299Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "consistency", "controllerGroup": "", "controllerKind": "Node", "worker count": 10}
+2023-04-18T20:38:25.300Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "provisioner_metrics", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "worker count": 1}
+2023-04-18T20:38:25.300Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "awsnodetemplate", "controllerGroup": "karpenter.k8s.aws", "controllerKind": "AWSNodeTemplate", "worker count": 10}
+2023-04-18T20:38:25.300Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "counter", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "worker count": 10}
+2023-04-18T20:38:25.300Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "daemonset", "controllerGroup": "apps", "controllerKind": "DaemonSet", "worker count": 10}
+2023-04-18T20:38:25.301Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "termination", "controllerGroup": "", "controllerKind": "Node", "worker count": 100}
+2023-04-18T20:38:25.301Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "provisioner_state", "controllerGroup": "karpenter.sh", "controllerKind": "Provisioner", "worker count": 10}
+2023-04-18T20:38:25.310Z	DEBUG	controller.deprovisioning	waiting on cluster sync	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:25.310Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "provisioner_trigger", "controllerGroup": "", "controllerKind": "Pod", "worker count": 10}
+2023-04-18T20:38:25.313Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "pod_state", "controllerGroup": "", "controllerKind": "Pod", "worker count": 10}
+2023-04-18T20:38:25.300Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "pod_metrics", "controllerGroup": "", "controllerKind": "Pod", "worker count": 1}
+2023-04-18T20:38:25.332Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "node", "controllerGroup": "", "controllerKind": "Node", "worker count": 10}
+2023-04-18T20:38:25.335Z	INFO	controller	Starting workers	{"commit": "6bdd213-dirty", "controller": "node_state", "controllerGroup": "", "controllerKind": "Node", "worker count": 10}
+2023-04-18T20:38:25.465Z	DEBUG	controller.awsnodetemplate	discovered subnets	{"commit": "6bdd213-dirty", "awsnodetemplate": "default", "subnets": ["subnet-0a89ab2e50dfe40d6 (us-west-2b)", "subnet-007aafdece10d1105 (us-west-2b)", "subnet-01ac1560ed61b3ea5 (us-west-2d)", "subnet-0d2e48c60b6f70689 (us-west-2d)", "subnet-065d2bd943d9549a6 (us-west-2a)", "subnet-004e4cd40a2953909 (us-west-2a)"]}
+2023-04-18T20:38:25.737Z	DEBUG	controller.awsnodetemplate	discovered security groups	{"commit": "6bdd213-dirty", "awsnodetemplate": "default", "security-groups": ["sg-01dd189962807c84d", "sg-09222dc5dd763565e"]}
+2023-04-18T20:38:26.233Z	DEBUG	controller.node	discovered instance types	{"commit": "6bdd213-dirty", "node": "i-0cce1fd10f909ca24.us-west-2.compute.internal", "count": 627}
+2023-04-18T20:38:26.432Z	DEBUG	controller.node	discovered offerings for instance types	{"commit": "6bdd213-dirty", "node": "i-04ba8d901e66f95e6.us-west-2.compute.internal", "zones": ["us-west-2a", "us-west-2b", "us-west-2d"], "instance-type-count": 629, "node-template": "default"}
+2023-04-18T20:38:28.645Z	DEBUG	controller.node	discovered kubernetes version	{"commit": "6bdd213-dirty", "node": "i-0a410dfe6a01341cb.us-west-2.compute.internal", "kubernetes-version": "1.24"}
+2023-04-18T20:38:28.680Z	DEBUG	controller.node	discovered ami	{"commit": "6bdd213-dirty", "node": "i-0053c55e60b60e42b.us-west-2.compute.internal", "ami": "ami-0d7f2e885ac2372bb", "query": "/aws/service/eks/optimized-ami/1.24/amazon-linux-2/recommended/image_id"}
+2023-04-18T20:38:28.693Z	DEBUG	controller.node	discovered ami	{"commit": "6bdd213-dirty", "node": "i-04ba8d901e66f95e6.us-west-2.compute.internal", "ami": "ami-033b0b4cdc70a2fc7", "query": "/aws/service/eks/optimized-ami/1.24/amazon-linux-2-gpu/recommended/image_id"}
+2023-04-18T20:38:28.704Z	DEBUG	controller.node	discovered ami	{"commit": "6bdd213-dirty", "node": "i-04ba8d901e66f95e6.us-west-2.compute.internal", "ami": "ami-04b8b72cf3d820bcf", "query": "/aws/service/eks/optimized-ami/1.24/amazon-linux-2-arm64/recommended/image_id"}
+2023-04-18T20:38:34.766Z	DEBUG	controller.deprovisioning	waiting on cluster sync	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:34.766Z	DEBUG	controller.provisioner	waiting on cluster sync	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:35.238Z	ERROR	controller	Reconciler error	{"commit": "6bdd213-dirty", "controller": "awsnodetemplate", "controllerGroup": "karpenter.k8s.aws", "controllerKind": "AWSNodeTemplate", "AWSNodeTemplate": {"name":"default"}, "namespace": "", "name": "default", "reconcileID": "75f0be58-b2d6-45cf-a823-d8e670758fb8", "error": "Internal error occurred: failed calling webhook \"defaulting.webhook.karpenter.k8s.aws\": failed to call webhook: Post \"https://karpenter.karpenter.svc:443/default/karpenter.k8s.aws?timeout=10s\": dial tcp 192.168.87.170:8443: connect: connection refused"}
+2023-04-18T20:38:35.780Z	DEBUG	controller.deprovisioning	waiting on cluster sync	{"commit": "6bdd213-dirty"}
+2023-04-18T20:38:36.638Z	ERROR	controller	Reconciler error	{"commit": "6bdd213-dirty", "controller": "awsnodetemplate", "controllerGroup": "karpenter.k8s.aws", "controllerKind": "AWSNodeTemplate", "AWSNodeTemplate": {"name":"default"}, "namespace": "", "name": "default", "reconcileID": "50142f33-0b15-4852-9060-de91437273ef", "error": "Internal error occurred: failed calling webhook \"defaulting.webhook.karpenter.k8s.aws\": failed to call webhook: Post \"https://karpenter.karpenter.svc:443/default/karpenter.k8s.aws?timeout=10s\": dial tcp 192.168.87.170:8443: connect: connection refused"}
+2023-04-18T20:38:37.097Z	DEBUG	controller.deprovisioning	starting computing command for deprovisioner	{"commit": "6bdd213-dirty", "deprovisioner": "*deprovisioning.EmptyMachineConsolidation"}
+2023-04-18T20:38:37.998Z	DEBUG	controller.deprovisioning	completed computing command for deprovisioner	{"commit": "6bdd213-dirty", "deprovisioner": "*deprovisioning.EmptyMachineConsolidation"}
+2023-04-18T20:38:38.065Z	DEBUG	controller.deprovisioning	starting computing command for deprovisioner	{"commit": "6bdd213-dirty", "deprovisioner": "*deprovisioning.MultiMachineConsolidation"}
+2023-04-18T20:38:38.185Z	DEBUG	controller.deprovisioning	popping pods from the scheduling queue	{"commit": "6bdd213-dirty", "pods": 758}
+2023-04-18T20:38:38.873Z	DEBUG	controller.provisioner	popping pods from the scheduling queue	{"commit": "6bdd213-dirty", "pods": 560}
+2023-04-18T20:38:39.913Z	ERROR	controller	Reconciler error	{"commit": "6bdd213-dirty", "controller": "awsnodetemplate", "controllerGroup": "karpenter.k8s.aws", "controllerKind": "AWSNodeTemplate", "AWSNodeTemplate": {"name":"default"}, "namespace": "", "name": "default", "reconcileID": "04164fc9-fff2-423b-b1a5-a257f01b2e85", "error": "Internal error occurred: failed calling webhook \"defaulting.webhook.karpenter.k8s.aws\": failed to call webhook: Post \"https://karpenter.karpenter.svc:443/default/karpenter.k8s.aws?timeout=10s\": no endpoints available for service \"karpenter\""}
+2023-04-18T20:38:43.189Z	DEBUG	controller.deprovisioning	popping pods from the scheduling queue	{"commit": "6bdd213-dirty", "pods": 224}
+2023-04-18T20:38:43.894Z	DEBUG	controller.provisioner	popping pods from the scheduling queue	{"commit": "6bdd213-dirty", "pods": 74}
+2023-04-18T20:38:46.702Z	DEBUG	controller.provisioner	popping pods from the scheduling queue	{"commit": "6bdd213-dirty", "pods": 560}
+2023-04-18T20:38:48.302Z	DEBUG	controller.deprovisioning	popping pods from the scheduling queue	{"commit": "6bdd213-dirty", "pods": 154}
+E0418 20:38:48.440854       1 leaderelection.go:330] error retrieving resource lock karpenter/karpenter-leader-election: Get "https://10.100.0.1:443/apis/coordination.k8s.io/v1/namespaces/karpenter/leases/karpenter-leader-election": context deadline exceeded
+I0418 20:38:48.440890       1 leaderelection.go:283] failed to renew lease karpenter/karpenter-leader-election: timed out waiting for the condition
+panic: leader election lost
+
+goroutine 407 [running]:
+github.com/samber/lo.must({0x2433260, 0xc01a5b3fd0}, {0x0, 0x0, 0x0})
+	github.com/samber/lo@v1.38.1/errors.go:53 +0x1f4
+github.com/samber/lo.Must0(...)
+	github.com/samber/lo@v1.38.1/errors.go:72
+github.com/aws/karpenter-core/pkg/operator.(*Operator).Start.func1()
+	github.com/aws/karpenter-core/pkg/operator/operator.go:156 +0x85
+created by github.com/aws/karpenter-core/pkg/operator.(*Operator).Start
+	github.com/aws/karpenter-core/pkg/operator/operator.go:154 +0xec

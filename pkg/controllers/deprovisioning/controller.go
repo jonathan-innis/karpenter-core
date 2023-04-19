@@ -154,18 +154,22 @@ func (c *Controller) deprovision(ctx context.Context, deprovisioner Deprovisione
 	}
 
 	// Determine the deprovisioning action
+	logging.FromContext(ctx).With("deprovisioner", fmt.Sprintf("%T", deprovisioner)).Debugf("starting computing command for deprovisioner")
 	cmd, err := deprovisioner.ComputeCommand(ctx, candidates...)
 	if err != nil {
 		return false, fmt.Errorf("computing deprovisioning decision, %w", err)
 	}
+	logging.FromContext(ctx).With("deprovisioner", fmt.Sprintf("%T", deprovisioner)).Debugf("completed computing command for deprovisioner")
 	if cmd.action == actionDoNothing {
 		return false, nil
 	}
 
 	// Attempt to deprovision
+	logging.FromContext(ctx).With("deprovisioner", fmt.Sprintf("%T", deprovisioner)).Debugf("starting executing command for deprovisioner")
 	if err := c.executeCommand(ctx, deprovisioner, cmd); err != nil {
 		return false, fmt.Errorf("deprovisioning candidates, %w", err)
 	}
+	logging.FromContext(ctx).With("deprovisioner", fmt.Sprintf("%T", deprovisioner)).Debugf("completed executing command for deprovisioner")
 
 	return true, nil
 }

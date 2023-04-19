@@ -44,15 +44,23 @@ func (c *SingleMachineConsolidation) ComputeCommand(ctx context.Context, candida
 	if c.cluster.Consolidated() {
 		return Command{action: actionDoNothing}, nil
 	}
+	logging.FromContext(ctx).With("deprovisioning", "SingleMachineConsolidation").Infof("started executing")
+	defer logging.FromContext(ctx).With("deprovisioning", "SingleMachineConsolidation").Infof("finished executing")
 	candidates, err := c.sortAndFilterCandidates(ctx, candidates)
 	if err != nil {
 		return Command{}, fmt.Errorf("sorting candidates, %w", err)
 	}
 
 	v := NewValidation(consolidationTTL, c.clock, c.cluster, c.kubeClient, c.provisioner, c.cloudProvider, c.recorder)
-	for _, candidate := range candidates {
+
+	logging.FromContext(ctx).With("deprovisioning", "SingleMachineConsolidation", "count", len(candidates)).Infof("started computing all consolidation for all nodes")
+	defer logging.FromContext(ctx).With("deprovisioning", "SingleMachineConsolidation", "count", len(candidates)).Infof("finished computing all consolidation for all nodes")
+	for i, candidate := range candidates {
 		// compute a possible consolidation option
+
+		logging.FromContext(ctx).With("deprovisioning", "SingleMachineConsolidation", "iter", i, "count", len(candidates)).Infof("started computing consolidation")
 		cmd, err := c.computeConsolidation(ctx, candidate)
+		logging.FromContext(ctx).With("deprovisioning", "SingleMachineConsolidation", "iter", i, "count", len(candidates)).Infof("finished computing consolidation")
 		if err != nil {
 			logging.FromContext(ctx).Errorf("computing consolidation %s", err)
 			continue

@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
+	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
@@ -43,6 +44,8 @@ func (m *MultiMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 	if m.cluster.Consolidated() {
 		return Command{action: actionDoNothing}, nil
 	}
+	logging.FromContext(ctx).With("deprovisioning", "MultiMachineConsolidation").Infof("started executing")
+	defer logging.FromContext(ctx).With("deprovisioning", "MultiMachineConsolidation").Infof("finished executing")
 	candidates, err := m.sortAndFilterCandidates(ctx, candidates)
 	if err != nil {
 		return Command{}, fmt.Errorf("sorting candidates, %w", err)
@@ -50,10 +53,13 @@ func (m *MultiMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 
 	// For now, we will consider up to every machine in the cluster, might be configurable in the future.
 	maxParallel := len(candidates)
+	logging.FromContext(ctx).With("deprovisioning", "MultiMachineConsolidation", "count", len(candidates)).Infof("started computing all consolidation for all nodes")
 	cmd, err := m.firstNMachineConsolidationOption(ctx, candidates, maxParallel)
 	if err != nil {
 		return Command{}, err
 	}
+	logging.FromContext(ctx).With("deprovisioning", "MultiMachineConsolidation", "count", len(candidates)).Infof("finished computing all consolidation for all nodes")
+
 	if cmd.action == actionDoNothing {
 		return cmd, nil
 	}
@@ -85,6 +91,7 @@ func (m *MultiMachineConsolidation) firstNMachineConsolidationOption(ctx context
 	lastSavedCommand := Command{action: actionDoNothing}
 	// binary search to find the maximum number of machines we can terminate
 	for min <= max {
+		logging.FromContext(ctx).With("deprovisioning", "MultiMachineConsolidation", "min", min, "max", max, "count", len(candidates)).Infof("started computing consolidation")
 		mid := (min + max) / 2
 
 		candidatesToConsolidate := candidates[0 : mid+1]
@@ -93,6 +100,7 @@ func (m *MultiMachineConsolidation) firstNMachineConsolidationOption(ctx context
 		if err != nil {
 			return Command{}, err
 		}
+		logging.FromContext(ctx).With("deprovisioning", "MultiMachineConsolidation", "min", min, "max", max, "count", len(candidates)).Infof("finished computing consolidation")
 
 		// ensure that the action is sensical for replacements, see explanation on filterOutSameType for why this is
 		// required

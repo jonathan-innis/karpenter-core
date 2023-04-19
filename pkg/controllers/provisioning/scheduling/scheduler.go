@@ -19,7 +19,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
@@ -69,6 +71,7 @@ func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*Mac
 		opts:               opts,
 		preferences:        &Preferences{ToleratePreferNoSchedule: toleratePreferNoSchedule},
 		remainingResources: map[string]v1.ResourceList{},
+		podCache:           cache.New(time.Second*5, time.Second),
 	}
 	for _, provisioner := range provisioners {
 		if provisioner.Spec.Limits != nil {
@@ -93,6 +96,7 @@ type Scheduler struct {
 	recorder           events.Recorder
 	opts               SchedulerOptions
 	kubeClient         client.Client
+	podCache           *cache.Cache
 }
 
 // Results contains the results of the scheduling operation
@@ -135,6 +139,11 @@ func (s *Scheduler) Solve(ctx context.Context, pods []*v1.Pod) (*Results, error)
 	errors := map[*v1.Pod]error{}
 	q := NewQueue(pods...)
 	for {
+		if _, ok := s.podCache.Get("log"); !ok {
+			logging.FromContext(ctx).With("pods", len(q.List())).Debugf("popping pods from the scheduling queue")
+			s.podCache.SetDefault("log", nil)
+		}
+
 		// Try the next pod
 		pod, ok := q.Pop()
 		if !ok {

@@ -45,6 +45,8 @@ func (c *EmptyMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 	if c.cluster.Consolidated() {
 		return Command{action: actionDoNothing}, nil
 	}
+	logging.FromContext(ctx).With("deprovisioning", "EmptyMachineConsolidation").Infof("started executing")
+	defer logging.FromContext(ctx).With("deprovisioning", "EmptyMachineConsolidation").Infof("finished executing")
 	candidates, err := c.sortAndFilterCandidates(ctx, candidates)
 	if err != nil {
 		return Command{}, fmt.Errorf("sorting candidates, %w", err)
