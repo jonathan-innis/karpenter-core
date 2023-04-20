@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/clock"
+	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
@@ -28,25 +29,29 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
+	"github.com/aws/karpenter-core/pkg/utils/pretty"
 )
 
 type MultiMachineConsolidation struct {
 	consolidation
+	cm *pretty.ChangeMonitor
 }
 
 func NewMultiMachineConsolidation(clk clock.Clock, cluster *state.Cluster, kubeClient client.Client,
 	provisioner *provisioning.Provisioner, cp cloudprovider.CloudProvider, recorder events.Recorder) *MultiMachineConsolidation {
-	return &MultiMachineConsolidation{makeConsolidation(clk, cluster, kubeClient, provisioner, cp, recorder)}
+	return &MultiMachineConsolidation{consolidation: makeConsolidation(clk, cluster, kubeClient, provisioner, cp, recorder)}
 }
 
 func (m *MultiMachineConsolidation) ComputeCommand(ctx context.Context, candidates ...*Candidate) (Command, error) {
 	if m.cluster.Consolidated() {
+		logging.FromContext(ctx).Debugf("ignoring, cluster state was already considered for consolidation")
 		return Command{action: actionDoNothing}, nil
 	}
 	candidates, err := m.sortAndFilterCandidates(ctx, candidates)
 	if err != nil {
 		return Command{}, fmt.Errorf("sorting candidates, %w", err)
 	}
+	logging.FromContext(ctx).With("candidates", len(candidates)).Debugf("considering candidates after filtering")
 
 	// For now, we will consider up to every machine in the cluster, might be configurable in the future.
 	maxParallel := len(candidates)
@@ -55,6 +60,7 @@ func (m *MultiMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 		return Command{}, err
 	}
 	if cmd.action == actionDoNothing {
+		logging.FromContext(ctx).Debugf("didn't discover a consolidation decision")
 		return cmd, nil
 	}
 
@@ -84,7 +90,10 @@ func (m *MultiMachineConsolidation) firstNMachineConsolidationOption(ctx context
 
 	lastSavedCommand := Command{action: actionDoNothing}
 	// binary search to find the maximum number of machines we can terminate
+	logging.FromContext(ctx).With("candidates", len(candidates)).Debug("starting consolidation decision-making")
+	i := 0
 	for min <= max {
+		i++
 		mid := (min + max) / 2
 
 		candidatesToConsolidate := candidates[0 : mid+1]
@@ -111,6 +120,7 @@ func (m *MultiMachineConsolidation) firstNMachineConsolidationOption(ctx context
 			max = mid - 1
 		}
 	}
+	logging.FromContext(ctx).With("candidates", len(candidates), "iterations", i).Debugf("finished consolidation decision-making")
 	return lastSavedCommand, nil
 }
 

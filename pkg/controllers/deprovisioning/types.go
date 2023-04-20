@@ -26,8 +26,10 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	deprovisioningevents "github.com/aws/karpenter-core/pkg/controllers/deprovisioning/events"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
+	"github.com/aws/karpenter-core/pkg/events"
 )
 
 type Deprovisioner interface {
@@ -51,7 +53,7 @@ type Candidate struct {
 }
 
 //nolint:gocyclo
-func NewCandidate(ctx context.Context, kubeClient client.Client, clk clock.Clock, node *state.StateNode,
+func NewCandidate(ctx context.Context, kubeClient client.Client, clk clock.Clock, recorder events.Recorder, node *state.StateNode,
 	provisionerMap map[string]*v1alpha5.Provisioner, provisionerToInstanceTypes map[string]map[string]*cloudprovider.InstanceType) (*Candidate, error) {
 
 	// check whether the node has all the labels we need
@@ -61,6 +63,7 @@ func NewCandidate(ctx context.Context, kubeClient client.Client, clk clock.Clock
 		v1alpha5.ProvisionerNameLabelKey,
 	} {
 		if _, ok := node.Labels()[label]; !ok {
+			recorder.Publish(deprovisioningevents.Blocked(node.Node, fmt.Sprintf("LabelNotFound (%s)", label))...)
 			return nil, fmt.Errorf("state node doesn't have required label '%s'", label)
 		}
 	}
@@ -69,25 +72,30 @@ func NewCandidate(ctx context.Context, kubeClient client.Client, clk clock.Clock
 	instanceTypeMap := provisionerToInstanceTypes[node.Labels()[v1alpha5.ProvisionerNameLabelKey]]
 	// skip any nodes where we can't determine the provisioner
 	if provisioner == nil || instanceTypeMap == nil {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, fmt.Sprintf("ProvisionerNotFound (%s)", provisioner))...)
 		return nil, fmt.Errorf("provisioner '%s' can't be resolved for state node", node.Labels()[v1alpha5.ProvisionerNameLabelKey])
 	}
 	instanceType := instanceTypeMap[node.Labels()[v1.LabelInstanceTypeStable]]
 	// skip any nodes that we can't determine the instance of
 	if instanceType == nil {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, fmt.Sprintf("InstanceTypeNotFound (%s)", node.Labels()[v1.LabelInstanceTypeStable]))...)
 		return nil, fmt.Errorf("instance type '%s' can't be resolved", node.Labels()[v1.LabelInstanceTypeStable])
 	}
 
 	// skip any nodes that are already marked for deletion and being handled
 	if node.MarkedForDeletion() {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, "MarkedForDeletion")...)
 		return nil, fmt.Errorf("state node is marked for deletion")
 	}
 	// skip nodes that aren't initialized
 	// This also means that the real Node doesn't exist for it
 	if !node.Initialized() {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, "NotInitialized")...)
 		return nil, fmt.Errorf("state node isn't initialized")
 	}
 	// skip the node if it is nominated by a recent provisioning pass to be the target of a pending pod.
 	if node.Nominated() {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, "NominatedForPod")...)
 		return nil, fmt.Errorf("state node is nominated")
 	}
 

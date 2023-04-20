@@ -43,16 +43,19 @@ func NewEmptyMachineConsolidation(clk clock.Clock, cluster *state.Cluster, kubeC
 // ComputeCommand generates a deprovisioning command given deprovisionable machines
 func (c *EmptyMachineConsolidation) ComputeCommand(ctx context.Context, candidates ...*Candidate) (Command, error) {
 	if c.cluster.Consolidated() {
+		logging.FromContext(ctx).Debugf("ignoring, cluster state was already considered for consolidation")
 		return Command{action: actionDoNothing}, nil
 	}
 	candidates, err := c.sortAndFilterCandidates(ctx, candidates)
 	if err != nil {
 		return Command{}, fmt.Errorf("sorting candidates, %w", err)
 	}
+	logging.FromContext(ctx).With("candidates", len(candidates)).Debugf("considering candidates after filtering")
 
 	// select the entirely empty nodes
 	emptyCandidates := lo.Filter(candidates, func(n *Candidate, _ int) bool { return len(n.pods) == 0 })
 	if len(emptyCandidates) == 0 {
+		logging.FromContext(ctx).Debugf("didn't discover a consolidation decision")
 		return Command{action: actionDoNothing}, nil
 	}
 
@@ -69,7 +72,7 @@ func (c *EmptyMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 		return Command{}, errors.New("interrupted")
 	case <-c.clock.After(consolidationTTL):
 	}
-	validationCandidates, err := GetCandidates(ctx, c.cluster, c.kubeClient, c.clock, c.cloudProvider, c.ShouldDeprovision)
+	validationCandidates, err := GetCandidates(ctx, c.cluster, c.kubeClient, c.recorder, c.clock, c.cloudProvider, c.ShouldDeprovision)
 	if err != nil {
 		logging.FromContext(ctx).Errorf("computing validation candidates %s", err)
 		return Command{}, err
@@ -79,7 +82,7 @@ func (c *EmptyMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 	// the deletion of empty machines is easy to validate, we just ensure that all the candidatesToDelete are still empty and that
 	// the machine isn't a target of a recent scheduling simulation
 	for _, n := range candidatesToDelete {
-		if len(n.pods) != 0 && !c.cluster.IsNodeNominated(n.Name()) {
+		if len(n.pods) != 0 || c.cluster.IsNodeNominated(n.Name()) {
 			return Command{}, fmt.Errorf("command is no longer valid, %s", cmd)
 		}
 	}

@@ -17,6 +17,7 @@ package deprovisioning
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -126,7 +127,8 @@ func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconc
 	isConsolidated := c.cluster.Consolidated()
 	for _, d := range c.deprovisioners {
 		c.recordRun(fmt.Sprintf("%T", d))
-		success, err := c.deprovision(ctx, d)
+		deprovisionerCtx := logging.WithLogger(ctx, logging.FromContext(ctx).With("deprovisioner", strings.ToLower(fmt.Sprintf("%T", d))))
+		success, err := c.deprovision(deprovisionerCtx, d)
 		if err != nil {
 			return reconcile.Result{}, fmt.Errorf("deprovisioning via %q, %w", d, err)
 		}
@@ -144,10 +146,11 @@ func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconc
 }
 
 func (c *Controller) deprovision(ctx context.Context, deprovisioner Deprovisioner) (bool, error) {
-	candidates, err := GetCandidates(ctx, c.cluster, c.kubeClient, c.clock, c.cloudProvider, deprovisioner.ShouldDeprovision)
+	candidates, err := GetCandidates(ctx, c.cluster, c.kubeClient, c.recorder, c.clock, c.cloudProvider, deprovisioner.ShouldDeprovision)
 	if err != nil {
 		return false, fmt.Errorf("determining candidates, %w", err)
 	}
+	logging.FromContext(ctx).With("candidates", len(candidates)).Debug("retrieved candidates")
 	// If there are no candidate nodes, move to the next deprovisioner
 	if len(candidates) == 0 {
 		return false, nil

@@ -42,15 +42,21 @@ func NewSingleMachineConsolidation(clk clock.Clock, cluster *state.Cluster, kube
 // nolint:gocyclo
 func (c *SingleMachineConsolidation) ComputeCommand(ctx context.Context, candidates ...*Candidate) (Command, error) {
 	if c.cluster.Consolidated() {
+		logging.FromContext(ctx).Debugf("ignoring, cluster state was already considered for consolidation")
 		return Command{action: actionDoNothing}, nil
 	}
 	candidates, err := c.sortAndFilterCandidates(ctx, candidates)
 	if err != nil {
 		return Command{}, fmt.Errorf("sorting candidates, %w", err)
 	}
+	logging.FromContext(ctx).With("candidates", len(candidates)).Debugf("considering candidates after filtering")
 
 	v := NewValidation(consolidationTTL, c.clock, c.cluster, c.kubeClient, c.provisioner, c.cloudProvider, c.recorder)
+
+	logging.FromContext(ctx).With("candidates", len(candidates)).Debug("starting consolidation decision-making")
+	i := 0
 	for _, candidate := range candidates {
+		i++
 		// compute a possible consolidation option
 		cmd, err := c.computeConsolidation(ctx, candidate)
 		if err != nil {
@@ -71,8 +77,11 @@ func (c *SingleMachineConsolidation) ComputeCommand(ctx context.Context, candida
 		}
 
 		if cmd.action == actionReplace || cmd.action == actionDelete {
+			logging.FromContext(ctx).With("candidates", len(candidates), "iterations", i).Debug("completed consolidation decision-making")
 			return cmd, nil
 		}
 	}
+	logging.FromContext(ctx).With("candidates", len(candidates), "iterations", i).Debug("completed consolidation decision-making")
+	logging.FromContext(ctx).Debugf("didn't discover a consolidation decision")
 	return Command{action: actionDoNothing}, nil
 }

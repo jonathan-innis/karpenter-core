@@ -29,7 +29,7 @@ func Blocked(node *v1.Node, reason string) []events.Event {
 			InvolvedObject: node,
 			Type:           v1.EventTypeNormal,
 			Reason:         "DeprovisioningBlocked",
-			Message:        fmt.Sprintf("Cannot deprovision node due to %s", reason),
+			Message:        fmt.Sprintf("can't deprovision node due to %s", reason),
 			DedupeValues:   []string{node.Name, reason},
 		},
 	}
@@ -41,7 +41,7 @@ func Terminating(node *v1.Node, reason string) []events.Event {
 			InvolvedObject: node,
 			Type:           v1.EventTypeNormal,
 			Reason:         "DeprovisioningTerminating",
-			Message:        fmt.Sprintf("Deprovisioning node via %s", reason),
+			Message:        fmt.Sprintf("deprovisioning node via %s", reason),
 			DedupeValues:   []string{node.Name, reason},
 		},
 	}
