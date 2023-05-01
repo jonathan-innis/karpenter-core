@@ -132,6 +132,20 @@ func (r Requirements) Compatible(requirements Requirements) (errs error) {
 	return multierr.Append(errs, r.Intersects(requirements))
 }
 
+// StrictlyCompatible is the same as Compatible except that it enforces a higher level of compatability. Rather than assuming
+// that an undefined requirement has flexibility in it, it assumes an undefined requirement is equavalent to a non-existent
+// requirement. For example, if you have a requirement that requests a given key Exists, but that key does not exist in the
+// tested requirement set, then that compatability will fail.
+func (r Requirements) StrictlyCompatible(requirements Requirements) (errs error) {
+	for key := range requirements {
+		if operator := requirements.Get(key).Operator(); r.Has(key) || operator == v1.NodeSelectorOpNotIn || operator == v1.NodeSelectorOpDoesNotExist {
+			continue
+		}
+		errs = multierr.Append(errs, fmt.Errorf("label %q does not have known values%s", key, labelHint(r, key)))
+	}
+	return multierr.Append(errs, r.Intersects(requirements))
+}
+
 // editDistance is an implementation of edit distance from Algorithms/DPV
 func editDistance(s, t string) int {
 	min := func(a, b, c int) int {

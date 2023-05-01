@@ -19,6 +19,8 @@ import (
 
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/patrickmn/go-cache"
+
+	"github.com/aws/karpenter-core/pkg/utils/functional"
 )
 
 // ChangeMonitor is used to reduce logging when discovering information that may change. The values recorded expire after
@@ -28,9 +30,24 @@ type ChangeMonitor struct {
 	lastSeen *cache.Cache
 }
 
-func NewChangeMonitor() *ChangeMonitor {
+type Options struct {
+	VisibilityTimeout time.Duration
+}
+
+func WithVisibilityTimeout(d time.Duration) func(Options) Options {
+	return func(o Options) Options {
+		o.VisibilityTimeout = d
+		return o
+	}
+}
+
+func NewChangeMonitor(opts ...functional.Option[Options]) *ChangeMonitor {
+	options := functional.ResolveOptions(opts...)
+	if options.VisibilityTimeout == 0 {
+		options.VisibilityTimeout = time.Hour * 24
+	}
 	return &ChangeMonitor{
-		lastSeen: cache.New(24*time.Hour, 12*time.Hour),
+		lastSeen: cache.New(options.VisibilityTimeout, options.VisibilityTimeout/2),
 	}
 }
 
