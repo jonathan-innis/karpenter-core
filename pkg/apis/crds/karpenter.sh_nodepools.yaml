@@ -1,0 +1,244 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+  name: nodepools.karpenter.sh
+spec:
+  group: karpenter.sh
+  names:
+    categories:
+    - karpenter
+    kind: NodePool
+    listKind: NodePoolList
+    plural: nodepools
+    shortNames:
+    - np,nps
+    singular: nodepool
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.template.spec.nodeTemplateRef.name
+      name: Template
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: NodePool is the Schema for the Provisioners API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: NodePoolSpec is the top level provisioner specification.
+              Provisioners launch nodes in response to pods that are unschedulable.
+              A single provisioner is capable of managing a diverse set of nodes.
+              Node properties are determined from a combination of provisioner and
+              pod scheduling constraints.
+            properties:
+              limits:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: Limits define a set of bounds for provisioning capacity.
+                type: object
+              template:
+                description: Template contains the template of possibilities for the
+                  provisioning logic to launch a Machine with. Machines launched from
+                  this NodePool will often be further constrained than the template
+                  specifies.
+                properties:
+                  metadata:
+                    type: object
+                  spec:
+                    description: MachineSpec describes the desired state of the Machine
+                    properties:
+                      nodeTemplateRef:
+                        description: NodeTemplateRef is a reference to an object that
+                          defines provider specific configuration
+                        properties:
+                          apiVersion:
+                            description: API version of the referent
+                            type: string
+                          kind:
+                            description: 'Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"'
+                            type: string
+                          name:
+                            description: 'Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names'
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      requirements:
+                        description: Requirements are layered with GetLabels and applied
+                          to every node.
+                        items:
+                          description: A node selector requirement is a selector that
+                            contains values, a key, and an operator that relates the
+                            key and values.
+                          properties:
+                            key:
+                              description: The label key that the selector applies
+                                to.
+                              type: string
+                            operator:
+                              description: Represents a key's relationship to a set
+                                of values. Valid operators are In, NotIn, Exists,
+                                DoesNotExist. Gt, and Lt.
+                              type: string
+                            values:
+                              description: An array of string values. If the operator
+                                is In or NotIn, the values array must be non-empty.
+                                If the operator is Exists or DoesNotExist, the values
+                                array must be empty. If the operator is Gt or Lt,
+                                the values array must have a single element, which
+                                will be interpreted as an integer. This array is replaced
+                                during a strategic merge patch.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                      resources:
+                        description: Resources models the resource requirements for
+                          the Machine to launch
+                        properties:
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: Requests describes the minimum required resources
+                              for the Machine to launch
+                            type: object
+                        type: object
+                      startupTaints:
+                        description: StartupTaints are taints that are applied to
+                          nodes upon startup which are expected to be removed automatically
+                          within a short period of time, typically by a DaemonSet
+                          that tolerates the taint. These are commonly used by daemonsets
+                          to allow initialization and enforce startup ordering.  StartupTaints
+                          are ignored for provisioning purposes in that pods are not
+                          required to tolerate a StartupTaint in order to have nodes
+                          provisioned for them.
+                        items:
+                          description: The node this Taint is attached to has the
+                            "effect" on any pod that does not tolerate the Taint.
+                          properties:
+                            effect:
+                              description: Required. The effect of the taint on pods
+                                that do not tolerate the taint. Valid effects are
+                                NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: Required. The taint key to be applied to
+                                a node.
+                              type: string
+                            timeAdded:
+                              description: TimeAdded represents the time at which
+                                the taint was added. It is only written for NoExecute
+                                taints.
+                              format: date-time
+                              type: string
+                            value:
+                              description: The taint value corresponding to the taint
+                                key.
+                              type: string
+                          required:
+                          - effect
+                          - key
+                          type: object
+                        type: array
+                      taints:
+                        description: Taints will be applied to the machine's node.
+                        items:
+                          description: The node this Taint is attached to has the
+                            "effect" on any pod that does not tolerate the Taint.
+                          properties:
+                            effect:
+                              description: Required. The effect of the taint on pods
+                                that do not tolerate the taint. Valid effects are
+                                NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: Required. The taint key to be applied to
+                                a node.
+                              type: string
+                            timeAdded:
+                              description: TimeAdded represents the time at which
+                                the taint was added. It is only written for NoExecute
+                                taints.
+                              format: date-time
+                              type: string
+                            value:
+                              description: The taint value corresponding to the taint
+                                key.
+                              type: string
+                          required:
+                          - effect
+                          - key
+                          type: object
+                        type: array
+                    type: object
+                type: object
+              ttlAfterEmpty:
+                description: "TTLSecondsAfterEmpty is the duration the controller
+                  will wait before attempting consolidation, measured from when the
+                  machine is first seen to be consolidatable. \n Termination due to
+                  under-utilization is disabled if this field is not set."
+                type: string
+              ttlUntilExpired:
+                description: "TTLSecondsUntilExpired is the duration the controller
+                  will wait before terminating a machine, measured from when the machine
+                  is created. This is useful to implement features like eventually
+                  consistent machine upgrade, memory leak protection, and disruption
+                  testing. \n Termination due to expiration is disabled if this field
+                  is not set."
+                type: string
+              weight:
+                description: Weight is the priority given to the provisioner during
+                  scheduling. A higher numerical weight indicates that this provisioner
+                  will be ordered ahead of other provisioners with lower weights.
+                  A provisioner with no weight will be treated as if it is a provisioner
+                  with a weight of 0.
+                format: int32
+                maximum: 100
+                minimum: 1
+                type: integer
+            type: object
+          status:
+            description: NodePoolStatus defines the observed state of NodePool
+            properties:
+              resources:
+                additionalProperties:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
+                description: Resources is the list of resources that have been provisioned.
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
