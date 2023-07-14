@@ -46,6 +46,14 @@ spec:
               Node properties are determined from a combination of provisioner and
               pod scheduling constraints.
             properties:
+              consolidation:
+                description: Consolidation are the consolidation parameters This field
+                  is mutually exclusive to ttlAfterUnderutilized
+                properties:
+                  enabled:
+                    description: Enabled enables consolidation if it has been set
+                    type: boolean
+                type: object
               limits:
                 additionalProperties:
                   anyOf:
@@ -199,11 +207,11 @@ spec:
                         type: array
                     type: object
                 type: object
-              ttlAfterEmpty:
-                description: "TTLSecondsAfterEmpty is the duration the controller
-                  will wait before attempting consolidation, measured from when the
-                  machine is first seen to be consolidatable. \n Termination due to
-                  under-utilization is disabled if this field is not set."
+              ttlAfterUnderutilized:
+                description: TTLAfterUnderutilized is the duration the controller
+                  will wait before attempting to terminate nodes that are empty Termination
+                  due to under-utilization is disabled if this field is not set. This
+                  field is mutually exclusive to consolidation.enabled
                 type: string
               ttlUntilExpired:
                 description: "TTLSecondsUntilExpired is the duration the controller

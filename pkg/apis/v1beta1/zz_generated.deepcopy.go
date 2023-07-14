@@ -285,8 +285,8 @@ func (in *NodePoolList) DeepCopyObject() runtime.Object {
 func (in *NodePoolSpec) DeepCopyInto(out *NodePoolSpec) {
 	*out = *in
 	in.Template.DeepCopyInto(&out.Template)
-	if in.TTLUntilConsolidated != nil {
-		in, out := &in.TTLUntilConsolidated, &out.TTLUntilConsolidated
+	if in.TTLAfterUnderutilized != nil {
+		in, out := &in.TTLAfterUnderutilized, &out.TTLAfterUnderutilized
 		*out = new(metav1.Duration)
 		**out = **in
 	}
@@ -294,6 +294,11 @@ func (in *NodePoolSpec) DeepCopyInto(out *NodePoolSpec) {
 		in, out := &in.TTLUntilExpired, &out.TTLUntilExpired
 		*out = new(metav1.Duration)
 		**out = **in
+	}
+	if in.Consolidation != nil {
+		in, out := &in.Consolidation, &out.Consolidation
+		*out = new(Consolidation)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.Limits != nil {
 		in, out := &in.Limits, &out.Limits

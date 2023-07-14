@@ -51,7 +51,7 @@ func NewMachine(machineTemplate *MachineTemplate, topology *Topology, daemonReso
 	template.Requirements.Add(machineTemplate.Requirements.Values()...)
 	template.Requirements.Add(scheduling.NewRequirement(v1.LabelHostname, v1.NodeSelectorOpIn, hostname))
 	template.InstanceTypeOptions = instanceTypes
-	template.Requests = daemonResources
+	template.Spec.Resources.Requests = daemonResources
 
 	return &Machine{
 		MachineTemplate: template,
@@ -63,7 +63,7 @@ func NewMachine(machineTemplate *MachineTemplate, topology *Topology, daemonReso
 
 func (m *Machine) Add(ctx context.Context, pod *v1.Pod) error {
 	// Check Taints
-	if err := m.Taints.Tolerates(pod); err != nil {
+	if err := scheduling.Taints(m.Spec.Taints).Tolerates(pod); err != nil {
 		return err
 	}
 
@@ -92,7 +92,7 @@ func (m *Machine) Add(ctx context.Context, pod *v1.Pod) error {
 	machineRequirements.Add(topologyRequirements.Values()...)
 
 	// Check instance type combinations
-	requests := resources.Merge(m.Requests, resources.RequestsForPods(pod))
+	requests := resources.Merge(m.Spec.Resources.Requests, resources.RequestsForPods(pod))
 	filtered := filterInstanceTypesByRequirements(m.InstanceTypeOptions, machineRequirements, requests)
 	if len(filtered.remaining) == 0 {
 		// log the total resources being requested (daemonset + the pod)
@@ -103,7 +103,7 @@ func (m *Machine) Add(ctx context.Context, pod *v1.Pod) error {
 	// Update node
 	m.Pods = append(m.Pods, pod)
 	m.InstanceTypeOptions = filtered.remaining
-	m.Requests = requests
+	m.Spec.Resources.Requests = requests
 	m.Requirements = machineRequirements
 	m.topology.Record(pod, machineRequirements)
 	m.hostPortUsage.Add(ctx, pod)

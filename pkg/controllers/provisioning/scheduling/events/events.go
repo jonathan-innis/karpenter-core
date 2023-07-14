@@ -22,14 +22,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/flowcontrol"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/events"
 )
 
 // PodNominationRateLimiter is a pointer so it rate-limits across events
 var PodNominationRateLimiter = flowcontrol.NewTokenBucketRateLimiter(5, 10)
 
-func NominatePod(pod *v1.Pod, node *v1.Node, machine *v1alpha5.Machine) events.Event {
+func NominatePod(pod *v1.Pod, node *v1.Node, machine *v1beta1.Machine) events.Event {
 	var info []string
 	if machine != nil {
 		info = append(info, fmt.Sprintf("machine/%s", machine.Name))

@@ -25,7 +25,6 @@ import (
 	"go.uber.org/multierr"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -33,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	schedulingevents "github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling/events"
@@ -199,37 +200,37 @@ func (p *Provisioner) consolidationWarnings(ctx context.Context, po v1.Pod) {
 func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNodes []*state.StateNode, opts scheduler.SchedulerOptions) (*scheduler.Scheduler, error) {
 	// Build node templates
 	var machines []*scheduler.MachineTemplate
-	var provisionerList v1alpha5.ProvisionerList
 	instanceTypes := map[string][]*cloudprovider.InstanceType{}
 	domains := map[string]sets.Set[string]{}
-	if err := p.kubeClient.List(ctx, &provisionerList); err != nil {
-		return nil, fmt.Errorf("listing provisioners, %w", err)
+	nodePoolList, err := nodepoolutil.List(ctx, p.kubeClient)
+	if err != nil {
+		return nil, err
 	}
 
-	// nodeTemplates generated from provisioners are ordered by weight
+	// nodeTemplates generated from NodePools are ordered by weight
 	// since they are stored within a slice and scheduling
 	// will always attempt to schedule on the first nodeTemplate
-	provisionerList.OrderByWeight()
+	nodePoolList.OrderByWeight()
 
-	for i := range provisionerList.Items {
-		provisioner := &provisionerList.Items[i]
-		if !provisioner.DeletionTimestamp.IsZero() {
+	for i := range nodePoolList.Items {
+		nodePool := &nodePoolList.Items[i]
+		if !nodePool.DeletionTimestamp.IsZero() {
 			continue
 		}
 		// Create node template
-		machines = append(machines, scheduler.NewMachineTemplate(provisioner))
+		machines = append(machines, scheduler.NewMachineTemplate(nodePool))
 		// Get instance type options
-		instanceTypeOptions, err := p.cloudProvider.GetInstanceTypes(ctx, provisioner)
+		instanceTypeOptions, err := p.cloudProvider.GetInstanceTypes(ctx, nodePool)
 		if err != nil {
 			return nil, fmt.Errorf("getting instance types, %w", err)
 		}
-		instanceTypes[provisioner.Name] = append(instanceTypes[provisioner.Name], instanceTypeOptions...)
+		instanceTypes[nodePool.Name] = append(instanceTypes[nodePool.Name], instanceTypeOptions...)
 
 		// Construct Topology Domains
 		for _, instanceType := range instanceTypeOptions {
-			// We need to intersect the instance type requirements with the current provisioner requirements.  This
+			// We need to intersect the instance type requirements with the current nodePool requirements.  This
 			// ensures that something like zones from an instance type don't expand the universe of valid domains.
-			requirements := scheduling.NewNodeSelectorRequirements(provisioner.Spec.Requirements...)
+			requirements := scheduling.NewNodeSelectorRequirements(nodePool.Spec.Template.Spec.Requirements...)
 			requirements.Add(instanceType.Requirements.Values()...)
 
 			for key, requirement := range requirements {
@@ -245,7 +246,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 			}
 		}
 
-		for key, requirement := range scheduling.NewNodeSelectorRequirements(provisioner.Spec.Requirements...) {
+		for key, requirement := range scheduling.NewNodeSelectorRequirements(nodePool.Spec.Template.Spec.Requirements...) {
 			if requirement.Operator() == v1.NodeSelectorOpIn {
 				//The following is a performance optimisation, for the explanation see the comment above
 				if domains[key] == nil {
@@ -273,7 +274,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 	if err != nil {
 		return nil, fmt.Errorf("getting daemon pods, %w", err)
 	}
-	return scheduler.NewScheduler(ctx, p.kubeClient, machines, provisionerList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder, opts), nil
+	return scheduler.NewScheduler(ctx, p.kubeClient, machines, nodePoolList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder, opts), nil
 }
 
 func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) {
@@ -316,11 +317,11 @@ func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) 
 }
 
 func (p *Provisioner) Launch(ctx context.Context, m *scheduler.Machine, opts ...functional.Option[LaunchOptions]) (string, error) {
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", m.Labels[v1alpha5.ProvisionerNameLabelKey]))
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", lo.Must(nodepoolutil.OwnerName(m))))
 
 	// Check limits
-	latest := &v1alpha5.Provisioner{}
-	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: m.ProvisionerName}, latest); err != nil {
+	latest, err := nodepoolutil.Owner(ctx, p.kubeClient, m)
+	if err != nil {
 		return "", fmt.Errorf("getting current resource usage, %w", err)
 	}
 	if err := latest.Spec.Limits.ExceededBy(latest.Status.Resources); err != nil {

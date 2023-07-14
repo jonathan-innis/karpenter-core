@@ -32,26 +32,18 @@ const (
 
 // Karpenter specific domains and labels
 const (
-	MachineGroupNameLabelKey = Group + "/machinegroup-name"
-	MachineNameLabelKey      = Group + "/machine-name"
-	ManagedByLabelKey        = Group + "/managed-by"
-	LabelNodeInitialized     = Group + "/initialized"
-	LabelCapacityType        = Group + "/capacity-type"
+	NodePoolLabelKey     = Group + "/nodepool"
+	LabelNodeInitialized = Group + "/initialized"
+	LabelCapacityType    = Group + "/capacity-type"
 )
 
 // Karpenter specific annotations
 const (
-	DoNotEvictPodAnnotationKey        = Group + "/do-not-evict"
+	DoNotEvictPodAnnotationKey        = Group + "/do-not-disrupt"
 	DoNotConsolidateNodeAnnotationKey = Group + "/do-not-consolidate"
-	EmptinessTimestampAnnotationKey   = Group + "/emptiness-timestamp"
-	VoluntaryDisruptionAnnotationKey  = Group + "/voluntary-disruption"
-	MachineLinkedAnnotationKey        = Group + "/linked"
 
 	ProviderCompatabilityAnnotationKey = CompatabilityGroup + "/provider"
 	KubeletCompatabilityAnnotationKey  = CompatabilityGroup + "/kubelet"
-
-	// Karpenter specific annotation values
-	VoluntaryDisruptionDriftedAnnotationValue = "drifted"
 )
 
 // Karpenter specific finalizers
@@ -79,7 +71,7 @@ var (
 	// Karpenter is aware of these labels, and they can be used to further narrow down
 	// the range of the corresponding values by either provisioner or pods.
 	WellKnownLabels = sets.NewString(
-		MachineGroupNameLabelKey,
+		NodePoolLabelKey,
 		v1.LabelTopologyZone,
 		v1.LabelTopologyRegion,
 		v1.LabelInstanceTypeStable,
@@ -91,7 +83,6 @@ var (
 	// RestrictedLabels are labels that should not be used
 	// because they may interfere with the internal provisioning logic.
 	RestrictedLabels = sets.NewString(
-		EmptinessTimestampAnnotationKey,
 		v1.LabelHostname,
 	)
 

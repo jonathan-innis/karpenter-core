@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	"github.com/aws/karpenter-core/pkg/utils/resources"
 )
@@ -33,21 +34,21 @@ import (
 type CloudProvider interface {
 	// Create launches a machine with the given resource requests and requirements and returns a hydrated
 	// machine back with resolved machine labels for the launched machine
-	Create(context.Context, *v1alpha5.Machine) (*v1alpha5.Machine, error)
+	Create(context.Context, *v1beta1.Machine) (*v1alpha5.Machine, error)
 	// Delete removes a machine from the cloudprovider by its provider id
-	Delete(context.Context, *v1alpha5.Machine) error
+	Delete(context.Context, *v1beta1.Machine) error
 	// Get retrieves a machine from the cloudprovider by its provider id
-	Get(context.Context, string) (*v1alpha5.Machine, error)
+	Get(context.Context, string) (*v1beta1.Machine, error)
 	// List retrieves all machines from the cloudprovider
-	List(context.Context) ([]*v1alpha5.Machine, error)
+	List(context.Context) ([]*v1beta1.Machine, error)
 	// GetInstanceTypes returns instance types supported by the cloudprovider.
 	// Availability of types or zone may vary by provisioner or over time.  Regardless of
 	// availability, the GetInstanceTypes method should always return all instance types,
 	// even those with no offerings available.
-	GetInstanceTypes(context.Context, *v1alpha5.Provisioner) ([]*InstanceType, error)
+	GetInstanceTypes(context.Context, *v1beta1.NodePool) ([]*InstanceType, error)
 	// IsMachineDrifted returns whether a machine has drifted from the provisioning requirements
 	// it is tied to.
-	IsMachineDrifted(context.Context, *v1alpha5.Machine) (bool, error)
+	IsMachineDrifted(context.Context, *v1beta1.Machine) (bool, error)
 	// Name returns the CloudProvider implementation name.
 	Name() string
 }

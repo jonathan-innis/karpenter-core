@@ -43,6 +43,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/injection"
@@ -134,6 +135,9 @@ func NewOperator() (context.Context, *Operator) {
 	}), "failed to setup node provider id indexer")
 	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1alpha5.Machine{}, "status.providerID", func(o client.Object) []string {
 		return []string{o.(*v1alpha5.Machine).Status.ProviderID}
+	}), "failed to setup machine provider id indexer")
+	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1beta1.Machine{}, "status.providerID", func(o client.Object) []string {
+		return []string{o.(*v1beta1.Machine).Status.ProviderID}
 	}), "failed to setup machine provider id indexer")
 
 	return ctx, &Operator{

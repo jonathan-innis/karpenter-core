@@ -27,11 +27,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	schedulingevents "github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling/events"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/scheduling"
+	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 	"github.com/aws/karpenter-core/pkg/utils/resources"
 )
 
@@ -42,15 +44,15 @@ type SchedulerOptions struct {
 }
 
 func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*MachineTemplate,
-	provisioners []v1alpha5.Provisioner, cluster *state.Cluster, stateNodes []*state.StateNode, topology *Topology,
+	nodePools []v1beta1.NodePool, cluster *state.Cluster, stateNodes []*state.StateNode, topology *Topology,
 	instanceTypes map[string][]*cloudprovider.InstanceType, daemonSetPods []*v1.Pod,
 	recorder events.Recorder, opts SchedulerOptions) *Scheduler {
 
-	// if any of the provisioners add a taint with a prefer no schedule effect, we add a toleration for the taint
+	// if any of the nodePools add a taint with a prefer no schedule effect, we add a toleration for the taint
 	// during preference relaxation
 	toleratePreferNoSchedule := false
-	for _, prov := range provisioners {
-		for _, taint := range prov.Spec.Taints {
+	for _, prov := range nodePools {
+		for _, taint := range prov.Spec.Template.Spec.Taints {
 			if taint.Effect == v1.TaintEffectPreferNoSchedule {
 				toleratePreferNoSchedule = true
 			}
@@ -70,10 +72,8 @@ func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*Mac
 		preferences:        &Preferences{ToleratePreferNoSchedule: toleratePreferNoSchedule},
 		remainingResources: map[string]v1.ResourceList{},
 	}
-	for _, provisioner := range provisioners {
-		if provisioner.Spec.Limits != nil {
-			s.remainingResources[provisioner.Name] = provisioner.Spec.Limits.Resources
-		}
+	for _, nodePool := range nodePools {
+		s.remainingResources[nodePool.Name] = v1.ResourceList(nodePool.Spec.Limits)
 	}
 	s.calculateExistingMachines(stateNodes, daemonSetPods)
 	return s
@@ -235,30 +235,32 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 	// Create new node
 	var errs error
 	for _, machineTemplate := range s.machineTemplates {
-		instanceTypes := s.instanceTypes[machineTemplate.ProvisionerName]
+		ownerName := lo.Must(nodepoolutil.OwnerName(machineTemplate))
+		instanceTypes := s.instanceTypes[ownerName]
 		// if limits have been applied to the provisioner, ensure we filter instance types to avoid violating those limits
-		if remaining, ok := s.remainingResources[machineTemplate.ProvisionerName]; ok {
-			instanceTypes = filterByRemainingResources(s.instanceTypes[machineTemplate.ProvisionerName], remaining)
+		if remaining, ok := s.remainingResources[ownerName]; ok {
+			instanceTypes = filterByRemainingResources(s.instanceTypes[ownerName], remaining)
 			if len(instanceTypes) == 0 {
-				errs = multierr.Append(errs, fmt.Errorf("all available instance types exceed limits for provisioner: %q", machineTemplate.ProvisionerName))
+				errs = multierr.Append(errs, fmt.Errorf("all available instance types exceed limits for provisioner: %q", ownerName))
 				continue
-			} else if len(s.instanceTypes[machineTemplate.ProvisionerName]) != len(instanceTypes) && !s.opts.SimulationMode {
-				logging.FromContext(ctx).With("provisioner", machineTemplate.ProvisionerName).Debugf("%d out of %d instance types were excluded because they would breach provisioner limits",
-					len(s.instanceTypes[machineTemplate.ProvisionerName])-len(instanceTypes), len(s.instanceTypes[machineTemplate.ProvisionerName]))
+			} else if len(s.instanceTypes[ownerName]) != len(instanceTypes) && !s.opts.SimulationMode {
+				logging.FromContext(ctx).With("provisioner", lo.Must(nodepoolutil.OwnerName(machineTemplate))).Debugf("%d out of %d instance types were excluded because they would breach provisioner limits",
+					len(s.instanceTypes[ownerName])-len(instanceTypes), len(s.instanceTypes[ownerName]))
 			}
 		}
 
+		// TODO @joinnis: Replace instances of provisioner with the new naming convention
 		machine := NewMachine(machineTemplate, s.topology, s.daemonOverhead[machineTemplate], instanceTypes)
 		if err := machine.Add(ctx, pod); err != nil {
 			errs = multierr.Append(errs, fmt.Errorf("incompatible with provisioner %q, daemonset overhead=%s, %w",
-				machineTemplate.ProvisionerName,
+				ownerName,
 				resources.String(s.daemonOverhead[machineTemplate]),
 				err))
 			continue
 		}
 		// we will launch this machine and need to track its maximum possible resource usage against our remaining resources
 		s.newMachines = append(s.newMachines, machine)
-		s.remainingResources[machineTemplate.ProvisionerName] = subtractMax(s.remainingResources[machineTemplate.ProvisionerName], machine.InstanceTypeOptions)
+		s.remainingResources[ownerName] = subtractMax(s.remainingResources[ownerName], machine.InstanceTypeOptions)
 		return nil
 	}
 	return errs
@@ -305,21 +307,21 @@ func (s *Scheduler) calculateExistingMachines(stateNodes []*state.StateNode, dae
 	})
 }
 
-func getDaemonOverhead(nodeTemplates []*MachineTemplate, daemonSetPods []*v1.Pod) map[*MachineTemplate]v1.ResourceList {
+func getDaemonOverhead(machineTemplates []*MachineTemplate, daemonSetPods []*v1.Pod) map[*MachineTemplate]v1.ResourceList {
 	overhead := map[*MachineTemplate]v1.ResourceList{}
 
-	for _, nodeTemplate := range nodeTemplates {
+	for _, machineTemplate := range machineTemplates {
 		var daemons []*v1.Pod
 		for _, p := range daemonSetPods {
-			if err := nodeTemplate.Taints.Tolerates(p); err != nil {
+			if err := scheduling.Taints(machineTemplate.Spec.Taints).Tolerates(p); err != nil {
 				continue
 			}
-			if err := nodeTemplate.Requirements.Compatible(scheduling.NewPodRequirements(p)); err != nil {
+			if err := machineTemplate.Requirements.Compatible(scheduling.NewPodRequirements(p)); err != nil {
 				continue
 			}
 			daemons = append(daemons, p)
 		}
-		overhead[nodeTemplate] = resources.RequestsForPods(daemons...)
+		overhead[machineTemplate] = resources.RequestsForPods(daemons...)
 	}
 	return overhead
 }

@@ -15,6 +15,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
 	"sort"
 
 	v1 "k8s.io/api/core/v1"
@@ -31,13 +32,12 @@ type NodePoolSpec struct {
 	// Machines launched from this NodePool will often be further constrained than the template specifies.
 	// +optional
 	Template MachineTemplate `json:"template,omitempty"`
-	// TTLSecondsAfterEmpty is the duration the controller will wait
-	// before attempting consolidation, measured from when the machine is
-	// first seen to be consolidatable.
-	//
+	// TTLAfterUnderutilized is the duration the controller will wait
+	// before attempting to terminate nodes that are empty
 	// Termination due to under-utilization is disabled if this field is not set.
+	// This field is mutually exclusive to consolidation.enabled
 	// +optional
-	TTLUntilConsolidated *metav1.Duration `json:"ttlAfterEmpty,omitempty"`
+	TTLAfterUnderutilized *metav1.Duration `json:"ttlAfterUnderutilized,omitempty"`
 	// TTLSecondsUntilExpired is the duration the controller will wait
 	// before terminating a machine, measured from when the machine is created. This
 	// is useful to implement features like eventually consistent machine upgrade,
@@ -46,8 +46,12 @@ type NodePoolSpec struct {
 	// Termination due to expiration is disabled if this field is not set.
 	// +optional
 	TTLUntilExpired *metav1.Duration `json:"ttlUntilExpired,omitempty"`
+	// Consolidation are the consolidation parameters
+	// This field is mutually exclusive to ttlAfterUnderutilized
+	// +optional
+	Consolidation *Consolidation `json:"consolidation,omitempty"`
 	// Limits define a set of bounds for provisioning capacity.
-	Limits v1.ResourceList `json:"limits,omitempty"`
+	Limits Limits `json:"limits,omitempty"`
 	// Weight is the priority given to the provisioner during scheduling. A higher
 	// numerical weight indicates that this provisioner will be ordered
 	// ahead of other provisioners with lower weights. A provisioner with no weight
@@ -56,6 +60,22 @@ type NodePoolSpec struct {
 	// +kubebuilder:validation:Maximum:=100
 	// +optional
 	Weight *int32 `json:"weight,omitempty"`
+}
+
+type Limits v1.ResourceList
+
+func (l Limits) ExceededBy(resources v1.ResourceList) error {
+	if l == nil {
+		return nil
+	}
+	for resourceName, usage := range resources {
+		if limit, ok := l[resourceName]; ok {
+			if usage.Cmp(limit) > 0 {
+				return fmt.Errorf("%s resource usage of %v exceeds limit of %v", resourceName, usage.AsDec(), limit.AsDec())
+			}
+		}
+	}
+	return nil
 }
 
 type MachineTemplate struct {

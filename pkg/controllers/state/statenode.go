@@ -26,6 +26,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	nodeutils "github.com/aws/karpenter-core/pkg/utils/node"
 	podutils "github.com/aws/karpenter-core/pkg/utils/pod"
@@ -70,7 +71,7 @@ func (n StateNodes) Pods(ctx context.Context, c client.Client) ([]*v1.Pod, error
 // nolint: revive
 type StateNode struct {
 	Node    *v1.Node
-	Machine *v1alpha5.Machine
+	Machine *v1beta1.Machine
 
 	inflightAllocatable v1.ResourceList // TODO @joinnis: This can be removed when machine is added
 	inflightCapacity    v1.ResourceList // TODO @joinnis: This can be removed when machine is added
