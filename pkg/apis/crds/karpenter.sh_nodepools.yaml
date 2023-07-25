@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.12.1
   name: nodepools.karpenter.sh
 spec:
   group: karpenter.sh
@@ -65,14 +65,15 @@ spec:
                 type: object
               template:
                 description: Template contains the template of possibilities for the
-                  provisioning logic to launch a Machine with. Machines launched from
-                  this NodePool will often be further constrained than the template
+                  provisioning logic to launch a NodeClaim with. Machines launched
+                  from this NodePool will often be further constrained than the template
                   specifies.
                 properties:
                   metadata:
                     type: object
                   spec:
-                    description: MachineSpec describes the desired state of the Machine
+                    description: NodeClaimSpec describes the desired state of the
+                      NodeClaim
                     properties:
                       nodeTemplateRef:
                         description: NodeTemplateRef is a reference to an object that
@@ -125,7 +126,7 @@ spec:
                         type: array
                       resources:
                         description: Resources models the resource requirements for
-                          the Machine to launch
+                          the NodeClaim to launch
                         properties:
                           requests:
                             additionalProperties:
@@ -135,7 +136,7 @@ spec:
                               pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                               x-kubernetes-int-or-string: true
                             description: Requests describes the minimum required resources
-                              for the Machine to launch
+                              for the NodeClaim to launch
                             type: object
                         type: object
                       startupTaints:

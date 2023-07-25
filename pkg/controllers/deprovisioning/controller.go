@@ -218,14 +218,14 @@ func (c *Controller) launchReplacementMachines(ctx context.Context, action Comma
 		return fmt.Errorf("cordoning nodes, %w", err)
 	}
 
-	machineNames, err := c.provisioner.LaunchMachines(ctx, action.replacements, provisioning.WithReason(reason))
+	machineNames, err := c.provisioner.LaunchNodeClaims(ctx, action.replacements, provisioning.WithReason(reason))
 	if err != nil {
 		// uncordon the nodes as the launch may fail (e.g. ICE)
 		err = multierr.Append(err, c.setNodesUnschedulable(ctx, false, candidateNodeNames...))
 		return err
 	}
 	if len(machineNames) != len(action.replacements) {
-		// shouldn't ever occur since a partially failed LaunchMachines should return an error
+		// shouldn't ever occur since a partially failed LaunchNodeClaims should return an error
 		return fmt.Errorf("expected %d machines, got %d", len(action.replacements), len(machineNames))
 	}
 

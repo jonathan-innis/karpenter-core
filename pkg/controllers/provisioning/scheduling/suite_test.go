@@ -2078,7 +2078,7 @@ var _ = Describe("In-Flight Nodes", func() {
 			}}
 			ExpectApplied(ctx, env.Client, provisioner)
 
-			// Schedule to New Machine
+			// Schedule to New NodeClaim
 			pod := test.UnschedulablePod(opts)
 			ExpectProvisioned(ctx, env.Client, cluster, cloudProvider, prov, pod)
 			node1 := ExpectScheduled(ctx, env.Client, pod)
@@ -2091,7 +2091,7 @@ var _ = Describe("In-Flight Nodes", func() {
 				{Key: cloudproviderapi.TaintExternalCloudProvider, Effect: v1.TaintEffectNoSchedule, Value: "true"},
 			}
 			ExpectApplied(ctx, env.Client, node1)
-			// Schedule to In Flight Machine
+			// Schedule to In Flight NodeClaim
 			pod = test.UnschedulablePod(opts)
 			ExpectProvisioned(ctx, env.Client, cluster, cloudProvider, prov, pod)
 			node2 := ExpectScheduled(ctx, env.Client, pod)
@@ -2695,7 +2695,7 @@ var _ = Describe("VolumeUsage", func() {
 		Expect(nodeList.Items).To(HaveLen(1))
 	})
 	It("should launch nodes for pods with ephemeral volume using the specified storage class name", func() {
-		// Launch an initial pod onto a node and register the CSI Node with a volume count limit of 1
+		// Launch an initial pod onto a node and register the CSI NodeClaim with a volume count limit of 1
 		sc := test.StorageClass(test.StorageClassOptions{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "my-storage-class",
@@ -2792,7 +2792,7 @@ var _ = Describe("VolumeUsage", func() {
 		Expect(node.Name).ToNot(Equal(node2.Name))
 	})
 	It("should launch nodes for pods with ephemeral volume using a default storage class", func() {
-		// Launch an initial pod onto a node and register the CSI Node with a volume count limit of 1
+		// Launch an initial pod onto a node and register the CSI NodeClaim with a volume count limit of 1
 		sc := test.StorageClass(test.StorageClassOptions{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "default-storage-class",
@@ -2873,7 +2873,7 @@ var _ = Describe("VolumeUsage", func() {
 		Expect(node.Name).ToNot(Equal(node2.Name))
 	})
 	It("should launch nodes for pods with ephemeral volume using the newest storage class", func() {
-		// Launch an initial pod onto a node and register the CSI Node with a volume count limit of 1
+		// Launch an initial pod onto a node and register the CSI NodeClaim with a volume count limit of 1
 		sc := test.StorageClass(test.StorageClassOptions{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "default-storage-class",

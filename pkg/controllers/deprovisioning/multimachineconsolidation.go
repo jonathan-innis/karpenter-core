@@ -136,7 +136,7 @@ func (m *MultiMachineConsolidation) firstNMachineConsolidationOption(ctx context
 // This code sees that t3a.small is the cheapest type in both lists and filters it and anything more expensive out
 // leaving the valid consolidation:
 // machines=[t3a.2xlarge, t3a.2xlarge, t3a.small] -> 1 of t3a.nano
-func filterOutSameType(newMachine *scheduling.Machine, consolidate []*Candidate) []*cloudprovider.InstanceType {
+func filterOutSameType(newMachine *scheduling.NodeClaim, consolidate []*Candidate) []*cloudprovider.InstanceType {
 	existingInstanceTypes := sets.NewString()
 	pricesByInstanceType := map[string]float64{}
 

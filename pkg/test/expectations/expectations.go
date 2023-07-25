@@ -274,7 +274,7 @@ func ExpectProvisionedNoBindingWithOffset(offset int, ctx context.Context, c cli
 		log.Printf("error provisioning in test, %s", err)
 		return bindings
 	}
-	for _, m := range results.NewMachines {
+	for _, m := range results.NewNodeClaims {
 		// TODO: Check the error on the provisioner launch
 		name, err := provisioner.Launch(ctx, m, provisioning.WithReason(metrics.ProvisioningReason))
 		if err != nil {
@@ -408,7 +408,7 @@ func ExpectMakeNodesReadyWithOffset(offset int, ctx context.Context, c client.Cl
 		if nodes[i].Labels == nil {
 			nodes[i].Labels = map[string]string{}
 		}
-		// Remove any of the known ephemeral taints to make the Node ready
+		// Remove any of the known ephemeral taints to make the NodeClaim ready
 		nodes[i].Spec.Taints = lo.Reject(nodes[i].Spec.Taints, func(taint v1.Taint, _ int) bool {
 			_, found := lo.Find(pscheduling.KnownEphemeralTaints, func(t v1.Taint) bool {
 				return t.MatchTaint(&taint)

@@ -50,7 +50,7 @@ package v1beta1
 //			ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(randomdata.SillyName())},
 //			Spec: NodePoolSpec{
 //				NodeClassRef: &NodeClassRef{
-//					Kind: "NodeTemplate",
+//					Kind: "NodeClaimTemplate",
 //					Name: "default",
 //				},
 //			},

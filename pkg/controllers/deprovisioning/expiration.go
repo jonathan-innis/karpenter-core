@@ -112,7 +112,7 @@ func (e *Expiration) ComputeCommand(ctx context.Context, nodes ...*Candidate) (C
 			With("delay", time.Since(machineutil.GetExpirationTime(candidates[0].Machine, candidates[0].provisioner))).Infof("triggering termination for expired node after TTL")
 		return Command{
 			candidates:   []*Candidate{candidate},
-			replacements: results.NewMachines,
+			replacements: results.NewNodeClaims,
 		}, nil
 	}
 	return Command{}, nil

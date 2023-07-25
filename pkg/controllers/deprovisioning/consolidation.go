@@ -133,16 +133,16 @@ func (c *consolidation) computeConsolidation(ctx context.Context, candidates ...
 	}
 
 	// were we able to schedule all the pods on the inflight candidates?
-	if len(results.NewMachines) == 0 {
+	if len(results.NewNodeClaims) == 0 {
 		return Command{
 			candidates: candidates,
 		}, nil
 	}
 
 	// we're not going to turn a single node into multiple candidates
-	if len(results.NewMachines) != 1 {
+	if len(results.NewNodeClaims) != 1 {
 		if len(candidates) == 1 {
-			c.recorder.Publish(deprovisioningevents.Unconsolidatable(candidates[0].Node, candidates[0].Machine, fmt.Sprintf("can't remove without creating %d candidates", len(results.NewMachines)))...)
+			c.recorder.Publish(deprovisioningevents.Unconsolidatable(candidates[0].Node, candidates[0].Machine, fmt.Sprintf("can't remove without creating %d candidates", len(results.NewNodeClaims)))...)
 		}
 		return Command{}, nil
 	}
@@ -153,8 +153,8 @@ func (c *consolidation) computeConsolidation(ctx context.Context, candidates ...
 	if err != nil {
 		return Command{}, fmt.Errorf("getting offering price from candidate node, %w", err)
 	}
-	results.NewMachines[0].InstanceTypeOptions = filterByPrice(results.NewMachines[0].InstanceTypeOptions, results.NewMachines[0].Requirements, nodesPrice)
-	if len(results.NewMachines[0].InstanceTypeOptions) == 0 {
+	results.NewNodeClaims[0].InstanceTypeOptions = filterByPrice(results.NewNodeClaims[0].InstanceTypeOptions, results.NewNodeClaims[0].Requirements, nodesPrice)
+	if len(results.NewNodeClaims[0].InstanceTypeOptions) == 0 {
 		if len(candidates) == 1 {
 			c.recorder.Publish(deprovisioningevents.Unconsolidatable(candidates[0].Node, candidates[0].Machine, "can't replace with a cheaper node")...)
 		}
@@ -173,7 +173,7 @@ func (c *consolidation) computeConsolidation(ctx context.Context, candidates ...
 	}
 
 	if allExistingAreSpot &&
-		results.NewMachines[0].Requirements.Get(v1alpha5.LabelCapacityType).Has(v1alpha5.CapacityTypeSpot) {
+		results.NewNodeClaims[0].Requirements.Get(v1alpha5.LabelCapacityType).Has(v1alpha5.CapacityTypeSpot) {
 		if len(candidates) == 1 {
 			c.recorder.Publish(deprovisioningevents.Unconsolidatable(candidates[0].Node, candidates[0].Machine, "can't replace a spot node with a spot node")...)
 		}
@@ -184,14 +184,14 @@ func (c *consolidation) computeConsolidation(ctx context.Context, candidates ...
 	// assumption, that the spot variant will launch. We also need to add a requirement to the node to ensure that if
 	// spot capacity is insufficient we don't replace the node with a more expensive on-demand node.  Instead the launch
 	// should fail and we'll just leave the node alone.
-	ctReq := results.NewMachines[0].Requirements.Get(v1alpha5.LabelCapacityType)
+	ctReq := results.NewNodeClaims[0].Requirements.Get(v1alpha5.LabelCapacityType)
 	if ctReq.Has(v1alpha5.CapacityTypeSpot) && ctReq.Has(v1alpha5.CapacityTypeOnDemand) {
-		results.NewMachines[0].Requirements.Add(scheduling.NewRequirement(v1alpha5.LabelCapacityType, v1.NodeSelectorOpIn, v1alpha5.CapacityTypeSpot))
+		results.NewNodeClaims[0].Requirements.Add(scheduling.NewRequirement(v1alpha5.LabelCapacityType, v1.NodeSelectorOpIn, v1alpha5.CapacityTypeSpot))
 	}
 
 	return Command{
 		candidates:   candidates,
-		replacements: results.NewMachines,
+		replacements: results.NewNodeClaims,
 	}, nil
 }
 

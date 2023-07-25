@@ -94,7 +94,7 @@ func NewCandidate(ctx context.Context, kubeClient client.Client, recorder events
 		return nil, fmt.Errorf("state node is marked for deletion")
 	}
 	// skip nodes that aren't initialized
-	// This also means that the real Node doesn't exist for it
+	// This also means that the real NodeClaim doesn't exist for it
 	if !node.Initialized() {
 		recorder.Publish(deprovisioningevents.Blocked(node.Node, node.Machine, "machine is not initialized")...)
 		return nil, fmt.Errorf("state node isn't initialized")
@@ -138,7 +138,7 @@ func (c *Candidate) lifetimeRemaining(clock clock.Clock) float64 {
 
 type Command struct {
 	candidates   []*Candidate
-	replacements []*scheduling.Machine
+	replacements []*scheduling.NodeClaim
 }
 
 type Action string

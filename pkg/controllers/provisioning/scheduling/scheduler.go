@@ -43,7 +43,7 @@ type SchedulerOptions struct {
 	SimulationMode bool
 }
 
-func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*MachineTemplate,
+func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*NodeClaimTemplate,
 	nodePools []v1beta1.NodePool, cluster *state.Cluster, stateNodes []*state.StateNode, topology *Topology,
 	instanceTypes map[string][]*cloudprovider.InstanceType, daemonSetPods []*v1.Pod,
 	recorder events.Recorder, opts SchedulerOptions) *Scheduler {
@@ -81,12 +81,12 @@ func NewScheduler(ctx context.Context, kubeClient client.Client, machines []*Mac
 
 type Scheduler struct {
 	ctx                context.Context
-	newMachines        []*Machine
+	newNodeClaims      []*NodeClaim
 	existingNodes      []*ExistingNode
-	machineTemplates   []*MachineTemplate
+	machineTemplates   []*NodeClaimTemplate
 	remainingResources map[string]v1.ResourceList // provisioner name -> remaining resources for that provisioner
 	instanceTypes      map[string][]*cloudprovider.InstanceType
-	daemonOverhead     map[*MachineTemplate]v1.ResourceList
+	daemonOverhead     map[*NodeClaimTemplate]v1.ResourceList
 	preferences        *Preferences
 	topology           *Topology
 	cluster            *state.Cluster
@@ -97,7 +97,7 @@ type Scheduler struct {
 
 // Results contains the results of the scheduling operation
 type Results struct {
-	NewMachines   []*Machine
+	NewNodeClaims []*NodeClaim
 	ExistingNodes []*ExistingNode
 	PodErrors     map[*v1.Pod]error
 }
@@ -156,7 +156,7 @@ func (s *Scheduler) Solve(ctx context.Context, pods []*v1.Pod) (*Results, error)
 		}
 	}
 
-	for _, m := range s.newMachines {
+	for _, m := range s.newNodeClaims {
 		m.FinalizeScheduling()
 	}
 	if !s.opts.SimulationMode {
@@ -169,7 +169,7 @@ func (s *Scheduler) Solve(ctx context.Context, pods []*v1.Pod) (*Results, error)
 		}
 	}
 	return &Results{
-		NewMachines:   s.newMachines,
+		NewNodeClaims: s.newNodeClaims,
 		ExistingNodes: s.existingNodes,
 		PodErrors:     errors,
 	}, nil
@@ -193,14 +193,14 @@ func (s *Scheduler) recordSchedulingResults(ctx context.Context, pods []*v1.Pod,
 
 	// Report new nodes, or exit to avoid log spam
 	newCount := 0
-	for _, machine := range s.newMachines {
+	for _, machine := range s.newNodeClaims {
 		newCount += len(machine.Pods)
 	}
 	if newCount == 0 {
 		return
 	}
 	logging.FromContext(ctx).With("pods", len(pods)).Infof("found provisionable pod(s)")
-	logging.FromContext(ctx).With("machines", len(s.newMachines), "pods", newCount).Infof("computed new machine(s) to fit pod(s)")
+	logging.FromContext(ctx).With("machines", len(s.newNodeClaims), "pods", newCount).Infof("computed new machine(s) to fit pod(s)")
 	// Report in flight newNodes, or exit to avoid log spam
 	inflightCount := 0
 	existingCount := 0
@@ -223,10 +223,10 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 	}
 
 	// Consider using https://pkg.go.dev/container/heap
-	sort.Slice(s.newMachines, func(a, b int) bool { return len(s.newMachines[a].Pods) < len(s.newMachines[b].Pods) })
+	sort.Slice(s.newNodeClaims, func(a, b int) bool { return len(s.newNodeClaims[a].Pods) < len(s.newNodeClaims[b].Pods) })
 
 	// Pick existing node that we are about to create
-	for _, machine := range s.newMachines {
+	for _, machine := range s.newNodeClaims {
 		if err := machine.Add(ctx, pod); err == nil {
 			return nil
 		}
@@ -250,7 +250,7 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 		}
 
 		// TODO @joinnis: Replace instances of provisioner with the new naming convention
-		machine := NewMachine(machineTemplate, s.topology, s.daemonOverhead[machineTemplate], instanceTypes)
+		machine := NewNodeClaim(machineTemplate, s.topology, s.daemonOverhead[machineTemplate], instanceTypes)
 		if err := machine.Add(ctx, pod); err != nil {
 			errs = multierr.Append(errs, fmt.Errorf("incompatible with provisioner %q, daemonset overhead=%s, %w",
 				ownerName,
@@ -259,7 +259,7 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 			continue
 		}
 		// we will launch this machine and need to track its maximum possible resource usage against our remaining resources
-		s.newMachines = append(s.newMachines, machine)
+		s.newNodeClaims = append(s.newNodeClaims, machine)
 		s.remainingResources[ownerName] = subtractMax(s.remainingResources[ownerName], machine.InstanceTypeOptions)
 		return nil
 	}
@@ -307,8 +307,8 @@ func (s *Scheduler) calculateExistingMachines(stateNodes []*state.StateNode, dae
 	})
 }
 
-func getDaemonOverhead(machineTemplates []*MachineTemplate, daemonSetPods []*v1.Pod) map[*MachineTemplate]v1.ResourceList {
-	overhead := map[*MachineTemplate]v1.ResourceList{}
+func getDaemonOverhead(machineTemplates []*NodeClaimTemplate, daemonSetPods []*v1.Pod) map[*NodeClaimTemplate]v1.ResourceList {
+	overhead := map[*NodeClaimTemplate]v1.ResourceList{}
 
 	for _, machineTemplate := range machineTemplates {
 		var daemons []*v1.Pod

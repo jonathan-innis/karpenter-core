@@ -55,7 +55,7 @@ var _ = Describe("Validation", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(randomdata.SillyName())},
 			Spec: ProvisionerSpec{
 				ProviderRef: &MachineTemplateRef{
-					Kind: "NodeTemplate",
+					Kind: "NodeClaimTemplate",
 					Name: "default",
 				},
 			},

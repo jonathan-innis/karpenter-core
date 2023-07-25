@@ -87,14 +87,14 @@ func (d *Drift) ComputeCommand(ctx context.Context, nodes ...*Candidate) (Comman
 		if !results.AllPodsScheduled() {
 			logging.FromContext(ctx).With("machine", candidate.Machine.Name, "node", candidate.Node.Name).Debug("Continuing to terminate drifted machine after scheduling simulation failed to schedule all pods %s", results.PodSchedulingErrors())
 		}
-		if len(results.NewMachines) == 0 {
+		if len(results.NewNodeClaims) == 0 {
 			return Command{
 				candidates: []*Candidate{candidate},
 			}, nil
 		}
 		return Command{
 			candidates:   []*Candidate{candidate},
-			replacements: results.NewMachines,
+			replacements: results.NewNodeClaims,
 		}, nil
 	}
 	return Command{}, nil
