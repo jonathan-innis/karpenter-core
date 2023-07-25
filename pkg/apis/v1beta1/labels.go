@@ -34,6 +34,7 @@ const (
 const (
 	NodePoolLabelKey     = Group + "/nodepool"
 	LabelNodeInitialized = Group + "/initialized"
+	LabelNodeRegistered  = Group + "/registered"
 	LabelCapacityType    = Group + "/capacity-type"
 )
 

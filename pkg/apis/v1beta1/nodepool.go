@@ -53,15 +53,19 @@ type Deprovisioning struct {
 	// before attempting to terminate nodes that are empty
 	// Termination due to under-utilization is disabled if this field is not set.
 	// This field is mutually exclusive to consolidation.enabled
+	// +kubebuilder:default:="15s"
 	// +optional
 	ConsolidationTTL *metav1.Duration `json:"ttlAfterUnderutilized,omitempty"`
 	// ConsolidationPolicy describes which nodes Karpenter can deprovision through its consolidation
 	// algorithm. This policy defaults to "WhenUnderutilized" if not specified
+	// +kubebuilder:validation:Enum:="WhenEmpty,WhenUnderutilized"
+	// +optional
 	ConsolidationPolicy ConsolidationPolicy `json:"consolidationPolicy,omitempty"`
 	// ExpirationTTL is the duration the controller will wait
 	// before terminating a node, measured from when the node is created. This
 	// is useful to implement features like eventually consistent node upgrade,
 	// memory leak protection, and disruption testing.
+	// +kubebuilder:default:="90d"
 	// +optional
 	ExpirationTTL *metav1.Duration `json:"ttlUntilExpired,omitempty"`
 }

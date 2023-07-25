@@ -21,5 +21,6 @@ import (
 // NodePoolStatus defines the observed state of NodePool
 type NodePoolStatus struct {
 	// Resources is the list of resources that have been provisioned.
+	// +optional
 	Resources v1.ResourceList `json:"resources,omitempty"`
 }

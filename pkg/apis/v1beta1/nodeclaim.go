@@ -36,14 +36,17 @@ type NodeClaimSpec struct {
 	// +optional
 	StartupTaints []v1.Taint `json:"startupTaints,omitempty"`
 	// Requirements are layered with GetLabels and applied to every node.
+	// +optional
 	Requirements []v1.NodeSelectorRequirement `json:"requirements,omitempty"`
 	// Resources models the resource requirements for the NodeClaim to launch
+	// +optional
 	Resources ResourceRequirements `json:"resources,omitempty"`
 	// KubeletConfiguration are options passed to the kubelet when provisioning nodes
 	// +optional
 	KubeletConfiguration *KubeletConfiguration `json:"kubeletConfiguration,omitempty"`
 	// NodeClass is a reference to an object that defines provider specific configuration
-	NodeClass *NodeClassRef `json:"nodeClass,omitempty"`
+	// +required
+	NodeClass *NodeClassRef `json:"nodeClass"`
 }
 
 func KubeletAnnotation(k *v1alpha5.KubeletConfiguration) map[string]string {
@@ -129,6 +132,7 @@ type KubeletConfiguration struct {
 
 type NodeClassRef struct {
 	// Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"
+	// +optional
 	Kind string `json:"kind,omitempty"`
 	// Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names
 	// +required

@@ -43,9 +43,107 @@ spec:
           spec:
             description: NodeClaimSpec describes the desired state of the NodeClaim
             properties:
-              nodeTemplateRef:
-                description: NodeTemplateRef is a reference to an object that defines
-                  provider specific configuration
+              kubeletConfiguration:
+                description: KubeletConfiguration are options passed to the kubelet
+                  when provisioning nodes
+                properties:
+                  clusterDNS:
+                    description: clusterDNS is a list of IP addresses for the cluster
+                      DNS server. Note that not all providers may use all addresses.
+                    items:
+                      type: string
+                    type: array
+                  containerRuntime:
+                    description: ContainerRuntime is the container runtime to be used
+                      with your worker nodes.
+                    type: string
+                  cpuCFSQuota:
+                    description: CPUCFSQuota enables CPU CFS quota enforcement for
+                      containers that specify CPU limits.
+                    type: boolean
+                  evictionHard:
+                    additionalProperties:
+                      type: string
+                    description: EvictionHard is the map of signal names to quantities
+                      that define hard eviction thresholds
+                    type: object
+                  evictionMaxPodGracePeriod:
+                    description: EvictionMaxPodGracePeriod is the maximum allowed
+                      grace period (in seconds) to use when terminating pods in response
+                      to soft eviction thresholds being met.
+                    format: int32
+                    type: integer
+                  evictionSoft:
+                    additionalProperties:
+                      type: string
+                    description: EvictionSoft is the map of signal names to quantities
+                      that define soft eviction thresholds
+                    type: object
+                  evictionSoftGracePeriod:
+                    additionalProperties:
+                      type: string
+                    description: EvictionSoftGracePeriod is the map of signal names
+                      to quantities that define grace periods for each eviction signal
+                    type: object
+                  imageGCHighThresholdPercent:
+                    description: ImageGCHighThresholdPercent is the percent of disk
+                      usage after which image garbage collection is always run. The
+                      percent is calculated by dividing this field value by 100, so
+                      this field must be between 0 and 100, inclusive. When specified,
+                      the value must be greater than ImageGCLowThresholdPercent.
+                    format: int32
+                    maximum: 100
+                    minimum: 0
+                    type: integer
+                  imageGCLowThresholdPercent:
+                    description: ImageGCLowThresholdPercent is the percent of disk
+                      usage before which image garbage collection is never run. Lowest
+                      disk usage to garbage collect to. The percent is calculated
+                      by dividing this field value by 100, so the field value must
+                      be between 0 and 100, inclusive. When specified, the value must
+                      be less than imageGCHighThresholdPercent
+                    format: int32
+                    maximum: 100
+                    minimum: 0
+                    type: integer
+                  kubeReserved:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: KubeReserved contains resources reserved for Kubernetes
+                      system components.
+                    type: object
+                  maxPods:
+                    description: MaxPods is an override for the maximum number of
+                      pods that can run on a worker node instance.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  podsPerCore:
+                    description: PodsPerCore is an override for the number of pods
+                      that can run on a worker node instance based on the number of
+                      cpu cores. This value cannot exceed MaxPods, so, if MaxPods
+                      is a lower value, that value will be used.
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  systemReserved:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: SystemReserved contains resources reserved for OS
+                      system daemons and kernel memory.
+                    type: object
+                type: object
+              nodeClass:
+                description: NodeClass is a reference to an object that defines provider
+                  specific configuration
                 properties:
                   apiVersion:
                     description: API version of the referent
