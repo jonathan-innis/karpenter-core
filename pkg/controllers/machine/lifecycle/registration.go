@@ -70,7 +70,7 @@ func (r *Registration) Reconcile(ctx context.Context, machine *v1alpha5.Machine)
 	logging.FromContext(ctx).Debugf("registered machine")
 	machine.StatusConditions().MarkTrue(v1alpha5.MachineRegistered)
 	machine.Status.NodeName = node.Name
-	metrics.MachinesRegisteredCounter.With(prometheus.Labels{
+	metrics.NodeClaimsRegisteredCounter.With(prometheus.Labels{
 		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
 	// If the machine is linked, then the node already existed so we don't mark it as created

@@ -84,7 +84,7 @@ func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconc
 		logging.FromContext(ctx).
 			With("provisioner", machines[i].Labels[v1alpha5.ProvisionerNameLabelKey], "machine", machines[i].Name, "provider-id", machines[i].Status.ProviderID).
 			Debugf("garbage collecting machine with no cloudprovider representation")
-		metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+		metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
 			metrics.ReasonLabel:      "garbage_collected",
 			metrics.ProvisionerLabel: machines[i].Labels[v1alpha5.ProvisionerNameLabelKey],
 		}).Inc()

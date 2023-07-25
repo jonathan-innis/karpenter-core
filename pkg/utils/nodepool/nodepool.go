@@ -33,7 +33,7 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 	np := &v1beta1.NodePool{
 		ObjectMeta: provisioner.ObjectMeta,
 		Spec: v1beta1.NodePoolSpec{
-			Template: v1beta1.MachineTemplate{
+			Template: v1beta1.NodeClaimTemplate{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: lo.Assign(provisioner.Annotations, v1beta1.ProviderAnnotation(provisioner.Spec.Provider), v1beta1.KubeletAnnotation(provisioner.Spec.KubeletConfiguration)),
 					Labels:      provisioner.Labels,

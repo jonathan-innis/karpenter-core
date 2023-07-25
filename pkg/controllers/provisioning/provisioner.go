@@ -199,7 +199,7 @@ func (p *Provisioner) consolidationWarnings(ctx context.Context, po v1.Pod) {
 //nolint:gocyclo
 func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNodes []*state.StateNode, opts scheduler.SchedulerOptions) (*scheduler.Scheduler, error) {
 	// Build node templates
-	var machines []*scheduler.NodeClaimTemplate
+	var nodeClaimTemplates []*scheduler.NodeClaimTemplate
 	instanceTypes := map[string][]*cloudprovider.InstanceType{}
 	domains := map[string]sets.Set[string]{}
 	nodePoolList, err := nodepoolutil.List(ctx, p.kubeClient)
@@ -218,7 +218,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 			continue
 		}
 		// Create node template
-		machines = append(machines, scheduler.NewMachineTemplate(nodePool))
+		nodeClaimTemplates = append(nodeClaimTemplates, scheduler.NewNodeClaimTemplate(nodePool))
 		// Get instance type options
 		instanceTypeOptions, err := p.cloudProvider.GetInstanceTypes(ctx, nodePool)
 		if err != nil {
@@ -258,7 +258,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 		}
 	}
 
-	if len(machines) == 0 {
+	if len(nodeClaimTemplates) == 0 {
 		return nil, fmt.Errorf("no provisioners found")
 	}
 
@@ -274,7 +274,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 	if err != nil {
 		return nil, fmt.Errorf("getting daemon pods, %w", err)
 	}
-	return scheduler.NewScheduler(ctx, p.kubeClient, machines, nodePoolList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder, opts), nil
+	return scheduler.NewScheduler(ctx, p.kubeClient, nodeClaimTemplates, nodePoolList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder, opts), nil
 }
 
 func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) {
@@ -336,7 +336,7 @@ func (p *Provisioner) Launch(ctx context.Context, n *scheduler.NodeClaim, opts .
 	instanceTypeRequirement, _ := lo.Find(nodeClaim.Spec.Requirements, func(req v1.NodeSelectorRequirement) bool { return req.Key == v1.LabelInstanceTypeStable })
 	logging.FromContext(ctx).With("requests", nodeClaim.Spec.Resources.Requests, "instance-types", instanceTypeList(instanceTypeRequirement.Values)).Infof("created nodeClaim")
 	p.cluster.NominateNodeForPod(ctx, nodeClaim.Name)
-	metrics.MachinesCreatedCounter.With(prometheus.Labels{
+	metrics.NodeClaimsCreatedCounter.With(prometheus.Labels{
 		metrics.ReasonLabel:      options.Reason,
 		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()

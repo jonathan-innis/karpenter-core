@@ -192,7 +192,7 @@ func (c *Controller) executeCommand(ctx context.Context, d Deprovisioner, comman
 			}
 			logging.FromContext(ctx).Errorf("terminating machine, %s", err)
 		} else {
-			metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
 				metrics.ReasonLabel:      reason,
 				metrics.ProvisionerLabel: candidate.provisioner.Name,
 			}).Inc()

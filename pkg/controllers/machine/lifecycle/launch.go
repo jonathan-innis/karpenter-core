@@ -69,7 +69,7 @@ func (l *Launch) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reco
 	l.cache.SetDefault(string(machine.UID), created)
 	PopulateMachineDetails(machine, created)
 	machine.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
-	metrics.MachinesLaunchedCounter.With(prometheus.Labels{
+	metrics.NodeClaimsLaunchedCounter.With(prometheus.Labels{
 		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
@@ -87,7 +87,7 @@ func (l *Launch) linkMachine(ctx context.Context, machine *v1alpha5.Machine) (*v
 			return nil, client.IgnoreNotFound(err)
 		}
 		logging.FromContext(ctx).Debugf("garbage collected machine with no cloudprovider representation")
-		metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+		metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
 			metrics.ReasonLabel:      "garbage_collected",
 			metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
 		}).Inc()

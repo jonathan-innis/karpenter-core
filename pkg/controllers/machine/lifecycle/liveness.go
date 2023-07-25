@@ -54,7 +54,7 @@ func (r *Liveness) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (re
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 	logging.FromContext(ctx).With("ttl", registrationTTL).Debugf("terminating machine due to registration ttl")
-	metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+	metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
 		metrics.ReasonLabel:      "liveness",
 		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()

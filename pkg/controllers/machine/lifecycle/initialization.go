@@ -83,7 +83,7 @@ func (i *Initialization) Reconcile(ctx context.Context, machine *v1alpha5.Machin
 	}
 	logging.FromContext(ctx).Debugf("initialized machine")
 	machine.StatusConditions().MarkTrue(v1alpha5.MachineInitialized)
-	metrics.MachinesInitializedCounter.With(prometheus.Labels{
+	metrics.NodeClaimsInitializedCounter.With(prometheus.Labels{
 		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil

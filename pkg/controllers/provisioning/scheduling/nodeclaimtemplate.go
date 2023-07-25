@@ -31,18 +31,18 @@ import (
 // the fields in Provisioner. These structs are maintained separately in order
 // for fields like Requirements to be able to be stored more efficiently.
 type NodeClaimTemplate struct {
-	v1beta1.MachineTemplate
+	v1beta1.NodeClaimTemplate
 
 	NodePoolName        string
 	InstanceTypeOptions cloudprovider.InstanceTypes
 	Requirements        scheduling.Requirements
 }
 
-func NewMachineTemplate(nodePool *v1beta1.NodePool) *NodeClaimTemplate {
+func NewNodeClaimTemplate(nodePool *v1beta1.NodePool) *NodeClaimTemplate {
 	mt := &NodeClaimTemplate{
-		MachineTemplate: nodePool.Spec.Template,
-		NodePoolName:    nodePool.Name,
-		Requirements:    scheduling.NewRequirements(),
+		NodeClaimTemplate: nodePool.Spec.Template,
+		NodePoolName:      nodePool.Name,
+		Requirements:      scheduling.NewRequirements(),
 	}
 	if nodepoolutil.IsProvisioner(nodePool.Name) {
 		mt.Labels = lo.Assign(mt.Labels, map[string]string{v1alpha5.ProvisionerNameLabelKey: nodepoolutil.Name(nodePool.Name)})

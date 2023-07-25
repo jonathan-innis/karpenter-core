@@ -20,15 +20,15 @@ import (
 )
 
 const (
-	nodeSubsystem    = "nodes"
-	machineSubsystem = "machines"
+	nodeSubsystem      = "nodes"
+	nodeClaimSubsystem = "node_claims"
 )
 
 var (
-	MachinesCreatedCounter = prometheus.NewCounterVec(
+	NodeClaimsCreatedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: machineSubsystem,
+			Subsystem: nodeClaimSubsystem,
 			Name:      "created",
 			Help:      "Number of machines created in total by Karpenter. Labeled by reason the machine was created and the owning provisioner.",
 		},
@@ -37,10 +37,10 @@ var (
 			ProvisionerLabel,
 		},
 	)
-	MachinesTerminatedCounter = prometheus.NewCounterVec(
+	NodeClaimsTerminatedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: machineSubsystem,
+			Subsystem: nodeClaimSubsystem,
 			Name:      "terminated",
 			Help:      "Number of machines terminated in total by Karpenter. Labeled by reason the machine was terminated.",
 		},
@@ -49,10 +49,10 @@ var (
 			ProvisionerLabel,
 		},
 	)
-	MachinesLaunchedCounter = prometheus.NewCounterVec(
+	NodeClaimsLaunchedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: machineSubsystem,
+			Subsystem: nodeClaimSubsystem,
 			Name:      "launched",
 			Help:      "Number of machines launched in total by Karpenter. Labeled by the owning provisioner.",
 		},
@@ -60,10 +60,10 @@ var (
 			ProvisionerLabel,
 		},
 	)
-	MachinesRegisteredCounter = prometheus.NewCounterVec(
+	NodeClaimsRegisteredCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: machineSubsystem,
+			Subsystem: nodeClaimSubsystem,
 			Name:      "registered",
 			Help:      "Number of machines registered in total by Karpenter. Labeled by the owning provisioner.",
 		},
@@ -71,10 +71,10 @@ var (
 			ProvisionerLabel,
 		},
 	)
-	MachinesInitializedCounter = prometheus.NewCounterVec(
+	NodeClaimsInitializedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: Namespace,
-			Subsystem: machineSubsystem,
+			Subsystem: nodeClaimSubsystem,
 			Name:      "initialized",
 			Help:      "Number of machines initialized in total by Karpenter. Labeled by the owning provisioner.",
 		},
@@ -107,6 +107,6 @@ var (
 )
 
 func init() {
-	crmetrics.Registry.MustRegister(MachinesCreatedCounter, MachinesTerminatedCounter, MachinesLaunchedCounter,
-		MachinesRegisteredCounter, MachinesInitializedCounter, NodesCreatedCounter, NodesTerminatedCounter)
+	crmetrics.Registry.MustRegister(NodeClaimsCreatedCounter, NodeClaimsTerminatedCounter, NodeClaimsLaunchedCounter,
+		NodeClaimsRegisteredCounter, NodeClaimsInitializedCounter, NodesCreatedCounter, NodesTerminatedCounter)
 }

@@ -31,7 +31,7 @@ type NodePoolSpec struct {
 	// Template contains the template of possibilities for the provisioning logic to launch a NodeClaim with.
 	// Machines launched from this NodePool will often be further constrained than the template specifies.
 	// +optional
-	Template MachineTemplate `json:"template,omitempty"`
+	Template NodeClaimTemplate `json:"template,omitempty"`
 	// TTLAfterUnderutilized is the duration the controller will wait
 	// before attempting to terminate nodes that are empty
 	// Termination due to under-utilization is disabled if this field is not set.
@@ -78,7 +78,7 @@ func (l Limits) ExceededBy(resources v1.ResourceList) error {
 	return nil
 }
 
-type MachineTemplate struct {
+type NodeClaimTemplate struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 	Spec              NodeClaimSpec `json:"spec,omitempty"`
 }
