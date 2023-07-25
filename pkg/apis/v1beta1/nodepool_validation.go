@@ -194,10 +194,10 @@ func (s *NodePoolSpec) validate(_ context.Context) (errs *apis.FieldError) {
 // // validateProvider checks if exactly one of provider and providerRef are set
 //
 //	func (s *NodePoolSpec) validateProvider() *apis.FieldError {
-//		if s.Provider != nil && s.NodeTemplateRef != nil {
+//		if s.Provider != nil && s.NodeClassRef != nil {
 //			return apis.ErrMultipleOneOf(providerPath, providerRefPath)
 //		}
-//		if s.Provider == nil && s.NodeTemplateRef == nil {
+//		if s.Provider == nil && s.NodeClassRef == nil {
 //			return apis.ErrMissingOneOf(providerPath, providerRefPath)
 //		}
 //		return nil

@@ -29,7 +29,7 @@ import (
 // PodNominationRateLimiter is a pointer so it rate-limits across events
 var PodNominationRateLimiter = flowcontrol.NewTokenBucketRateLimiter(5, 10)
 
-func NominatePod(pod *v1.Pod, node *v1.Node, machine *v1beta1.Machine) events.Event {
+func NominatePod(pod *v1.Pod, node *v1.Node, machine *v1beta1.NodeClaim) events.Event {
 	var info []string
 	if machine != nil {
 		info = append(info, fmt.Sprintf("machine/%s", machine.Name))

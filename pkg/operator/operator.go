@@ -136,8 +136,8 @@ func NewOperator() (context.Context, *Operator) {
 	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1alpha5.Machine{}, "status.providerID", func(o client.Object) []string {
 		return []string{o.(*v1alpha5.Machine).Status.ProviderID}
 	}), "failed to setup machine provider id indexer")
-	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1beta1.Machine{}, "status.providerID", func(o client.Object) []string {
-		return []string{o.(*v1beta1.Machine).Status.ProviderID}
+	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1beta1.NodeClaim{}, "status.providerID", func(o client.Object) []string {
+		return []string{o.(*v1beta1.NodeClaim).Status.ProviderID}
 	}), "failed to setup machine provider id indexer")
 
 	return ctx, &Operator{

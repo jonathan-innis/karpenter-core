@@ -28,7 +28,7 @@ import (
 // is capable of managing a diverse set of nodes. Node properties are determined
 // from a combination of provisioner and pod scheduling constraints.
 type NodePoolSpec struct {
-	// Template contains the template of possibilities for the provisioning logic to launch a Machine with.
+	// Template contains the template of possibilities for the provisioning logic to launch a NodeClaim with.
 	// Machines launched from this NodePool will often be further constrained than the template specifies.
 	// +optional
 	Template MachineTemplate `json:"template,omitempty"`
@@ -80,7 +80,7 @@ func (l Limits) ExceededBy(resources v1.ResourceList) error {
 
 type MachineTemplate struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              MachineSpec `json:"spec,omitempty"`
+	Spec              NodeClaimSpec `json:"spec,omitempty"`
 }
 
 type Consolidation struct {

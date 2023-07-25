@@ -49,7 +49,7 @@ package v1beta1
 //		provisioner = &NodePool{
 //			ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(randomdata.SillyName())},
 //			Spec: NodePoolSpec{
-//				NodeTemplateRef: &NodeTemplateRef{
+//				NodeClassRef: &NodeClassRef{
 //					Kind: "NodeTemplate",
 //					Name: "default",
 //				},
@@ -107,11 +107,11 @@ package v1beta1
 //	Context("Provider", func() {
 //		It("should not allow provider and providerRef", func() {
 //			provisioner.Spec.Provider = &Provider{}
-//			provisioner.Spec.NodeTemplateRef = &NodeTemplateRef{Name: "providerRef"}
+//			provisioner.Spec.NodeClassRef = &NodeClassRef{Name: "providerRef"}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should require at least one of provider and providerRef", func() {
-//			provisioner.Spec.NodeTemplateRef = nil
+//			provisioner.Spec.NodeClassRef = nil
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //	})

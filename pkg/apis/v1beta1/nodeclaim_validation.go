@@ -20,7 +20,7 @@ import (
 	"knative.dev/pkg/apis"
 )
 
-// Validate the Machine
-func (in *Machine) Validate(_ context.Context) *apis.FieldError {
+// Validate the NodeClaim
+func (in *NodeClaim) Validate(_ context.Context) *apis.FieldError {
 	return nil
 }

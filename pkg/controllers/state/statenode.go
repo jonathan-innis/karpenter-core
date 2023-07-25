@@ -71,7 +71,7 @@ func (n StateNodes) Pods(ctx context.Context, c client.Client) ([]*v1.Pod, error
 // nolint: revive
 type StateNode struct {
 	Node    *v1.Node
-	Machine *v1beta1.Machine
+	Machine *v1beta1.NodeClaim
 
 	inflightAllocatable v1.ResourceList // TODO @joinnis: This can be removed when machine is added
 	inflightCapacity    v1.ResourceList // TODO @joinnis: This can be removed when machine is added
@@ -307,8 +307,8 @@ func (in *StateNode) PodLimits() v1.ResourceList {
 func (in *StateNode) MarkedForDeletion() bool {
 	// The Node is marked for the Deletion if:
 	//  1. The Node has explicitly MarkedForDeletion
-	//  2. The Node has a Machine counterpart and is actively deleting
-	//  3. The Node has no Machine counterpart and is actively deleting
+	//  2. The Node has a NodeClaim counterpart and is actively deleting
+	//  3. The Node has no NodeClaim counterpart and is actively deleting
 	return in.markedForDeletion ||
 		(in.Machine != nil && !in.Machine.DeletionTimestamp.IsZero()) ||
 		(in.Node != nil && in.Machine == nil && !in.Node.DeletionTimestamp.IsZero())

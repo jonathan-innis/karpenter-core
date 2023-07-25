@@ -56,14 +56,14 @@ func NewMachineTemplate(nodePool *v1beta1.NodePool) *MachineTemplate {
 	return mt
 }
 
-// TODO @joinis: Be able to create either a v1alpha5.Machine or a v1beta1.Machine based on whether we are using a Provisioner or a NodePool
-func (i *MachineTemplate) ToMachine(owner *v1beta1.NodePool) *v1beta1.Machine {
+// TODO @joinis: Be able to create either a v1alpha5.Machine or a v1beta1.NodeClaim based on whether we are using a Provisioner or a NodePool
+func (i *MachineTemplate) ToMachine(owner *v1beta1.NodePool) *v1beta1.NodeClaim {
 	// Order the instance types by price and only take the first 100 of them to decrease the instance type size in the requirements
 	instanceTypes := lo.Slice(i.InstanceTypeOptions.OrderByPrice(i.Requirements), 0, 100)
 	i.Requirements.Add(scheduling.NewRequirement(v1.LabelInstanceTypeStable, v1.NodeSelectorOpIn, lo.Map(instanceTypes, func(i *cloudprovider.InstanceType, _ int) string {
 		return i.Name
 	})...))
-	m := &v1beta1.Machine{
+	m := &v1beta1.NodeClaim{
 		ObjectMeta: i.ObjectMeta,
 		Spec:       i.Spec,
 	}

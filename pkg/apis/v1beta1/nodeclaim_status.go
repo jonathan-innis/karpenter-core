@@ -19,8 +19,8 @@ import (
 	"knative.dev/pkg/apis"
 )
 
-// MachineStatus defines the observed state of Machine
-type MachineStatus struct {
+// NodeClaimStatus defines the observed state of NodeClaim
+type NodeClaimStatus struct {
 	// ProviderID of the corresponding node object
 	// +optional
 	ProviderID string `json:"providerID,omitempty"`
@@ -35,24 +35,28 @@ type MachineStatus struct {
 	Conditions apis.Conditions `json:"conditions,omitempty"`
 }
 
-func (in *Machine) StatusConditions() apis.ConditionManager {
+func (in *NodeClaim) StatusConditions() apis.ConditionManager {
 	return apis.NewLivingConditionSet(
-		MachineCreated,
-		MachineRegistered,
-		MachineInitialized,
+		NodeLaunched,
+		NodeRegistered,
+		NodeInitialized,
 	).Manage(in)
 }
 
 var (
-	MachineCreated     apis.ConditionType = "MachineCreated"
-	MachineRegistered  apis.ConditionType = "MachineRegistered"
-	MachineInitialized apis.ConditionType = "MachineInitialized"
+	NodeLaunched      apis.ConditionType = "NodeLaunched"
+	NodeRegistered    apis.ConditionType = "NodeRegistered"
+	NodeInitialized   apis.ConditionType = "NodeInitialized"
+	NodeDrifted       apis.ConditionType = "NodeDrifted"
+	NodeEmpty         apis.ConditionType = "NodeEmpty"
+	NodeExpired       apis.ConditionType = "NodeExpired"
+	NodeUnderutilized apis.ConditionType = "NodeUnderutilized"
 )
 
-func (in *Machine) GetConditions() apis.Conditions {
+func (in *NodeClaim) GetConditions() apis.Conditions {
 	return in.Status.Conditions
 }
 
-func (in *Machine) SetConditions(conditions apis.Conditions) {
+func (in *NodeClaim) SetConditions(conditions apis.Conditions) {
 	in.Status.Conditions = conditions
 }

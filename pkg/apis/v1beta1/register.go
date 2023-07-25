@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	Group              = "node.kubernetes.io"
+	Group              = "karpenter.sh"
 	ExtensionsGroup    = "extensions." + Group
 	CompatabilityGroup = "compatibility." + Group
 	TestingGroup       = "testing." + Group // Exclusively used for labeling/discovery in testing
@@ -33,8 +33,8 @@ var (
 		scheme.AddKnownTypes(SchemeGroupVersion,
 			&NodePool{},
 			&NodePoolList{},
-			&Machine{},
-			&MachineList{},
+			&NodeClaim{},
+			&NodeClaimList{},
 		)
 		metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 		return nil

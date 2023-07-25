@@ -17,4 +17,4 @@ package v1beta1
 import "context"
 
 // SetDefaults for the machine
-func (in *Machine) SetDefaults(_ context.Context) {}
+func (in *NodeClaim) SetDefaults(_ context.Context) {}

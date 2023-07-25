@@ -24,8 +24,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 )
 
-// MachineSpec describes the desired state of the Machine
-type MachineSpec struct {
+// NodeClaimSpec describes the desired state of the NodeClaim
+type NodeClaimSpec struct {
 	// Taints will be applied to the machine's node.
 	// +optional
 	Taints []v1.Taint `json:"taints,omitempty"`
@@ -37,10 +37,10 @@ type MachineSpec struct {
 	StartupTaints []v1.Taint `json:"startupTaints,omitempty"`
 	// Requirements are layered with GetLabels and applied to every node.
 	Requirements []v1.NodeSelectorRequirement `json:"requirements,omitempty"`
-	// Resources models the resource requirements for the Machine to launch
+	// Resources models the resource requirements for the NodeClaim to launch
 	Resources ResourceRequirements `json:"resources,omitempty"`
 	// NodeTemplateRef is a reference to an object that defines provider specific configuration
-	NodeTemplateRef *NodeTemplateRef `json:"nodeTemplateRef,omitempty"`
+	NodeTemplateRef *NodeClassRef `json:"nodeTemplateRef,omitempty"`
 }
 
 func KubeletAnnotation(k *v1alpha5.KubeletConfiguration) map[string]string {
@@ -59,7 +59,7 @@ func ProviderAnnotation(p *v1alpha5.Provider) map[string]string {
 	return map[string]string{ProviderCompatabilityAnnotationKey: string(raw)}
 }
 
-type NodeTemplateRef struct {
+type NodeClassRef struct {
 	// Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"
 	Kind string `json:"kind,omitempty"`
 	// Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names
@@ -70,33 +70,33 @@ type NodeTemplateRef struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 }
 
-// ResourceRequirements models the required resources for the Machine to launch
+// ResourceRequirements models the required resources for the NodeClaim to launch
 // Ths will eventually be transformed into v1.ResourceRequirements when we support resources.limits
 type ResourceRequirements struct {
-	// Requests describes the minimum required resources for the Machine to launch
+	// Requests describes the minimum required resources for the NodeClaim to launch
 	// +optional
 	Requests v1.ResourceList `json:"requests,omitempty"`
 }
 
-// Machine is the Schema for the Machines API
+// NodeClaim is the Schema for the NodeClaims API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=machines,scope=Cluster,categories=karpenter
+// +kubebuilder:resource:path=nodeclaims,scope=Cluster,categories=karpenter
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
-type Machine struct {
+type NodeClaim struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   MachineSpec   `json:"spec,omitempty"`
-	Status MachineStatus `json:"status,omitempty"`
+	Spec   NodeClaimSpec   `json:"spec,omitempty"`
+	Status NodeClaimStatus `json:"status,omitempty"`
 }
 
-// MachineList contains a list of NodePool
+// NodeClaimList contains a list of NodeClaims
 // +kubebuilder:object:root=true
-type MachineList struct {
+type NodeClaimList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Machine `json:"items"`
+	Items           []NodeClaim `json:"items"`
 }

@@ -38,7 +38,7 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 					Annotations: lo.Assign(provisioner.Annotations, v1beta1.ProviderAnnotation(provisioner.Spec.Provider), v1beta1.KubeletAnnotation(provisioner.Spec.KubeletConfiguration)),
 					Labels:      provisioner.Labels,
 				},
-				Spec: v1beta1.MachineSpec{
+				Spec: v1beta1.NodeClaimSpec{
 					Taints:          provisioner.Spec.Taints,
 					StartupTaints:   provisioner.Spec.StartupTaints,
 					Requirements:    provisioner.Spec.Requirements,
@@ -66,11 +66,11 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 	return np
 }
 
-func NewNodeTemplateRef(pr *v1alpha5.MachineTemplateRef) *v1beta1.NodeTemplateRef {
+func NewNodeTemplateRef(pr *v1alpha5.MachineTemplateRef) *v1beta1.NodeClassRef {
 	if pr == nil {
 		return nil
 	}
-	return &v1beta1.NodeTemplateRef{
+	return &v1beta1.NodeClassRef{
 		Kind:       pr.Kind,
 		Name:       pr.Name,
 		APIVersion: pr.APIVersion,
@@ -144,8 +144,8 @@ func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1b
 	return nodePoolList, nil
 }
 
-func ToMachine(np *v1beta1.NodePool) *v1beta1.Machine {
-	return &v1beta1.Machine{
+func ToMachine(np *v1beta1.NodePool) *v1beta1.NodeClaim {
+	return &v1beta1.NodeClaim{
 		ObjectMeta: np.Spec.Template.ObjectMeta,
 		Spec:       np.Spec.Template.Spec,
 	}
