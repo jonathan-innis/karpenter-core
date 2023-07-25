@@ -252,7 +252,7 @@ func (c *Controller) waitForReadiness(ctx context.Context, action Command, name 
 	var once sync.Once
 	pollStart := time.Now()
 	return retry.Do(func() error {
-		machine := &v1alpha5.Machine{}
+		machine := &v1alpha5.NodeClaim{}
 		if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: name}, machine); err != nil {
 			// If the machine was deleted after a few seconds (to give the cache time to update), then we assume
 			// that the machine was deleted due to an Insufficient Capacity error
@@ -276,9 +276,9 @@ func (c *Controller) waitForReadiness(ctx context.Context, action Command, name 
 // waitForDeletion waits for the specified machine to be removed from the API server. This deletion can take some period
 // of time if there are PDBs that govern pods on the machine as we need to wait until the node drains before
 // it's actually deleted.
-func (c *Controller) waitForDeletion(ctx context.Context, machine *v1alpha5.Machine) {
+func (c *Controller) waitForDeletion(ctx context.Context, machine *v1alpha5.NodeClaim) {
 	if err := retry.Do(func() error {
-		m := &v1alpha5.Machine{}
+		m := &v1alpha5.NodeClaim{}
 		nerr := c.kubeClient.Get(ctx, client.ObjectKeyFromObject(machine), m)
 		// We expect the not machine found error, at which point we know the machine is deleted.
 		if errors.IsNotFound(nerr) {

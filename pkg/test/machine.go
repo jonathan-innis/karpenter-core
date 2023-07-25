@@ -25,8 +25,8 @@ import (
 
 // Machine creates a test machine with defaults that can be overridden by MachineOptions.
 // Overrides are applied in order, with a last write wins semantic.
-func Machine(overrides ...v1alpha5.Machine) *v1alpha5.Machine {
-	override := v1alpha5.Machine{}
+func Machine(overrides ...v1alpha5.NodeClaim) *v1alpha5.NodeClaim {
+	override := v1alpha5.NodeClaim{}
 	for _, opts := range overrides {
 		if err := mergo.Merge(&override, opts, mergo.WithOverride); err != nil {
 			panic(fmt.Sprintf("failed to merge: %v", err))
@@ -38,21 +38,21 @@ func Machine(overrides ...v1alpha5.Machine) *v1alpha5.Machine {
 	if override.Status.ProviderID == "" {
 		override.Status.ProviderID = RandomProviderID()
 	}
-	return &v1alpha5.Machine{
+	return &v1alpha5.NodeClaim{
 		ObjectMeta: ObjectMeta(override.ObjectMeta),
 		Spec:       override.Spec,
 		Status:     override.Status,
 	}
 }
 
-func MachineAndNode(overrides ...v1alpha5.Machine) (*v1alpha5.Machine, *v1.Node) {
+func MachineAndNode(overrides ...v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, *v1.Node) {
 	m := Machine(overrides...)
 	return m, MachineLinkedNode(m)
 }
 
 // MachinesAndNodes creates homogeneous groups of machines and nodes based on the passed in options, evenly divided by the total machines requested
-func MachinesAndNodes(total int, options ...v1alpha5.Machine) ([]*v1alpha5.Machine, []*v1.Node) {
-	machines := make([]*v1alpha5.Machine, total)
+func MachinesAndNodes(total int, options ...v1alpha5.NodeClaim) ([]*v1alpha5.NodeClaim, []*v1.Node) {
+	machines := make([]*v1alpha5.NodeClaim, total)
 	nodes := make([]*v1.Node, total)
 	for _, opts := range options {
 		for i := 0; i < total/len(options); i++ {

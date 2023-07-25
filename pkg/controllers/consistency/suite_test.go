@@ -89,7 +89,7 @@ var _ = Describe("Controller", func() {
 
 	Context("Termination failure", func() {
 		It("should detect issues with a node that is stuck deleting due to a PDB", func() {
-			machine, node := test.MachineAndNode(v1alpha5.Machine{
+			machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -122,7 +122,7 @@ var _ = Describe("Controller", func() {
 
 	Context("Node Shape", func() {
 		It("should detect issues that launch with much fewer resources than expected", func() {
-			machine, node := test.MachineAndNode(v1alpha5.Machine{
+			machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,

@@ -2,11 +2,13 @@ package machine
 
 import (
 	"context"
+	"time"
 
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/clock"
 	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -70,8 +72,8 @@ func ProvisionerEventHandler(ctx context.Context, c client.Client) handler.Event
 	})
 }
 
-// New converts a node into a NodeClaim using known values from the node and provisioner spec values
-// Deprecated: This NodeClaim generator function can be removed when v1beta1 migration has completed.
+// New converts a node into a Machine using known values from the node and provisioner spec values
+// Deprecated: This Machine generator function can be removed when v1beta1 migration has completed.
 func New(node *v1.Node, provisioner *v1alpha5.Provisioner) *v1alpha5.Machine {
 	machine := NewFromNode(node)
 	machine.Annotations = lo.Assign(provisioner.Annotations, v1alpha5.ProviderAnnotation(provisioner.Spec.Provider))
@@ -122,4 +124,23 @@ func NewFromNode(node *v1.Node) *v1alpha5.Machine {
 	m.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
 	m.StatusConditions().MarkTrue(v1alpha5.MachineRegistered)
 	return m
+}
+
+func IsExpired(obj client.Object, clock clock.Clock, provisioner *v1alpha5.Provisioner) bool {
+	return clock.Now().After(GetExpirationTime(obj, provisioner))
+}
+
+func GetExpirationTime(obj client.Object, provisioner *v1alpha5.Provisioner) time.Time {
+	if provisioner == nil || provisioner.Spec.TTLSecondsUntilExpired == nil || obj == nil {
+		// If not defined, return some much larger time.
+		return time.Date(5000, 0, 0, 0, 0, 0, 0, time.UTC)
+	}
+	expirationTTL := time.Duration(ptr.Int64Value(provisioner.Spec.TTLSecondsUntilExpired)) * time.Second
+	return obj.GetCreationTimestamp().Add(expirationTTL)
+}
+
+func IsPastEmptinessTTL(nodeClaim *v1alpha5.Machine, clock clock.Clock, provisioner *v1alpha5.Provisioner) bool {
+	return nodeClaim.StatusConditions().GetCondition(v1alpha5.MachineEmpty) != nil &&
+		nodeClaim.StatusConditions().GetCondition(v1alpha5.MachineEmpty).IsTrue() &&
+		!clock.Now().Before(nodeClaim.StatusConditions().GetCondition(v1alpha5.MachineEmpty).LastTransitionTime.Inner.Add(time.Duration(lo.FromPtr(provisioner.Spec.TTLSecondsAfterEmpty))*time.Second))
 }

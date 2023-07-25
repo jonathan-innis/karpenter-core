@@ -34,36 +34,35 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 	"github.com/aws/karpenter-core/pkg/utils/result"
 )
 
 type machineReconciler interface {
-	Reconcile(context.Context, *v1alpha5.Provisioner, *v1alpha5.Machine) (reconcile.Result, error)
+	Reconcile(context.Context, *v1beta1.NodePool, *v1beta1.NodeClaim) (reconcile.Result, error)
 }
 
-var _ corecontroller.TypedController[*v1alpha5.Machine] = (*Controller)(nil)
+var _ corecontroller.TypedController[*v1beta1.NodeClaim] = (*Controller)(nil)
 
 // Controller is a disruption controller that adds StatusConditions to Machines when they meet certain disruption conditions
-// e.g. When the Machine has surpassed its owning provisioner's expirationTTL, then it is marked as "Expired" in the StatusConditions
+// e.g. When the NodeClaim has surpassed its owning provisioner's expirationTTL, then it is marked as "Expired" in the StatusConditions
 type Controller struct {
 	kubeClient client.Client
 
 	drift      *Drift
 	expiration *Expiration
-	emptiness  *Emptiness
 }
 
 // NewController constructs a machine disruption controller
 func NewController(clk clock.Clock, kubeClient client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
-	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
+	return corecontroller.Typed[*v1beta1.NodeClaim](kubeClient, &Controller{
 		kubeClient: kubeClient,
 		drift:      &Drift{cloudProvider: cloudProvider},
 		expiration: &Expiration{kubeClient: kubeClient, clock: clk},
-		emptiness:  &Emptiness{kubeClient: kubeClient, cluster: cluster, clock: clk},
 	})
 }
 
@@ -72,16 +71,16 @@ func (c *Controller) Name() string {
 }
 
 // Reconcile executes a control loop for the resource
-func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	stored := machine.DeepCopy()
-	if _, ok := machine.Labels[v1alpha5.ProvisionerNameLabelKey]; !ok {
+func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	stored := nodeClaim.DeepCopy()
+	if _, ok := nodeClaim.Labels[v1beta1.NodePoolLabelKey]; !ok {
 		return reconcile.Result{}, nil
 	}
-	if !machine.DeletionTimestamp.IsZero() {
+	if !nodeClaim.DeletionTimestamp.IsZero() {
 		return reconcile.Result{}, nil
 	}
-	provisioner := &v1alpha5.Provisioner{}
-	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: machine.Labels[v1alpha5.ProvisionerNameLabelKey]}, provisioner); err != nil {
+	nodePool := &v1beta1.NodePool{}
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: nodeClaim.Labels[v1beta1.NodePoolLabelKey]}, nodePool); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -90,15 +89,14 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 	reconcilers := []machineReconciler{
 		c.expiration,
 		c.drift,
-		c.emptiness,
 	}
 	for _, reconciler := range reconcilers {
-		res, err := reconciler.Reconcile(ctx, provisioner, machine)
+		res, err := reconciler.Reconcile(ctx, nodePool, nodeClaim)
 		errs = multierr.Append(errs, err)
 		results = append(results, res)
 	}
-	if !equality.Semantic.DeepEqual(stored, machine) {
-		if err := c.kubeClient.Status().Update(ctx, machine); err != nil {
+	if !equality.Semantic.DeepEqual(stored, nodeClaim) {
+		if err := c.kubeClient.Status().Update(ctx, nodeClaim); err != nil {
 			if errors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
@@ -111,13 +109,13 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}, builder.WithPredicates(
+		For(&v1beta1.NodeClaim{}, builder.WithPredicates(
 			predicate.Or(
 				predicate.GenerationChangedPredicate{},
 				predicate.Funcs{
 					UpdateFunc: func(e event.UpdateEvent) bool {
-						oldMachine := e.ObjectOld.(*v1alpha5.Machine)
-						newMachine := e.ObjectNew.(*v1alpha5.Machine)
+						oldMachine := e.ObjectOld.(*v1beta1.NodeClaim)
+						newMachine := e.ObjectNew.(*v1beta1.NodeClaim)
 
 						// One of the status conditions that affects disruption has changed
 						// which means that we should re-consider this for disruption
@@ -136,16 +134,16 @@ func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontrol
 		)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Watches(
-			&source.Kind{Type: &v1alpha5.Provisioner{}},
-			machineutil.ProvisionerEventHandler(ctx, c.kubeClient),
+			&source.Kind{Type: &v1beta1.NodePool{}},
+			nodeclaimutil.NodePoolEventHandler(ctx, c.kubeClient),
 		).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
-			machineutil.NodeEventHandler(ctx, c.kubeClient),
+			nodeclaimutil.NodeEventHandler(ctx, c.kubeClient),
 		).
 		Watches(
 			&source.Kind{Type: &v1.Pod{}},
-			machineutil.PodEventHandler(ctx, c.kubeClient),
+			nodeclaimutil.PodEventHandler(ctx, c.kubeClient),
 		),
 	)
 }

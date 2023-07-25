@@ -92,7 +92,7 @@ func Decorate(cloudProvider cloudprovider.CloudProvider) cloudprovider.CloudProv
 	return &decorator{cloudProvider}
 }
 
-func (d *decorator) Create(ctx context.Context, machine *v1alpha5.Machine) (*v1alpha5.Machine, error) {
+func (d *decorator) Create(ctx context.Context, machine *v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, error) {
 	method := "Create"
 	defer metrics.Measure(methodDurationHistogramVec.With(getLabelsMapForDuration(ctx, d, method)))()
 	machine, err := d.CloudProvider.Create(ctx, machine)
@@ -102,7 +102,7 @@ func (d *decorator) Create(ctx context.Context, machine *v1alpha5.Machine) (*v1a
 	return machine, err
 }
 
-func (d *decorator) Delete(ctx context.Context, machine *v1alpha5.Machine) error {
+func (d *decorator) Delete(ctx context.Context, machine *v1alpha5.NodeClaim) error {
 	method := "Delete"
 	defer metrics.Measure(methodDurationHistogramVec.With(getLabelsMapForDuration(ctx, d, method)))()
 	err := d.CloudProvider.Delete(ctx, machine)
@@ -112,7 +112,7 @@ func (d *decorator) Delete(ctx context.Context, machine *v1alpha5.Machine) error
 	return err
 }
 
-func (d *decorator) Get(ctx context.Context, id string) (*v1alpha5.Machine, error) {
+func (d *decorator) Get(ctx context.Context, id string) (*v1alpha5.NodeClaim, error) {
 	method := "Get"
 	defer metrics.Measure(methodDurationHistogramVec.With(getLabelsMapForDuration(ctx, d, method)))()
 	machine, err := d.CloudProvider.Get(ctx, id)
@@ -122,7 +122,7 @@ func (d *decorator) Get(ctx context.Context, id string) (*v1alpha5.Machine, erro
 	return machine, err
 }
 
-func (d *decorator) List(ctx context.Context) ([]*v1alpha5.Machine, error) {
+func (d *decorator) List(ctx context.Context) ([]*v1alpha5.NodeClaim, error) {
 	method := "List"
 	defer metrics.Measure(methodDurationHistogramVec.With(getLabelsMapForDuration(ctx, d, method)))()
 	machines, err := d.CloudProvider.List(ctx)
@@ -142,10 +142,10 @@ func (d *decorator) GetInstanceTypes(ctx context.Context, provisioner *v1alpha5.
 	return instanceType, err
 }
 
-func (d *decorator) IsMachineDrifted(ctx context.Context, machine *v1alpha5.Machine) (bool, error) {
-	method := "IsMachineDrifted"
+func (d *decorator) IsMachineDrifted(ctx context.Context, machine *v1alpha5.NodeClaim) (bool, error) {
+	method := "IsDrifted"
 	defer metrics.Measure(methodDurationHistogramVec.With(getLabelsMapForDuration(ctx, d, method)))()
-	isDrifted, err := d.CloudProvider.IsMachineDrifted(ctx, machine)
+	isDrifted, err := d.CloudProvider.IsDrifted(ctx, machine)
 	if err != nil {
 		errorsTotalCounter.With(getLabelsMapForError(ctx, d, method, err)).Inc()
 	}

@@ -37,8 +37,8 @@ var _ = Describe("Launch", func() {
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
 	})
-	It("should launch an instance when a new Machine is created", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should launch an instance when a new NodeClaim is created", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -55,8 +55,8 @@ var _ = Describe("Launch", func() {
 		_, err := cloudProvider.Get(ctx, machine.Status.ProviderID)
 		Expect(err).ToNot(HaveOccurred())
 	})
-	It("should add the MachineLaunched status condition after creating the Machine", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should add the MachineLaunched status condition after creating the NodeClaim", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -70,7 +70,7 @@ var _ = Describe("Launch", func() {
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineLaunched).Status).To(Equal(v1.ConditionTrue))
 	})
 	It("should link an instance with the karpenter.sh/linked annotation", func() {
-		cloudProviderMachine := &v1alpha5.Machine{
+		cloudProviderMachine := &v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1.LabelInstanceTypeStable: "small-instance-type",
@@ -94,7 +94,7 @@ var _ = Describe("Launch", func() {
 			},
 		}
 		cloudProvider.CreatedMachines[cloudProviderMachine.Status.ProviderID] = cloudProviderMachine
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					v1alpha5.MachineLinkedAnnotationKey: cloudProviderMachine.Status.ProviderID,

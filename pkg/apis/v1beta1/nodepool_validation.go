@@ -130,7 +130,7 @@ func (s *NodePoolSpec) validate(_ context.Context) (errs *apis.FieldError) {
 //	}
 //
 //	type taintKeyEffect struct {
-//		Key    string
+//		OwnerKey    string
 //		Effect v1.TaintEffect
 //	}
 //
@@ -144,11 +144,11 @@ func (s *NodePoolSpec) validate(_ context.Context) (errs *apis.FieldError) {
 //	func (s *NodePoolSpec) validateTaintsField(taints []v1.Taint, existing map[taintKeyEffect]struct{}, fieldName string) *apis.FieldError {
 //		var errs *apis.FieldError
 //		for i, taint := range taints {
-//			// Validate Key
-//			if len(taint.Key) == 0 {
+//			// Validate OwnerKey
+//			if len(taint.OwnerKey) == 0 {
 //				errs = errs.Also(apis.ErrInvalidArrayValue(errs, fieldName, i))
 //			}
-//			for _, err := range validation.IsQualifiedName(taint.Key) {
+//			for _, err := range validation.IsQualifiedName(taint.OwnerKey) {
 //				errs = errs.Also(apis.ErrInvalidArrayValue(err, fieldName, i))
 //			}
 //			// Validate Value
@@ -164,10 +164,10 @@ func (s *NodePoolSpec) validate(_ context.Context) (errs *apis.FieldError) {
 //				errs = errs.Also(apis.ErrInvalidArrayValue(taint.Effect, "effect", i))
 //			}
 //
-//			// Check for duplicate Key/Effect pairs
-//			key := taintKeyEffect{Key: taint.Key, Effect: taint.Effect}
+//			// Check for duplicate OwnerKey/Effect pairs
+//			key := taintKeyEffect{OwnerKey: taint.OwnerKey, Effect: taint.Effect}
 //			if _, ok := existing[key]; ok {
-//				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("duplicate taint Key/Effect pair %s=%s", taint.Key, taint.Effect), apis.CurrentField).
+//				errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("duplicate taint OwnerKey/Effect pair %s=%s", taint.OwnerKey, taint.Effect), apis.CurrentField).
 //					ViaFieldIndex("taints", i))
 //			}
 //			existing[key] = struct{}{}
@@ -181,8 +181,8 @@ func (s *NodePoolSpec) validate(_ context.Context) (errs *apis.FieldError) {
 //
 //	func (s *NodePoolSpec) validateRequirements() (errs *apis.FieldError) {
 //		for i, requirement := range s.Requirements {
-//			if requirement.Key == ProvisionerNameLabelKey {
-//				errs = errs.Also(apis.ErrInvalidArrayValue(fmt.Sprintf("%s is restricted", requirement.Key), "requirements", i))
+//			if requirement.OwnerKey == ProvisionerNameLabelKey {
+//				errs = errs.Also(apis.ErrInvalidArrayValue(fmt.Sprintf("%s is restricted", requirement.OwnerKey), "requirements", i))
 //			}
 //			if err := ValidateRequirement(requirement); err != nil {
 //				errs = errs.Also(apis.ErrInvalidArrayValue(err, "requirements", i))
@@ -234,11 +234,11 @@ func (s *NodePoolSpec) validate(_ context.Context) (errs *apis.FieldError) {
 //
 //		evictionSoftDiff := evictionSoftKeys.Difference(evictionSoftGracePeriodKeys)
 //		for k := range evictionSoftDiff {
-//			errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoft", "Key does not have a matching evictionSoftGracePeriod"))
+//			errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoft", "OwnerKey does not have a matching evictionSoftGracePeriod"))
 //		}
 //		evictionSoftGracePeriodDiff := evictionSoftGracePeriodKeys.Difference(evictionSoftKeys)
 //		for k := range evictionSoftGracePeriodDiff {
-//			errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoftGracePeriod", "Key does not have a matching evictionSoft threshold value"))
+//			errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoftGracePeriod", "OwnerKey does not have a matching evictionSoft threshold value"))
 //		}
 //		return errs
 //	}

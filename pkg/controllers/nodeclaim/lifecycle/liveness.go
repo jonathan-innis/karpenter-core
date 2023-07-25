@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/metrics"
 )
 
@@ -37,26 +38,26 @@ type Liveness struct {
 // If we don't see the node within this time, then we should delete the machine and try again
 const registrationTTL = time.Minute * 15
 
-func (r *Liveness) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	registered := machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered)
+func (r *Liveness) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	registered := nodeClaim.StatusConditions().GetCondition(v1beta1.NodeRegistered)
 	if registered.IsTrue() {
 		return reconcile.Result{}, nil
 	}
 	if registered == nil {
 		return reconcile.Result{Requeue: true}, nil
 	}
-	// If the MachineRegistered statusCondition hasn't gone True during the TTL since we first updated it, we should terminate the machine
+	// If the MachineRegistered statusCondition hasn't gone True during the TTL since we first updated it, we should terminate the nodeClaim
 	if r.clock.Since(registered.LastTransitionTime.Inner.Time) < registrationTTL {
 		return reconcile.Result{RequeueAfter: registrationTTL - r.clock.Since(registered.LastTransitionTime.Inner.Time)}, nil
 	}
-	// Delete the machine if we believe the machine won't register since we haven't seen the node
-	if err := r.kubeClient.Delete(ctx, machine); err != nil {
+	// Delete the nodeClaim if we believe the nodeClaim won't register since we haven't seen the node
+	if err := r.kubeClient.Delete(ctx, nodeClaim); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	logging.FromContext(ctx).With("ttl", registrationTTL).Debugf("terminating machine due to registration ttl")
+	logging.FromContext(ctx).With("ttl", registrationTTL).Debugf("terminating nodeClaim due to registration ttl")
 	metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
 		metrics.ReasonLabel:      "liveness",
-		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }

@@ -38,12 +38,12 @@ import (
 
 var _ = Describe("Drift", func() {
 	var prov *v1alpha5.Provisioner
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 	var node *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner()
-		machine, node = test.MachineAndNode(v1alpha5.Machine{
+		machine, node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -67,7 +67,7 @@ var _ = Describe("Drift", func() {
 		ExpectApplied(ctx, env.Client, machine, node, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -85,7 +85,7 @@ var _ = Describe("Drift", func() {
 		ExpectApplied(ctx, env.Client, machine, node, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -100,7 +100,7 @@ var _ = Describe("Drift", func() {
 		ExpectApplied(ctx, env.Client, machine, node, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -114,7 +114,7 @@ var _ = Describe("Drift", func() {
 		ExpectApplied(ctx, env.Client, machine, node, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -132,7 +132,7 @@ var _ = Describe("Drift", func() {
 		ExpectNotFound(ctx, env.Client, machine, node)
 	})
 	It("should deprovision all empty drifted nodes in parallel", func() {
-		machines, nodes := test.MachinesAndNodes(100, v1alpha5.Machine{
+		machines, nodes := test.MachinesAndNodes(100, v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -200,7 +200,7 @@ var _ = Describe("Drift", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -300,7 +300,7 @@ var _ = Describe("Drift", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -347,7 +347,7 @@ var _ = Describe("Drift", func() {
 			},
 		})
 
-		machine2, node2 := test.MachineAndNode(v1alpha5.Machine{
+		machine2, node2 := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -370,7 +370,7 @@ var _ = Describe("Drift", func() {
 		ExpectManualBinding(ctx, env.Client, pods[1], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node, node2}, []*v1alpha5.Machine{machine, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node, node2}, []*v1alpha5.NodeClaim{machine, machine2})
 
 		// deprovisioning won't delete the old node until the new node is ready
 		var wg sync.WaitGroup

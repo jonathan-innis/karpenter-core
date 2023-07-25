@@ -38,21 +38,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 	"github.com/aws/karpenter-core/pkg/utils/result"
 )
 
-type machineReconciler interface {
-	Reconcile(context.Context, *v1alpha5.Machine) (reconcile.Result, error)
+type nodeClaimReconciler interface {
+	Reconcile(context.Context, *v1beta1.NodeClaim) (reconcile.Result, error)
 }
 
-var _ corecontroller.TypedController[*v1alpha5.Machine] = (*Controller)(nil)
+var _ corecontroller.TypedController[*v1beta1.NodeClaim] = (*Controller)(nil)
 
-// Controller is a Machine Lifecycle controller that manages the lifecycle of the machine up until its termination
+// Controller is a NodeClaim Lifecycle controller that manages the lifecycle of the machine up until its termination
 // The controller is responsible for ensuring that new Machines get launched, that they have properly registered with
 // the cluster as nodes and that they are properly initialized, ensuring that Machines that do not have matching nodes
 // after some liveness TTL are removed
@@ -65,8 +64,8 @@ type Controller struct {
 	liveness       *Liveness
 }
 
-func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider, recorder events.Recorder) corecontroller.Controller {
-	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
+func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
+	return corecontroller.Typed[*v1beta1.NodeClaim](kubeClient, &Controller{
 		kubeClient: kubeClient,
 
 		launch:         &Launch{kubeClient: kubeClient, cloudProvider: cloudProvider, cache: cache.New(time.Minute, time.Second*10), recorder: recorder},
@@ -77,41 +76,41 @@ func NewController(clk clock.Clock, kubeClient client.Client, cloudProvider clou
 }
 
 func (*Controller) Name() string {
-	return "machine.lifecycle"
+	return "nodeclaim.lifecycle"
 }
 
-func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", machine.Labels[v1alpha5.ProvisionerNameLabelKey]))
-	if !machine.DeletionTimestamp.IsZero() {
+func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("nodepool", nodeClaim.Labels[v1beta1.NodePoolLabelKey]))
+	if !nodeClaim.DeletionTimestamp.IsZero() {
 		return reconcile.Result{}, nil
 	}
 
 	// Add the finalizer immediately since we shouldn't launch if we don't yet have the finalizer.
 	// Otherwise, we could leak resources
-	stored := machine.DeepCopy()
-	controllerutil.AddFinalizer(machine, v1alpha5.TerminationFinalizer)
-	if !equality.Semantic.DeepEqual(machine, stored) {
-		if err := c.kubeClient.Patch(ctx, machine, client.MergeFrom(stored)); err != nil {
+	stored := nodeClaim.DeepCopy()
+	controllerutil.AddFinalizer(nodeClaim, v1beta1.TerminationFinalizer)
+	if !equality.Semantic.DeepEqual(nodeClaim, stored) {
+		if err := c.kubeClient.Patch(ctx, nodeClaim, client.MergeFrom(stored)); err != nil {
 			return reconcile.Result{}, client.IgnoreNotFound(err)
 		}
 	}
 
-	stored = machine.DeepCopy()
+	stored = nodeClaim.DeepCopy()
 	var results []reconcile.Result
 	var errs error
-	for _, reconciler := range []machineReconciler{
+	for _, reconciler := range []nodeClaimReconciler{
 		c.launch,
 		c.registration,
 		c.initialization,
 		c.liveness,
 	} {
-		res, err := reconciler.Reconcile(ctx, machine)
+		res, err := reconciler.Reconcile(ctx, nodeClaim)
 		errs = multierr.Append(errs, err)
 		results = append(results, res)
 	}
-	if !equality.Semantic.DeepEqual(stored, machine) {
-		statusCopy := machine.DeepCopy()
-		if err := c.kubeClient.Patch(ctx, machine, client.MergeFrom(stored)); err != nil {
+	if !equality.Semantic.DeepEqual(stored, nodeClaim) {
+		statusCopy := nodeClaim.DeepCopy()
+		if err := c.kubeClient.Patch(ctx, nodeClaim, client.MergeFrom(stored)); err != nil {
 			return reconcile.Result{}, client.IgnoreNotFound(multierr.Append(errs, err))
 		}
 		if err := c.kubeClient.Status().Patch(ctx, statusCopy, client.MergeFrom(stored)); err != nil {
@@ -128,7 +127,7 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}, builder.WithPredicates(
+		For(&v1beta1.NodeClaim{}, builder.WithPredicates(
 			predicate.Funcs{
 				CreateFunc: func(e event.CreateEvent) bool { return true },
 				UpdateFunc: func(e event.UpdateEvent) bool { return false },
@@ -137,7 +136,7 @@ func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontrol
 		)).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
-			machineutil.NodeEventHandler(ctx, c.kubeClient),
+			nodeclaimutil.NodeEventHandler(ctx, c.kubeClient),
 		).
 		WithOptions(controller.Options{
 			RateLimiter: workqueue.NewMaxOfRateLimiter(

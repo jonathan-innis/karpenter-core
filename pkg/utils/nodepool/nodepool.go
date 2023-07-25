@@ -47,18 +47,17 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 			},
 			Weight: provisioner.Spec.Weight,
 		},
+		IsProvisioner: true,
 	}
-	np.Name = fmt.Sprintf("provisioner/%s", np.Name) // Use this to uniquely identify a Provisioner from a MachineGroup
 	if provisioner.Spec.TTLSecondsAfterEmpty != nil {
-		np.Spec.ConsolidationTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
+		np.Spec.Deprovisioning.EmptinessTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
 	}
 	if provisioner.Spec.TTLSecondsUntilExpired != nil {
-		np.Spec.ExpirationTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
+		np.Spec.Deprovisioning.ExpirationTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
 	}
 	if provisioner.Spec.Consolidation != nil {
-		np.Spec.Consolidation = &v1beta1.Consolidation{
-			Enabled: provisioner.Spec.Consolidation.Enabled,
-		}
+		np.Spec.Deprovisioning.ConsolidationPolicy = v1beta1.ConsolidationPolicyWhenUnderutilized
+		np.Spec.Deprovisioning.ConsolidationTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration("15s"))}
 	}
 	if provisioner.Spec.Limits != nil {
 		np.Spec.Limits = v1beta1.Limits(provisioner.Spec.Limits.Resources)

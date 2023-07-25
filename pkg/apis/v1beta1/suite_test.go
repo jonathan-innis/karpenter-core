@@ -50,7 +50,7 @@ package v1beta1
 //			ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(randomdata.SillyName())},
 //			Spec: NodePoolSpec{
 //				NodeClassRef: &NodeClassRef{
-//					Kind: "NodeClaimTemplate",
+//					OwnerKind: "NodeClaimTemplate",
 //					Name: "default",
 //				},
 //			},
@@ -157,15 +157,15 @@ package v1beta1
 //	Context("Taints", func() {
 //		It("should succeed for valid taints", func() {
 //			provisioner.Spec.Taints = []v1.Taint{
-//				{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule},
-//				{Key: "c", Value: "d", Effect: v1.TaintEffectNoExecute},
-//				{Key: "e", Value: "f", Effect: v1.TaintEffectPreferNoSchedule},
-//				{Key: "key-only", Effect: v1.TaintEffectNoExecute},
+//				{OwnerKey: "a", Value: "b", Effect: v1.TaintEffectNoSchedule},
+//				{OwnerKey: "c", Value: "d", Effect: v1.TaintEffectNoExecute},
+//				{OwnerKey: "e", Value: "f", Effect: v1.TaintEffectPreferNoSchedule},
+//				{OwnerKey: "key-only", Effect: v1.TaintEffectNoExecute},
 //			}
 //			Expect(provisioner.Validate(ctx)).To(Succeed())
 //		})
 //		It("should fail for invalid taint keys", func() {
-//			provisioner.Spec.Taints = []v1.Taint{{Key: "???"}}
+//			provisioner.Spec.Taints = []v1.Taint{{OwnerKey: "???"}}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should fail for missing taint key", func() {
@@ -173,31 +173,31 @@ package v1beta1
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should fail for invalid taint value", func() {
-//			provisioner.Spec.Taints = []v1.Taint{{Key: "invalid-value", Effect: v1.TaintEffectNoSchedule, Value: "???"}}
+//			provisioner.Spec.Taints = []v1.Taint{{OwnerKey: "invalid-value", Effect: v1.TaintEffectNoSchedule, Value: "???"}}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should fail for invalid taint effect", func() {
-//			provisioner.Spec.Taints = []v1.Taint{{Key: "invalid-effect", Effect: "???"}}
+//			provisioner.Spec.Taints = []v1.Taint{{OwnerKey: "invalid-effect", Effect: "???"}}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should not fail for same key with different effects", func() {
 //			provisioner.Spec.Taints = []v1.Taint{
-//				{Key: "a", Effect: v1.TaintEffectNoSchedule},
-//				{Key: "a", Effect: v1.TaintEffectNoExecute},
+//				{OwnerKey: "a", Effect: v1.TaintEffectNoSchedule},
+//				{OwnerKey: "a", Effect: v1.TaintEffectNoExecute},
 //			}
 //			Expect(provisioner.Validate(ctx)).To(Succeed())
 //		})
 //		It("should fail for duplicate taint key/effect pairs", func() {
 //			provisioner.Spec.Taints = []v1.Taint{
-//				{Key: "a", Effect: v1.TaintEffectNoSchedule},
-//				{Key: "a", Effect: v1.TaintEffectNoSchedule},
+//				{OwnerKey: "a", Effect: v1.TaintEffectNoSchedule},
+//				{OwnerKey: "a", Effect: v1.TaintEffectNoSchedule},
 //			}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			provisioner.Spec.Taints = []v1.Taint{
-//				{Key: "a", Effect: v1.TaintEffectNoSchedule},
+//				{OwnerKey: "a", Effect: v1.TaintEffectNoSchedule},
 //			}
 //			provisioner.Spec.StartupTaints = []v1.Taint{
-//				{Key: "a", Effect: v1.TaintEffectNoSchedule},
+//				{OwnerKey: "a", Effect: v1.TaintEffectNoSchedule},
 //			}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
@@ -205,24 +205,24 @@ package v1beta1
 //	Context("Requirements", func() {
 //		It("should fail for the provisioner name label", func() {
 //			provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//				{Key: ProvisionerNameLabelKey, Operator: v1.NodeSelectorOpIn, Values: []string{randomdata.SillyName()}},
+//				{OwnerKey: ProvisionerNameLabelKey, Operator: v1.NodeSelectorOpIn, Values: []string{randomdata.SillyName()}},
 //			}
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should allow supported ops", func() {
 //			provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"1"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"1"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpNotIn},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpExists},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"1"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"1"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpNotIn},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpExists},
 //			}
 //			Expect(provisioner.Validate(ctx)).To(Succeed())
 //		})
 //		It("should fail for unsupported ops", func() {
 //			for _, op := range []v1.NodeSelectorOperator{"unknown"} {
 //				provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//					{Key: v1.LabelTopologyZone, Operator: op, Values: []string{"test"}},
+//					{OwnerKey: v1.LabelTopologyZone, Operator: op, Values: []string{"test"}},
 //				}
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			}
@@ -230,7 +230,7 @@ package v1beta1
 //		It("should fail for restricted domains", func() {
 //			for label := range RestrictedLabelDomains {
 //				provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//					{Key: label + "/test", Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
+//					{OwnerKey: label + "/test", Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
 //				}
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			}
@@ -238,7 +238,7 @@ package v1beta1
 //		It("should allow restricted domains exceptions", func() {
 //			for label := range LabelDomainExceptions {
 //				provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//					{Key: label + "/test", Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
+//					{OwnerKey: label + "/test", Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
 //				}
 //				Expect(provisioner.Validate(ctx)).To(Succeed())
 //			}
@@ -246,15 +246,15 @@ package v1beta1
 //		It("should allow well known label exceptions", func() {
 //			for label := range WellKnownLabels.Difference(sets.NewString(ProvisionerNameLabelKey)) {
 //				provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//					{Key: label, Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
+//					{OwnerKey: label, Operator: v1.NodeSelectorOpIn, Values: []string{"test"}},
 //				}
 //				Expect(provisioner.Validate(ctx)).To(Succeed())
 //			}
 //		})
 //		It("should allow non-empty set after removing overlapped value", func() {
 //			provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpIn, Values: []string{"test", "foo"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpNotIn, Values: []string{"test", "bar"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpIn, Values: []string{"test", "foo"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpNotIn, Values: []string{"test", "bar"}},
 //			}
 //			Expect(provisioner.Validate(ctx)).To(Succeed())
 //		})
@@ -264,14 +264,14 @@ package v1beta1
 //		})
 //		It("should fail with invalid GT or LT values", func() {
 //			for _, requirement := range []v1.NodeSelectorRequirement{
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"1", "2"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"a"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"-1"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"1", "2"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"a"}},
-//				{Key: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"-1"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"1", "2"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"a"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpGt, Values: []string{"-1"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"1", "2"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"a"}},
+//				{OwnerKey: v1.LabelTopologyZone, Operator: v1.NodeSelectorOpLt, Values: []string{"-1"}},
 //			} {
 //				provisioner.Spec.Requirements = []v1.NodeSelectorRequirement{requirement}
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())

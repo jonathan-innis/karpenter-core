@@ -220,7 +220,7 @@ var _ = Describe("Replace Nodes", func() {
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		machine, node := test.MachineAndNode(v1alpha5.Machine{
+		machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -240,7 +240,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -306,7 +306,7 @@ var _ = Describe("Replace Nodes", func() {
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		machine, node := test.MachineAndNode(v1alpha5.Machine{
+		machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -332,7 +332,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -368,7 +368,7 @@ var _ = Describe("Replace Nodes", func() {
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		machine, node := test.MachineAndNode(v1alpha5.Machine{
+		machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -403,7 +403,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -448,7 +448,7 @@ var _ = Describe("Replace Nodes", func() {
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		regularMachine, regularNode := test.MachineAndNode(v1alpha5.Machine{
+		regularMachine, regularNode := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -465,7 +465,7 @@ var _ = Describe("Replace Nodes", func() {
 				},
 			},
 		})
-		annotatedMachine, annotatedNode := test.MachineAndNode(v1alpha5.Machine{
+		annotatedMachine, annotatedNode := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					v1alpha5.DoNotConsolidateNodeAnnotationKey: "true",
@@ -495,7 +495,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], annotatedNode)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{regularNode, annotatedNode}, []*v1alpha5.Machine{regularMachine, annotatedMachine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{regularNode, annotatedNode}, []*v1alpha5.NodeClaim{regularMachine, annotatedMachine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -576,7 +576,7 @@ var _ = Describe("Replace Nodes", func() {
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		machine, node := test.MachineAndNode(v1alpha5.Machine{
+		machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -597,7 +597,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 		var wg sync.WaitGroup
@@ -689,7 +689,7 @@ var _ = Describe("Replace Nodes", func() {
 				},
 			},
 		})
-		machine, node := test.MachineAndNode(v1alpha5.Machine{
+		machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -710,7 +710,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 		var wg sync.WaitGroup
@@ -748,7 +748,7 @@ var _ = Describe("Replace Nodes", func() {
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		machine, node := test.MachineAndNode(v1alpha5.Machine{
+		machine, node := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Finalizers: []string{"unit-test.com/block-deletion"},
 				Labels: map[string]string{
@@ -770,7 +770,7 @@ var _ = Describe("Replace Nodes", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -818,14 +818,14 @@ var _ = Describe("Replace Nodes", func() {
 
 var _ = Describe("Delete Node", func() {
 	var prov *v1alpha5.Provisioner
-	var machine1, machine2 *v1alpha5.Machine
+	var machine1, machine2 *v1alpha5.NodeClaim
 	var node1, node2 *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		machine1, node1 = test.MachineAndNode(v1alpha5.Machine{
+		machine1, node1 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -842,7 +842,7 @@ var _ = Describe("Delete Node", func() {
 				},
 			},
 		})
-		machine2, node2 = test.MachineAndNode(v1alpha5.Machine{
+		machine2, node2 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -887,7 +887,7 @@ var _ = Describe("Delete Node", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -952,7 +952,7 @@ var _ = Describe("Delete Node", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -1003,7 +1003,7 @@ var _ = Describe("Delete Node", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -1051,7 +1051,7 @@ var _ = Describe("Delete Node", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -1099,7 +1099,7 @@ var _ = Describe("Delete Node", func() {
 		// inform cluster state about nodes and machines, intentionally leaving node1 as not ready
 		ExpectReconcileSucceeded(ctx, nodeStateController, client.ObjectKeyFromObject(node1))
 		ExpectReconcileSucceeded(ctx, machineStateController, client.ObjectKeyFromObject(machine1))
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node2}, []*v1alpha5.Machine{machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node2}, []*v1alpha5.NodeClaim{machine2})
 
 		var wg sync.WaitGroup
 		ExpectTriggerVerifyAction(&wg)
@@ -1174,7 +1174,7 @@ var _ = Describe("Delete Node", func() {
 		// Setup 100 machines/nodes with a single machine/node that is initialized
 		elem := rand.Intn(100)
 		for i := 0; i < podCount; i++ {
-			m, n := test.MachineAndNode(v1alpha5.Machine{
+			m, n := test.MachineAndNode(v1alpha5.NodeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1196,7 +1196,7 @@ var _ = Describe("Delete Node", func() {
 			ExpectManualBinding(ctx, env.Client, pods[i], n)
 
 			if i == elem {
-				ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{n}, []*v1alpha5.Machine{m})
+				ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{n}, []*v1alpha5.NodeClaim{m})
 			} else {
 				ExpectReconcileSucceeded(ctx, machineStateController, client.ObjectKeyFromObject(m))
 				ExpectReconcileSucceeded(ctx, nodeStateController, client.ObjectKeyFromObject(n))
@@ -1204,7 +1204,7 @@ var _ = Describe("Delete Node", func() {
 		}
 
 		// Create a pod and machine/node that will eventually be scheduled onto the initialized node
-		consolidatableMachine, consolidatableNode := test.MachineAndNode(v1alpha5.Machine{
+		consolidatableMachine, consolidatableNode := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1248,7 +1248,7 @@ var _ = Describe("Delete Node", func() {
 		})
 		ExpectApplied(ctx, env.Client, consolidatableMachine, consolidatableNode, consolidatablePod)
 		ExpectManualBinding(ctx, env.Client, consolidatablePod, consolidatableNode)
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{consolidatableNode}, []*v1alpha5.Machine{consolidatableMachine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{consolidatableNode}, []*v1alpha5.NodeClaim{consolidatableMachine})
 
 		var wg sync.WaitGroup
 		ExpectTriggerVerifyAction(&wg)
@@ -1273,7 +1273,7 @@ var _ = Describe("Delete Node", func() {
 
 var _ = Describe("Node Lifetime Consideration", func() {
 	var prov *v1alpha5.Provisioner
-	var machine1, machine2 *v1alpha5.Machine
+	var machine1, machine2 *v1alpha5.NodeClaim
 	var node1, node2 *v1.Node
 
 	BeforeEach(func() {
@@ -1283,7 +1283,7 @@ var _ = Describe("Node Lifetime Consideration", func() {
 			},
 			TTLSecondsUntilExpired: ptr.Int64(3),
 		})
-		machine1, node1 = test.MachineAndNode(v1alpha5.Machine{
+		machine1, node1 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1300,7 +1300,7 @@ var _ = Describe("Node Lifetime Consideration", func() {
 				},
 			},
 		})
-		machine2, node2 = test.MachineAndNode(v1alpha5.Machine{
+		machine2, node2 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1351,7 +1351,7 @@ var _ = Describe("Node Lifetime Consideration", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.SetTime(time.Now())
 
@@ -1373,7 +1373,7 @@ var _ = Describe("Node Lifetime Consideration", func() {
 
 var _ = Describe("Topology Consideration", func() {
 	var prov *v1alpha5.Provisioner
-	var zone1Machine, zone2Machine, zone3Machine *v1alpha5.Machine
+	var zone1Machine, zone2Machine, zone3Machine *v1alpha5.NodeClaim
 	var zone1Node, zone2Node, zone3Node *v1.Node
 	var oldMachineNames sets.Set[string]
 
@@ -1385,7 +1385,7 @@ var _ = Describe("Topology Consideration", func() {
 		prov = test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 		})
-		zone1Machine, zone1Node = test.MachineAndNode(v1alpha5.Machine{
+		zone1Machine, zone1Node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1399,7 +1399,7 @@ var _ = Describe("Topology Consideration", func() {
 				Allocatable: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("1")},
 			},
 		})
-		zone2Machine, zone2Node = test.MachineAndNode(v1alpha5.Machine{
+		zone2Machine, zone2Node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1413,7 +1413,7 @@ var _ = Describe("Topology Consideration", func() {
 				Allocatable: map[v1.ResourceName]resource.Quantity{v1.ResourceCPU: resource.MustParse("1")},
 			},
 		})
-		zone3Machine, zone3Node = test.MachineAndNode(v1alpha5.Machine{
+		zone3Machine, zone3Node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1467,7 +1467,7 @@ var _ = Describe("Topology Consideration", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], zone3Node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{zone1Node, zone2Node, zone3Node}, []*v1alpha5.Machine{zone1Machine, zone2Machine, zone3Machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{zone1Node, zone2Node, zone3Node}, []*v1alpha5.NodeClaim{zone1Machine, zone2Machine, zone3Machine})
 
 		ExpectSkew(ctx, env.Client, "default", &tsc).To(ConsistOf(1, 1, 1))
 
@@ -1489,7 +1489,7 @@ var _ = Describe("Topology Consideration", func() {
 		ExpectNotFound(ctx, env.Client, zone2Machine, zone2Node)
 
 		// Find the new node associated with the machine
-		newMachine, ok := lo.Find(ExpectMachines(ctx, env.Client), func(m *v1alpha5.Machine) bool {
+		newMachine, ok := lo.Find(ExpectMachines(ctx, env.Client), func(m *v1alpha5.NodeClaim) bool {
 			return !oldMachineNames.Has(m.Name)
 		})
 		Expect(ok).To(BeTrue())
@@ -1556,7 +1556,7 @@ var _ = Describe("Topology Consideration", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], zone3Node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{zone1Node, zone2Node, zone3Node}, []*v1alpha5.Machine{zone1Machine, zone2Machine, zone3Machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{zone1Node, zone2Node, zone3Node}, []*v1alpha5.NodeClaim{zone1Machine, zone2Machine, zone3Machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -1577,12 +1577,12 @@ var _ = Describe("Topology Consideration", func() {
 
 var _ = Describe("Empty Nodes (Consolidation)", func() {
 	var prov *v1alpha5.Provisioner
-	var machine1, machine2 *v1alpha5.Machine
+	var machine1, machine2 *v1alpha5.NodeClaim
 	var node1, node2 *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner(test.ProvisionerOptions{Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)}})
-		machine1, node1 = test.MachineAndNode(v1alpha5.Machine{
+		machine1, node1 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1600,7 +1600,7 @@ var _ = Describe("Empty Nodes (Consolidation)", func() {
 			},
 		})
 		machine1.StatusConditions().MarkTrue(v1alpha5.MachineEmpty)
-		machine2, node2 = test.MachineAndNode(v1alpha5.Machine{
+		machine2, node2 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1623,7 +1623,7 @@ var _ = Describe("Empty Nodes (Consolidation)", func() {
 		ExpectApplied(ctx, env.Client, machine1, node1, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.Machine{machine1})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.NodeClaim{machine1})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -1644,7 +1644,7 @@ var _ = Describe("Empty Nodes (Consolidation)", func() {
 		ExpectApplied(ctx, env.Client, machine1, node1, machine2, node2, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.Step(10 * time.Minute)
 		wg := sync.WaitGroup{}
@@ -1661,7 +1661,7 @@ var _ = Describe("Empty Nodes (Consolidation)", func() {
 		ExpectNotFound(ctx, env.Client, machine2)
 	})
 	It("considers pending pods when consolidating", func() {
-		machine1, node1 = test.MachineAndNode(v1alpha5.Machine{
+		machine1, node1 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1701,7 +1701,7 @@ var _ = Describe("Empty Nodes (Consolidation)", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node1)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.Machine{machine1})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.NodeClaim{machine1})
 
 		fakeClock.Step(10 * time.Minute)
 		var wg sync.WaitGroup
@@ -1719,14 +1719,14 @@ var _ = Describe("Empty Nodes (Consolidation)", func() {
 
 var _ = Describe("Empty Nodes (TTLSecondsAfterEmpty)", func() {
 	var prov *v1alpha5.Provisioner
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 	var node *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner(test.ProvisionerOptions{
 			TTLSecondsAfterEmpty: ptr.Int64(30),
 		})
-		machine, node = test.MachineAndNode(v1alpha5.Machine{
+		machine, node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1749,7 +1749,7 @@ var _ = Describe("Empty Nodes (TTLSecondsAfterEmpty)", func() {
 		ExpectApplied(ctx, env.Client, prov, machine, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 		wg := sync.WaitGroup{}
@@ -1769,7 +1769,7 @@ var _ = Describe("Empty Nodes (TTLSecondsAfterEmpty)", func() {
 		ExpectApplied(ctx, env.Client, machine, node, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		ExpectReconcileSucceeded(ctx, deprovisioningController, types.NamespacedName{})
 
@@ -1783,7 +1783,7 @@ var _ = Describe("Empty Nodes (TTLSecondsAfterEmpty)", func() {
 		ExpectApplied(ctx, env.Client, machine, node, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -1797,12 +1797,12 @@ var _ = Describe("Empty Nodes (TTLSecondsAfterEmpty)", func() {
 
 var _ = Describe("Consolidation TTL", func() {
 	var prov *v1alpha5.Provisioner
-	var machine1, machine2 *v1alpha5.Machine
+	var machine1, machine2 *v1alpha5.NodeClaim
 	var node1, node2 *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner(test.ProvisionerOptions{Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)}})
-		machine1, node1 = test.MachineAndNode(v1alpha5.Machine{
+		machine1, node1 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1819,7 +1819,7 @@ var _ = Describe("Consolidation TTL", func() {
 				},
 			},
 		})
-		machine2, node2 = test.MachineAndNode(v1alpha5.Machine{
+		machine2, node2 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -1887,7 +1887,7 @@ var _ = Describe("Consolidation TTL", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node1)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.Machine{machine1})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.NodeClaim{machine1})
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -1925,7 +1925,7 @@ var _ = Describe("Consolidation TTL", func() {
 		ExpectApplied(ctx, env.Client, machine1, node1, prov)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.Machine{machine1})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.NodeClaim{machine1})
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -2010,7 +2010,7 @@ var _ = Describe("Consolidation TTL", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -2048,7 +2048,7 @@ var _ = Describe("Consolidation TTL", func() {
 		ExpectApplied(ctx, env.Client, machine1, node1, prov, pod)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.Machine{machine1})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1}, []*v1alpha5.NodeClaim{machine1})
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -2087,12 +2087,12 @@ var _ = Describe("Consolidation TTL", func() {
 
 var _ = Describe("Parallelization", func() {
 	var prov *v1alpha5.Provisioner
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 	var node *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner(test.ProvisionerOptions{Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)}})
-		machine, node = test.MachineAndNode(v1alpha5.Machine{
+		machine, node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -2143,7 +2143,7 @@ var _ = Describe("Parallelization", func() {
 		ExpectManualBinding(ctx, env.Client, pod, node)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.Machine{machine})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node}, []*v1alpha5.NodeClaim{machine})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -2249,12 +2249,12 @@ var _ = Describe("Parallelization", func() {
 
 var _ = Describe("Multi-Node Consolidation", func() {
 	var prov *v1alpha5.Provisioner
-	var machine1, machine2, machine3 *v1alpha5.Machine
+	var machine1, machine2, machine3 *v1alpha5.NodeClaim
 	var node1, node2, node3 *v1.Node
 
 	BeforeEach(func() {
 		prov = test.Provisioner(test.ProvisionerOptions{Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)}})
-		machine1, node1 = test.MachineAndNode(v1alpha5.Machine{
+		machine1, node1 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -2271,7 +2271,7 @@ var _ = Describe("Multi-Node Consolidation", func() {
 				},
 			},
 		})
-		machine2, node2 = test.MachineAndNode(v1alpha5.Machine{
+		machine2, node2 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -2288,7 +2288,7 @@ var _ = Describe("Multi-Node Consolidation", func() {
 				},
 			},
 		})
-		machine3, node3 = test.MachineAndNode(v1alpha5.Machine{
+		machine3, node3 = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -2335,7 +2335,7 @@ var _ = Describe("Multi-Node Consolidation", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node3)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2, node3}, []*v1alpha5.Machine{machine1, machine2, machine3})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2, node3}, []*v1alpha5.NodeClaim{machine1, machine2, machine3})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -2403,7 +2403,7 @@ var _ = Describe("Multi-Node Consolidation", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		fakeClock.Step(10 * time.Minute)
 
@@ -2456,7 +2456,7 @@ var _ = Describe("Multi-Node Consolidation", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node2)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.Machine{machine1, machine2})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2}, []*v1alpha5.NodeClaim{machine1, machine2})
 
 		var wg sync.WaitGroup
 		ExpectMakeNewMachinesReady(ctx, env.Client, &wg, cluster, cloudProvider, 1)
@@ -2521,7 +2521,7 @@ var _ = Describe("Multi-Node Consolidation", func() {
 		ExpectManualBinding(ctx, env.Client, pods[2], node3)
 
 		// inform cluster state about nodes and machines
-		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2, node3}, []*v1alpha5.Machine{machine1, machine2, machine3})
+		ExpectMakeInitializedAndStateUpdated(ctx, env.Client, nodeStateController, machineStateController, []*v1.Node{node1, node2, node3}, []*v1alpha5.NodeClaim{machine1, machine2, machine3})
 
 		var wg sync.WaitGroup
 		wg.Add(1)
@@ -2636,7 +2636,7 @@ func ExpectTriggerVerifyAction(wg *sync.WaitGroup) {
 // during an ICE error on the created machine
 func ExpectNewMachinesDeleted(ctx context.Context, c client.Client, wg *sync.WaitGroup, numNewMachines int) {
 	existingMachines := ExpectMachines(ctx, c)
-	existingMachineNames := sets.NewString(lo.Map(existingMachines, func(m *v1alpha5.Machine, _ int) string {
+	existingMachineNames := sets.NewString(lo.Map(existingMachines, func(m *v1alpha5.NodeClaim, _ int) string {
 		return m.Name
 	})...)
 
@@ -2676,7 +2676,7 @@ func ExpectMakeNewMachinesReady(ctx context.Context, c client.Client, wg *sync.W
 	cloudProvider cloudprovider.CloudProvider, numNewMachines int) {
 
 	existingMachines := ExpectMachines(ctx, c)
-	existingMachineNames := sets.NewString(lo.Map(existingMachines, func(m *v1alpha5.Machine, _ int) string {
+	existingMachineNames := sets.NewString(lo.Map(existingMachines, func(m *v1alpha5.NodeClaim, _ int) string {
 		return m.Name
 	})...)
 
@@ -2717,7 +2717,7 @@ func ExpectMakeNewMachinesReady(ctx context.Context, c client.Client, wg *sync.W
 	}()
 }
 
-func ExpectMakeInitializedAndStateUpdated(ctx context.Context, c client.Client, nodeStateController, machineStateController controller.Controller, nodes []*v1.Node, machines []*v1alpha5.Machine) {
+func ExpectMakeInitializedAndStateUpdated(ctx context.Context, c client.Client, nodeStateController, machineStateController controller.Controller, nodes []*v1.Node, machines []*v1alpha5.NodeClaim) {
 	ExpectMakeNodesInitializedWithOffset(1, ctx, c, nodes...)
 	ExpectMakeMachinesInitializedWithOffset(1, ctx, c, machines...)
 

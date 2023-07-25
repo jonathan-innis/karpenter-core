@@ -68,6 +68,10 @@ type Deprovisioning struct {
 	// +kubebuilder:default:="90d"
 	// +optional
 	ExpirationTTL *metav1.Duration `json:"ttlUntilExpired,omitempty"`
+	// EmptinessTTL exists for compatability to allow us to model the v1alpha5 APIs in
+	// terms of the v1beta1 APIs. This value is not actually part of the v1beta1 public-facing API
+	// TODO @joinnis: Remove this field when v1alpha5 is unsupported in a future version of Karpenter
+	EmptinessTTL *metav1.Duration `json:"-"`
 }
 
 type ConsolidationPolicy string
@@ -114,6 +118,11 @@ type NodePool struct {
 
 	Spec   NodePoolSpec   `json:"spec,omitempty"`
 	Status NodePoolStatus `json:"status,omitempty"`
+
+	// IsProvisioner tells Karpenter whether the in-memory representation of this object
+	// is actually referring to a Provisioner object. This value is not actually part of the v1beta1 public-facing API
+	// TODO @joinnis: Remove this field when v1alpha5 is unsupported in a future version of Karpenter
+	IsProvisioner bool `json:"-"`
 }
 
 // NodePoolList contains a list of NodePool

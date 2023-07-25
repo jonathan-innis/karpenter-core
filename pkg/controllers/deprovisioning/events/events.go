@@ -24,7 +24,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/events"
 )
 
-func Launching(machine *v1alpha5.Machine, reason string) events.Event {
+func Launching(machine *v1alpha5.NodeClaim, reason string) events.Event {
 	return events.Event{
 		InvolvedObject: machine,
 		Type:           v1.EventTypeNormal,
@@ -34,7 +34,7 @@ func Launching(machine *v1alpha5.Machine, reason string) events.Event {
 	}
 }
 
-func WaitingOnReadiness(machine *v1alpha5.Machine) events.Event {
+func WaitingOnReadiness(machine *v1alpha5.NodeClaim) events.Event {
 	return events.Event{
 		InvolvedObject: machine,
 		Type:           v1.EventTypeNormal,
@@ -44,7 +44,7 @@ func WaitingOnReadiness(machine *v1alpha5.Machine) events.Event {
 	}
 }
 
-func WaitingOnDeletion(machine *v1alpha5.Machine) events.Event {
+func WaitingOnDeletion(machine *v1alpha5.NodeClaim) events.Event {
 	return events.Event{
 		InvolvedObject: machine,
 		Type:           v1.EventTypeNormal,
@@ -54,7 +54,7 @@ func WaitingOnDeletion(machine *v1alpha5.Machine) events.Event {
 	}
 }
 
-func Terminating(node *v1.Node, machine *v1alpha5.Machine, reason string) []events.Event {
+func Terminating(node *v1.Node, machine *v1alpha5.NodeClaim, reason string) []events.Event {
 	return []events.Event{
 		{
 			InvolvedObject: node,
@@ -73,7 +73,7 @@ func Terminating(node *v1.Node, machine *v1alpha5.Machine, reason string) []even
 	}
 }
 
-func Unconsolidatable(node *v1.Node, machine *v1alpha5.Machine, reason string) []events.Event {
+func Unconsolidatable(node *v1.Node, machine *v1alpha5.NodeClaim, reason string) []events.Event {
 	return []events.Event{
 		{
 			InvolvedObject: node,
@@ -94,7 +94,7 @@ func Unconsolidatable(node *v1.Node, machine *v1alpha5.Machine, reason string) [
 	}
 }
 
-func Blocked(node *v1.Node, machine *v1alpha5.Machine, reason string) []events.Event {
+func Blocked(node *v1.Node, machine *v1alpha5.NodeClaim, reason string) []events.Event {
 	return []events.Event{
 		{
 			InvolvedObject: node,

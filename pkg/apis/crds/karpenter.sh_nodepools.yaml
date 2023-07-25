@@ -328,6 +328,8 @@ spec:
                           - key
                           type: object
                         type: array
+                    required:
+                    - nodeClass
                     type: object
                 type: object
               weight:

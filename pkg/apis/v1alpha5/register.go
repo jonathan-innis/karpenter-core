@@ -34,7 +34,7 @@ var (
 		scheme.AddKnownTypes(SchemeGroupVersion,
 			&Provisioner{},
 			&ProvisionerList{},
-			&Machine{},
+			&NodeClaim{},
 			&MachineList{},
 		)
 		metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

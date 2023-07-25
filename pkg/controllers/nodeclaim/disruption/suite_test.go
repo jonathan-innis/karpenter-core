@@ -34,7 +34,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/disruption"
+	"github.com/aws/karpenter-core/pkg/controllers/nodeclaim/disruption"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
@@ -86,12 +86,12 @@ var _ = AfterEach(func() {
 
 var _ = Describe("Disruption", func() {
 	var provisioner *v1alpha5.Provisioner
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 	var node *v1.Node
 
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
-		machine, node = test.MachineAndNode(v1alpha5.Machine{
+		machine, node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{v1alpha5.ProvisionerNameLabelKey: provisioner.Name},
 			},

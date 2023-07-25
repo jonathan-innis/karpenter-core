@@ -47,7 +47,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
+	"github.com/aws/karpenter-core/pkg/controllers/nodeclaim/lifecycle"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
@@ -65,7 +65,7 @@ const (
 type Bindings map[*v1.Pod]*Binding
 
 type Binding struct {
-	Machine *v1alpha5.Machine
+	Machine *v1alpha5.NodeClaim
 	Node    *v1.Node
 }
 
@@ -208,7 +208,7 @@ func ExpectCleanedUp(ctx context.Context, c client.Client) {
 		&v1.PersistentVolume{},
 		&storagev1.StorageClass{},
 		&v1alpha5.Provisioner{},
-		&v1alpha5.Machine{},
+		&v1alpha5.NodeClaim{},
 	} {
 		for _, namespace := range namespaces.Items {
 			wg.Add(1)
@@ -280,7 +280,7 @@ func ExpectProvisionedNoBindingWithOffset(offset int, ctx context.Context, c cli
 		if err != nil {
 			return bindings
 		}
-		machine := &v1alpha5.Machine{}
+		machine := &v1alpha5.NodeClaim{}
 		ExpectWithOffset(offset+1, c.Get(ctx, types.NamespacedName{Name: name}, machine)).To(Succeed())
 		machine, node := ExpectMachineDeployedWithOffset(offset+1, ctx, c, cluster, cloudProvider, machine)
 		if machine != nil && node != nil {
@@ -303,11 +303,11 @@ func ExpectProvisionedNoBindingWithOffset(offset int, ctx context.Context, c cli
 	return bindings
 }
 
-func ExpectMachineDeployedNoNode(ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, m *v1alpha5.Machine) (*v1alpha5.Machine, error) {
+func ExpectMachineDeployedNoNode(ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, m *v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, error) {
 	return ExpectMachineDeployedNoNodeWithOffset(1, ctx, c, cluster, cloudProvider, m)
 }
 
-func ExpectMachineDeployedNoNodeWithOffset(offset int, ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, m *v1alpha5.Machine) (*v1alpha5.Machine, error) {
+func ExpectMachineDeployedNoNodeWithOffset(offset int, ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, m *v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, error) {
 	resolved, err := cloudProvider.Create(ctx, m)
 	// TODO @joinnis: Check this error rather than swallowing it. This is swallowed right now due to how we are doing some testing in the cloudprovider
 	if err != nil {
@@ -323,11 +323,11 @@ func ExpectMachineDeployedNoNodeWithOffset(offset int, ctx context.Context, c cl
 	return m, nil
 }
 
-func ExpectMachineDeployed(ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, machine *v1alpha5.Machine) (*v1alpha5.Machine, *v1.Node) {
+func ExpectMachineDeployed(ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, machine *v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, *v1.Node) {
 	return ExpectMachineDeployedWithOffset(1, ctx, c, cluster, cloudProvider, machine)
 }
 
-func ExpectMachineDeployedWithOffset(offset int, ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, m *v1alpha5.Machine) (*v1alpha5.Machine, *v1.Node) {
+func ExpectMachineDeployedWithOffset(offset int, ctx context.Context, c client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider, m *v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, *v1.Node) {
 	m, err := ExpectMachineDeployedNoNodeWithOffset(offset+1, ctx, c, cluster, cloudProvider, m)
 	if err != nil {
 		return m, nil
@@ -343,10 +343,10 @@ func ExpectMachineDeployedWithOffset(offset int, ctx context.Context, c client.C
 	return m, node
 }
 
-func ExpectMachinesCascadeDeletion(ctx context.Context, c client.Client, machines ...*v1alpha5.Machine) {
+func ExpectMachinesCascadeDeletion(ctx context.Context, c client.Client, machines ...*v1alpha5.NodeClaim) {
 	nodes := ExpectNodesWithOffset(1, ctx, c)
 	for _, machine := range machines {
-		err := c.Get(ctx, client.ObjectKeyFromObject(machine), &v1alpha5.Machine{})
+		err := c.Get(ctx, client.ObjectKeyFromObject(machine), &v1alpha5.NodeClaim{})
 		if !errors.IsNotFound(err) {
 			continue
 		}
@@ -360,11 +360,11 @@ func ExpectMachinesCascadeDeletion(ctx context.Context, c client.Client, machine
 	}
 }
 
-func ExpectMakeMachinesInitialized(ctx context.Context, c client.Client, machines ...*v1alpha5.Machine) {
+func ExpectMakeMachinesInitialized(ctx context.Context, c client.Client, machines ...*v1alpha5.NodeClaim) {
 	ExpectMakeMachinesInitializedWithOffset(1, ctx, c, machines...)
 }
 
-func ExpectMakeMachinesInitializedWithOffset(offset int, ctx context.Context, c client.Client, machines ...*v1alpha5.Machine) {
+func ExpectMakeMachinesInitializedWithOffset(offset int, ctx context.Context, c client.Client, machines ...*v1alpha5.NodeClaim) {
 	for i := range machines {
 		machines[i] = ExpectExistsWithOffset(offset+1, ctx, c, machines[i])
 		machines[i].StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
@@ -545,14 +545,14 @@ func ExpectNodesWithOffset(offset int, ctx context.Context, c client.Client) []*
 	})
 }
 
-func ExpectMachines(ctx context.Context, c client.Client) []*v1alpha5.Machine {
+func ExpectMachines(ctx context.Context, c client.Client) []*v1alpha5.NodeClaim {
 	return ExpectMachinesWithOffset(1, ctx, c)
 }
 
-func ExpectMachinesWithOffset(offset int, ctx context.Context, c client.Client) []*v1alpha5.Machine {
+func ExpectMachinesWithOffset(offset int, ctx context.Context, c client.Client) []*v1alpha5.NodeClaim {
 	machineList := &v1alpha5.MachineList{}
 	ExpectWithOffset(offset+1, c.List(ctx, machineList)).To(Succeed())
-	return lo.Map(machineList.Items, func(m v1alpha5.Machine, _ int) *v1alpha5.Machine {
+	return lo.Map(machineList.Items, func(m v1alpha5.NodeClaim, _ int) *v1alpha5.NodeClaim {
 		return &m
 	})
 }

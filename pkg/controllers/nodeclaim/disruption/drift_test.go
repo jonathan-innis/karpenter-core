@@ -37,11 +37,11 @@ import (
 
 var _ = Describe("Drift", func() {
 	var provisioner *v1alpha5.Provisioner
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 	var node *v1.Node
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
-		machine, node = test.MachineAndNode(v1alpha5.Machine{
+		machine, node = test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,

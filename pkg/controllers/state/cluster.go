@@ -204,7 +204,7 @@ func (c *Cluster) MarkForDeletion(names ...string) {
 	}
 }
 
-func (c *Cluster) UpdateMachine(machine *v1alpha5.Machine) {
+func (c *Cluster) UpdateMachine(machine *v1alpha5.NodeClaim) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -349,7 +349,7 @@ func (c *Cluster) DeleteDaemonSet(key types.NamespacedName) {
 // and explicitly modifying the cluster state. If you do not hold the cluster state lock before calling any of these helpers
 // you will hit race conditions and data corruption
 
-func (c *Cluster) newStateFromMachine(machine *v1alpha5.Machine, oldNode *StateNode) *StateNode {
+func (c *Cluster) newStateFromMachine(machine *v1alpha5.NodeClaim, oldNode *StateNode) *StateNode {
 	if oldNode == nil {
 		oldNode = NewNode()
 	}
@@ -514,7 +514,7 @@ func (c *Cluster) updateNodeUsageFromPod(ctx context.Context, pod *v1.Pod) error
 	n, ok := c.nodes[c.nameToProviderID[pod.Spec.NodeName]]
 	if !ok {
 		// the node must exist for us to update the resource requests on the node
-		return errors.NewNotFound(schema.GroupResource{Resource: "Machine"}, pod.Spec.NodeName)
+		return errors.NewNotFound(schema.GroupResource{Resource: "NodeClaim"}, pod.Spec.NodeName)
 	}
 	c.cleanupOldBindings(pod)
 	n.updateForPod(ctx, c.kubeClient, pod)

@@ -42,19 +42,19 @@ type CloudProvider struct {
 
 	mu sync.RWMutex
 	// CreateCalls contains the arguments for every create call that was made since it was cleared
-	CreateCalls        []*v1alpha5.Machine
+	CreateCalls        []*v1alpha5.NodeClaim
 	AllowedCreateCalls int
 	NextCreateErr      error
-	DeleteCalls        []*v1alpha5.Machine
+	DeleteCalls        []*v1alpha5.NodeClaim
 
-	CreatedMachines map[string]*v1alpha5.Machine
+	CreatedMachines map[string]*v1alpha5.NodeClaim
 	Drifted         bool
 }
 
 func NewCloudProvider() *CloudProvider {
 	return &CloudProvider{
 		AllowedCreateCalls: math.MaxInt,
-		CreatedMachines:    map[string]*v1alpha5.Machine{},
+		CreatedMachines:    map[string]*v1alpha5.NodeClaim{},
 	}
 }
 
@@ -62,15 +62,15 @@ func NewCloudProvider() *CloudProvider {
 func (c *CloudProvider) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.CreateCalls = []*v1alpha5.Machine{}
-	c.CreatedMachines = map[string]*v1alpha5.Machine{}
+	c.CreateCalls = []*v1alpha5.NodeClaim{}
+	c.CreatedMachines = map[string]*v1alpha5.NodeClaim{}
 	c.AllowedCreateCalls = math.MaxInt
 	c.NextCreateErr = nil
-	c.DeleteCalls = []*v1alpha5.Machine{}
+	c.DeleteCalls = []*v1alpha5.NodeClaim{}
 	c.Drifted = false
 }
 
-func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (*v1alpha5.Machine, error) {
+func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.NodeClaim) (*v1alpha5.NodeClaim, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -82,7 +82,7 @@ func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (
 
 	c.CreateCalls = append(c.CreateCalls, machine)
 	if len(c.CreateCalls) > c.AllowedCreateCalls {
-		return &v1alpha5.Machine{}, fmt.Errorf("erroring as number of AllowedCreateCalls has been exceeded")
+		return &v1alpha5.NodeClaim{}, fmt.Errorf("erroring as number of AllowedCreateCalls has been exceeded")
 	}
 	reqs := scheduling.NewNodeSelectorRequirements(machine.Spec.Requirements...)
 	instanceTypes := lo.Filter(lo.Must(c.GetInstanceTypes(ctx, nil)), func(i *cloudprovider.InstanceType, _ int) bool {
@@ -115,7 +115,7 @@ func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (
 			break
 		}
 	}
-	created := &v1alpha5.Machine{
+	created := &v1alpha5.NodeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        machine.Name,
 			Labels:      lo.Assign(labels, machine.Labels),
@@ -132,7 +132,7 @@ func (c *CloudProvider) Create(ctx context.Context, machine *v1alpha5.Machine) (
 	return created, nil
 }
 
-func (c *CloudProvider) Get(_ context.Context, id string) (*v1alpha5.Machine, error) {
+func (c *CloudProvider) Get(_ context.Context, id string) (*v1alpha5.NodeClaim, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -142,11 +142,11 @@ func (c *CloudProvider) Get(_ context.Context, id string) (*v1alpha5.Machine, er
 	return nil, cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with id '%s'", id))
 }
 
-func (c *CloudProvider) List(_ context.Context) ([]*v1alpha5.Machine, error) {
+func (c *CloudProvider) List(_ context.Context) ([]*v1alpha5.NodeClaim, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return lo.Map(lo.Values(c.CreatedMachines), func(m *v1alpha5.Machine, _ int) *v1alpha5.Machine {
+	return lo.Map(lo.Values(c.CreatedMachines), func(m *v1alpha5.NodeClaim, _ int) *v1alpha5.NodeClaim {
 		return m.DeepCopy()
 	}), nil
 }
@@ -195,7 +195,7 @@ func (c *CloudProvider) GetInstanceTypes(_ context.Context, _ *v1alpha5.Provisio
 	}, nil
 }
 
-func (c *CloudProvider) Delete(_ context.Context, m *v1alpha5.Machine) error {
+func (c *CloudProvider) Delete(_ context.Context, m *v1alpha5.NodeClaim) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -207,7 +207,7 @@ func (c *CloudProvider) Delete(_ context.Context, m *v1alpha5.Machine) error {
 	return cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with provider id '%s'", m.Status.ProviderID))
 }
 
-func (c *CloudProvider) IsMachineDrifted(context.Context, *v1alpha5.Machine) (bool, error) {
+func (c *CloudProvider) IsMachineDrifted(context.Context, *v1alpha5.NodeClaim) (bool, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

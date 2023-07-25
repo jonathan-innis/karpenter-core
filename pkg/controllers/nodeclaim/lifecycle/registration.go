@@ -30,59 +30,55 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 type Registration struct {
 	kubeClient client.Client
 }
 
-func (r *Registration) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	if machine.StatusConditions().GetCondition(v1alpha5.MachineRegistered).IsTrue() {
-		// TODO @joinnis: Remove the back-propagation of this label onto the Node once all Nodes are guaranteed to have this label
-		// We can assume that all nodes will have this label and no back-propagation will be required once we hit v1
-		return reconcile.Result{}, r.backPropagateRegistrationLabel(ctx, machine)
+func (r *Registration) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	if nodeClaim.StatusConditions().GetCondition(v1beta1.NodeRegistered).IsTrue() {
+		return reconcile.Result{}, nil
 	}
-	if !machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue() {
-		machine.StatusConditions().MarkFalse(v1alpha5.MachineRegistered, "MachineNotLaunched", "Machine is not launched")
+	if !nodeClaim.StatusConditions().GetCondition(v1beta1.NodeLaunched).IsTrue() {
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "NodeNotLaunched", "Node is not launched")
 		return reconcile.Result{}, nil
 	}
 
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", machine.Status.ProviderID))
-	node, err := machineutil.NodeForNodeClaim(ctx, r.kubeClient, machine)
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", nodeClaim.Status.ProviderID))
+	node, err := nodeclaimutil.NodeForNodeClaim(ctx, r.kubeClient, nodeClaim)
 	if err != nil {
-		if machineutil.IsNodeNotFoundError(err) {
-			machine.StatusConditions().MarkFalse(v1alpha5.MachineRegistered, "NodeNotFound", "Node not registered with cluster")
+		if nodeclaimutil.IsNodeNotFoundError(err) {
+			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "NodeNotFound", "Node not registered with cluster")
 			return reconcile.Result{}, nil
 		}
-		if machineutil.IsDuplicateNodeError(err) {
-			machine.StatusConditions().MarkFalse(v1alpha5.MachineRegistered, "MultipleNodesFound", "Invariant violated, machine matched multiple nodes")
+		if nodeclaimutil.IsDuplicateNodeError(err) {
+			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "MultipleNodesFound", "Invariant violated, machine matched multiple nodes")
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, fmt.Errorf("getting node for machine, %w", err)
 	}
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", node.Name))
-	if err = r.syncNode(ctx, machine, node); err != nil {
+	if err = r.syncNode(ctx, nodeClaim, node); err != nil {
 		return reconcile.Result{}, fmt.Errorf("syncing node, %w", err)
 	}
 	logging.FromContext(ctx).Debugf("registered machine")
-	machine.StatusConditions().MarkTrue(v1alpha5.MachineRegistered)
-	machine.Status.NodeName = node.Name
+	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeRegistered)
+	nodeClaim.Status.NodeName = node.Name
 	metrics.NodeClaimsRegisteredCounter.With(prometheus.Labels{
-		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
-	// If the machine is linked, then the node already existed so we don't mark it as created
-	if _, ok := machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]; !ok {
-		metrics.NodesCreatedCounter.With(prometheus.Labels{
-			metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
-		}).Inc()
-	}
+	metrics.NodesCreatedCounter.With(prometheus.Labels{
+		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+	}).Inc()
 	return reconcile.Result{}, nil
 }
 
-func (r *Registration) syncNode(ctx context.Context, machine *v1alpha5.Machine, node *v1.Node) error {
+func (r *Registration) syncNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim, node *v1.Node) error {
 	stored := node.DeepCopy()
 	controllerutil.AddFinalizer(node, v1alpha5.TerminationFinalizer)
 
@@ -92,24 +88,20 @@ func (r *Registration) syncNode(ctx context.Context, machine *v1alpha5.Machine, 
 	})
 	node.OwnerReferences = append(node.OwnerReferences, metav1.OwnerReference{
 		APIVersion:         v1alpha5.SchemeGroupVersion.String(),
-		Kind:               "Machine",
-		Name:               machine.Name,
-		UID:                machine.UID,
+		Kind:               "NodeClaim",
+		Name:               nodeClaim.Name,
+		UID:                nodeClaim.UID,
 		BlockOwnerDeletion: ptr.Bool(true),
 	})
 
-	// If the machine isn't registered as linked, then sync it
-	// This prevents us from messing with nodes that already exist and are scheduled
-	if _, ok := machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]; !ok {
-		node.Labels = lo.Assign(node.Labels, machine.Labels)
-		node.Annotations = lo.Assign(node.Annotations, machine.Annotations)
-		// Sync all taints inside of Machine into the Machine taints
-		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.Taints)
-		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(machine.Spec.StartupTaints)
-	}
-	node.Labels = lo.Assign(node.Labels, map[string]string{
+	node.Labels = lo.Assign(node.Labels, nodeClaim.Labels, map[string]string{
 		v1alpha5.LabelNodeRegistered: "true",
 	})
+	node.Annotations = lo.Assign(node.Annotations, nodeClaim.Annotations)
+	// Sync all taints inside NodeClaim into the NodeClaim taints
+	node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(nodeClaim.Spec.Taints)
+	node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(nodeClaim.Spec.StartupTaints)
+
 	if !equality.Semantic.DeepEqual(stored, node) {
 		if err := r.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
 			return fmt.Errorf("syncing node labels, %w", err)

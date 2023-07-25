@@ -139,7 +139,7 @@ var _ = Describe("Inflight Nodes", func() {
 		}, ExpectStateNodeExists(node).Capacity())
 	})
 	It("should ignore machines that don't yet have provider id", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Taints: []v1.Taint{
 					{
@@ -178,7 +178,7 @@ var _ = Describe("Inflight Nodes", func() {
 		ExpectStateNodeNotFoundForMachine(machine)
 	})
 	It("should model the inflight data as machine with no node", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					v1alpha5.DoNotConsolidateNodeAnnotationKey: "true",
@@ -242,7 +242,7 @@ var _ = Describe("Inflight Nodes", func() {
 		Expect(stateNode.Owned()).To(BeTrue())
 	})
 	It("should model the inflight capacity/allocatable as the machine capacity/allocatable", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Requirements: []v1.NodeSelectorRequirement{
 					{
@@ -290,7 +290,7 @@ var _ = Describe("Inflight Nodes", func() {
 		}, ExpectStateNodeExistsForMachine(machine).Allocatable())
 	})
 	It("should model the inflight capacity of the machine until the node registers and is initialized", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Requirements: []v1.NodeSelectorRequirement{
 					{
@@ -374,7 +374,7 @@ var _ = Describe("Inflight Nodes", func() {
 		}, ExpectStateNodeExists(node).Allocatable())
 	})
 	It("should not return startup taints when the node isn't initialized", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Requirements: []v1.NodeSelectorRequirement{
 					{
@@ -458,7 +458,7 @@ var _ = Describe("Inflight Nodes", func() {
 		Expect(stateNode.Taints()).To(HaveLen(0))
 	})
 	It("should return startup taints when the node is initialized", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Requirements: []v1.NodeSelectorRequirement{
 					{
@@ -555,7 +555,7 @@ var _ = Describe("Inflight Nodes", func() {
 		}))
 	})
 	It("should not return known ephemeral taints", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Requirements: []v1.NodeSelectorRequirement{
 					{
@@ -626,7 +626,7 @@ var _ = Describe("Inflight Nodes", func() {
 		Expect(stateNode.Taints()).To(HaveLen(0))
 	})
 	It("should combine the inflight capacity with node while node isn't initialized", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Spec: v1alpha5.MachineSpec{
 				Requirements: []v1.NodeSelectorRequirement{
 					{
@@ -679,7 +679,7 @@ var _ = Describe("Inflight Nodes", func() {
 		ExpectReconcileSucceeded(ctx, nodeController, client.ObjectKeyFromObject(node))
 		ExpectStateNodeCount("==", 1)
 
-		// Machine isn't initialized yet so the resources should remain as the in-flight resources
+		// NodeClaim isn't initialized yet so the resources should remain as the in-flight resources
 		ExpectResources(v1.ResourceList{
 			v1.ResourceCPU:              resource.MustParse("1800m"),
 			v1.ResourceMemory:           resource.MustParse("32Gi"),
@@ -692,7 +692,7 @@ var _ = Describe("Inflight Nodes", func() {
 		}, ExpectStateNodeExistsForMachine(machine).Allocatable())
 	})
 	It("should continue node nomination when an inflight node becomes a real node", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Status: v1alpha5.MachineStatus{
 				ProviderID: test.RandomProviderID(),
 			},
@@ -713,7 +713,7 @@ var _ = Describe("Inflight Nodes", func() {
 		Expect(ExpectStateNodeExists(node).Nominated()).To(BeTrue())
 	})
 	It("should continue MarkedForDeletion when an inflight node becomes a real node", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			Status: v1alpha5.MachineStatus{
 				ProviderID: test.RandomProviderID(),
 			},
@@ -1194,7 +1194,7 @@ var _ = Describe("Node Resource Level", func() {
 		Expect(ExpectStateNodeExists(node).MarkedForDeletion()).To(BeTrue())
 	})
 	It("should mark node for deletion when machine is deleted", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Finalizers: []string{v1alpha5.TerminationFinalizer},
 			},
@@ -1522,7 +1522,7 @@ var _ = Describe("Cluster State Sync", func() {
 	It("should consider the cluster state synced when all machines are tracked", func() {
 		// Deploy 1000 machines and sync them all with the cluster
 		for i := 0; i < 1000; i++ {
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				Status: v1alpha5.MachineStatus{
 					ProviderID: test.RandomProviderID(),
 				},
@@ -1538,7 +1538,7 @@ var _ = Describe("Cluster State Sync", func() {
 			node := test.Node(test.NodeOptions{
 				ProviderID: test.RandomProviderID(),
 			})
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				Status: v1alpha5.MachineStatus{
 					ProviderID: node.Spec.ProviderID,
 				},
@@ -1557,7 +1557,7 @@ var _ = Describe("Cluster State Sync", func() {
 		}
 		// Deploy 500 machines and sync them all with the cluster
 		for i := 0; i < 500; i++ {
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				Status: v1alpha5.MachineStatus{
 					ProviderID: test.RandomProviderID(),
 				},
@@ -1570,7 +1570,7 @@ var _ = Describe("Cluster State Sync", func() {
 	It("should consider the cluster state synced when the representation of nodes is the same", func() {
 		// Deploy 500 machines to the cluster, apply the linked nodes, but don't sync them
 		for i := 0; i < 500; i++ {
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				Status: v1alpha5.MachineStatus{
 					ProviderID: test.RandomProviderID(),
 				},
@@ -1588,7 +1588,7 @@ var _ = Describe("Cluster State Sync", func() {
 	It("shouldn't consider the cluster state synced if a machine hasn't resolved its provider id", func() {
 		// Deploy 1000 machines and sync them all with the cluster
 		for i := 0; i < 1000; i++ {
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				Status: v1alpha5.MachineStatus{
 					ProviderID: test.RandomProviderID(),
 				},
@@ -1605,7 +1605,7 @@ var _ = Describe("Cluster State Sync", func() {
 	It("shouldn't consider the cluster state synced if a machine isn't tracked", func() {
 		// Deploy 1000 machines and sync them all with the cluster
 		for i := 0; i < 1000; i++ {
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				Status: v1alpha5.MachineStatus{
 					ProviderID: test.RandomProviderID(),
 				},
@@ -1812,7 +1812,7 @@ func ExpectStateNodeExists(node *v1.Node) *state.StateNode {
 	return ExpectStateNodeExistsWithOffset(1, node)
 }
 
-func ExpectStateNodeExistsForMachine(machine *v1alpha5.Machine) *state.StateNode {
+func ExpectStateNodeExistsForMachine(machine *v1alpha5.NodeClaim) *state.StateNode {
 	var ret *state.StateNode
 	cluster.ForEachNode(func(n *state.StateNode) bool {
 		if n.Machine.Name != machine.Name {
@@ -1825,7 +1825,7 @@ func ExpectStateNodeExistsForMachine(machine *v1alpha5.Machine) *state.StateNode
 	return ret
 }
 
-func ExpectStateNodeNotFoundForMachine(machine *v1alpha5.Machine) *state.StateNode {
+func ExpectStateNodeNotFoundForMachine(machine *v1alpha5.NodeClaim) *state.StateNode {
 	var ret *state.StateNode
 	cluster.ForEachNode(func(n *state.StateNode) bool {
 		if n.Machine.Name != machine.Name {

@@ -108,6 +108,16 @@ func NewNode() *StateNode {
 	}
 }
 
+func (in *StateNode) OwnerKey() lo.Tuple2[string, bool] {
+	if in.Labels()[v1alpha5.ProvisionerNameLabelKey] != "" {
+		return lo.Tuple2[string, bool]{A: in.Labels()[v1alpha5.ProvisionerNameLabelKey], B: true}
+	}
+	if in.Labels()[v1beta1.NodePoolLabelKey] != "" {
+		return lo.Tuple2[string, bool]{A: in.Labels()[v1beta1.NodePoolLabelKey], B: false}
+	}
+	return lo.Tuple2[string, bool]{}
+}
+
 func (in *StateNode) Name() string {
 	if in.Node == nil {
 		return in.Machine.Name

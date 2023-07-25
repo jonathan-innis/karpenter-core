@@ -19,7 +19,7 @@ import (
 	"knative.dev/pkg/apis"
 )
 
-// MachineStatus defines the observed state of Machine
+// MachineStatus defines the observed state of NodeClaim
 type MachineStatus struct {
 	// NodeName is the name of the corresponding node object
 	// +optional

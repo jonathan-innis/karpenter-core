@@ -66,8 +66,8 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	fakeClock = clock.NewFakeClock(time.Now())
 	env = test.NewEnvironment(scheme.Scheme, test.WithCRDs(apis.CRDs...), test.WithFieldIndexers(func(c cache.Cache) error {
-		return c.IndexField(ctx, &v1alpha5.Machine{}, "status.providerID", func(obj client.Object) []string {
-			return []string{obj.(*v1alpha5.Machine).Status.ProviderID}
+		return c.IndexField(ctx, &v1alpha5.NodeClaim{}, "status.providerID", func(obj client.Object) []string {
+			return []string{obj.(*v1alpha5.NodeClaim).Status.ProviderID}
 		})
 	}))
 
@@ -82,10 +82,10 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Termination", func() {
 	var node *v1.Node
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 
 	BeforeEach(func() {
-		machine, node = test.MachineAndNode(v1alpha5.Machine{ObjectMeta: metav1.ObjectMeta{Finalizers: []string{v1alpha5.TerminationFinalizer}}})
+		machine, node = test.MachineAndNode(v1alpha5.NodeClaim{ObjectMeta: metav1.ObjectMeta{Finalizers: []string{v1alpha5.TerminationFinalizer}}})
 		cloudProvider.CreatedMachines[node.Spec.ProviderID] = machine
 	})
 
@@ -409,7 +409,7 @@ var _ = Describe("Termination", func() {
 			ExpectDeleted(ctx, env.Client, pods[1])
 
 			// Remove the node from created machines so that the cloud provider returns DNE
-			cloudProvider.CreatedMachines = map[string]*v1alpha5.Machine{}
+			cloudProvider.CreatedMachines = map[string]*v1alpha5.NodeClaim{}
 
 			// Reconcile to delete node
 			node = ExpectNodeExists(ctx, env.Client, node.Name)

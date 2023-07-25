@@ -65,7 +65,7 @@ func Node(overrides ...NodeOptions) *v1.Node {
 	}
 }
 
-func MachineLinkedNode(machine *v1alpha5.Machine) *v1.Node {
+func MachineLinkedNode(machine *v1alpha5.NodeClaim) *v1.Node {
 	return Node(
 		NodeOptions{
 			ObjectMeta: metav1.ObjectMeta{

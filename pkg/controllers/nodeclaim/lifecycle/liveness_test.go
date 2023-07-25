@@ -37,8 +37,8 @@ var _ = Describe("Liveness", func() {
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
 	})
-	It("shouldn't delete the Machine when the node has registered past the registration ttl", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("shouldn't delete the NodeClaim when the node has registered past the registration ttl", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -61,14 +61,14 @@ var _ = Describe("Liveness", func() {
 		node := test.MachineLinkedNode(machine)
 		ExpectApplied(ctx, env.Client, node)
 
-		// Node and Machine should still exist
+		// Node and NodeClaim should still exist
 		fakeClock.Step(time.Minute * 20)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		ExpectExists(ctx, env.Client, machine)
 		ExpectExists(ctx, env.Client, node)
 	})
-	It("should delete the Machine when the Node hasn't registered past the registration ttl", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should delete the NodeClaim when the Node hasn't registered past the registration ttl", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -89,14 +89,14 @@ var _ = Describe("Liveness", func() {
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
 
-		// If the node hasn't registered in the registration timeframe, then we deprovision the Machine
+		// If the node hasn't registered in the registration timeframe, then we deprovision the NodeClaim
 		fakeClock.Step(time.Minute * 20)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		ExpectFinalizersRemoved(ctx, env.Client, machine)
 		ExpectNotFound(ctx, env.Client, machine)
 	})
-	It("should delete the Machine when the Machine hasn't launched past the registration ttl", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should delete the NodeClaim when the NodeClaim hasn't launched past the registration ttl", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -118,7 +118,7 @@ var _ = Describe("Liveness", func() {
 		ExpectReconcileFailed(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
 
-		// If the node hasn't registered in the registration timeframe, then we deprovision the Machine
+		// If the node hasn't registered in the registration timeframe, then we deprovision the NodeClaim
 		fakeClock.Step(time.Minute * 20)
 		ExpectReconcileFailed(ctx, machineController, client.ObjectKeyFromObject(machine))
 		ExpectFinalizersRemoved(ctx, env.Client, machine)

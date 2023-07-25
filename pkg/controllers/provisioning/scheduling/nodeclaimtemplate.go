@@ -36,25 +36,36 @@ type NodeClaimTemplate struct {
 	NodePoolName        string
 	InstanceTypeOptions cloudprovider.InstanceTypes
 	Requirements        scheduling.Requirements
+
+	IsProvisioner bool // Whether this NodeClaimTemplate comes from a real NodePool or a converted NodePool
 }
 
 func NewNodeClaimTemplate(nodePool *v1beta1.NodePool) *NodeClaimTemplate {
-	mt := &NodeClaimTemplate{
+	nct := &NodeClaimTemplate{
 		NodeClaimTemplate: nodePool.Spec.Template,
 		NodePoolName:      nodePool.Name,
 		Requirements:      scheduling.NewRequirements(),
+		IsProvisioner:     nodePool.IsProvisioner,
 	}
-	if nodepoolutil.IsProvisioner(nodePool.Name) {
-		mt.Labels = lo.Assign(mt.Labels, map[string]string{v1alpha5.ProvisionerNameLabelKey: nodepoolutil.Name(nodePool.Name)})
+	if nodePool.IsProvisioner {
+		nct.Labels = lo.Assign(nct.Labels, map[string]string{v1alpha5.ProvisionerNameLabelKey: nodepoolutil.Name(nodePool.Name)})
 	} else {
-		mt.Labels = lo.Assign(mt.Labels, map[string]string{v1beta1.NodePoolLabelKey: nodepoolutil.Name(nodePool.Name)})
+		nct.Labels = lo.Assign(nct.Labels, map[string]string{v1beta1.NodePoolLabelKey: nodepoolutil.Name(nodePool.Name)})
 	}
-	mt.Requirements.Add(scheduling.NewNodeSelectorRequirements(nodePool.Spec.Template.Spec.Requirements...).Values()...)
-	mt.Requirements.Add(scheduling.NewLabelRequirements(nodePool.Spec.Template.Labels).Values()...)
-	return mt
+	nct.Requirements.Add(scheduling.NewNodeSelectorRequirements(nodePool.Spec.Template.Spec.Requirements...).Values()...)
+	nct.Requirements.Add(scheduling.NewLabelRequirements(nodePool.Spec.Template.Labels).Values()...)
+	return nct
 }
 
-// TODO @joinis: Be able to create either a v1alpha5.Machine or a v1beta1.NodeClaim based on whether we are using a Provisioner or a NodePool
+func (i *NodeClaimTemplate) OwnerKey() lo.Tuple2[string, bool] {
+	return lo.Tuple2[string, bool]{A: i.NodePoolName, B: i.IsProvisioner}
+}
+
+func (i *NodeClaimTemplate) OwnerKind() string {
+	return lo.Ternary(i.IsProvisioner, "provisioner", "nodepool")
+}
+
+// TODO @joinis: Be able to create either a v1alpha5.NodeClaim or a v1beta1.NodeClaim based on whether we are using a Provisioner or a NodePool
 func (i *NodeClaimTemplate) ToNodeClaim(owner *v1beta1.NodePool) *v1beta1.NodeClaim {
 	// Order the instance types by price and only take the first 100 of them to decrease the instance type size in the requirements
 	instanceTypes := lo.Slice(i.InstanceTypeOptions.OrderByPrice(i.Requirements), 0, 100)

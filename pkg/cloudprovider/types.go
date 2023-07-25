@@ -32,23 +32,23 @@ import (
 
 // CloudProvider interface is implemented by cloud providers to support provisioning.
 type CloudProvider interface {
-	// Create launches a machine with the given resource requests and requirements and returns a hydrated
-	// machine back with resolved machine labels for the launched machine
-	Create(context.Context, *v1beta1.NodeClaim) (*v1alpha5.Machine, error)
-	// Delete removes a machine from the cloudprovider by its provider id
+	// Create launches a NodeClaim with the given resource requests and requirements and returns a hydrated
+	// NodeClaim back with resolved node labels for the launched node
+	Create(context.Context, *v1beta1.NodeClaim) (*v1beta1.NodeClaim, error)
+	// Delete removes a NodeClaim from the cloudprovider by its provider id
 	Delete(context.Context, *v1beta1.NodeClaim) error
-	// Get retrieves a machine from the cloudprovider by its provider id
+	// Get retrieves a NodeClaim from the cloudprovider by its provider id
 	Get(context.Context, string) (*v1beta1.NodeClaim, error)
-	// List retrieves all machines from the cloudprovider
+	// List retrieves all NodeClaims from the cloudprovider
 	List(context.Context) ([]*v1beta1.NodeClaim, error)
 	// GetInstanceTypes returns instance types supported by the cloudprovider.
 	// Availability of types or zone may vary by provisioner or over time.  Regardless of
 	// availability, the GetInstanceTypes method should always return all instance types,
 	// even those with no offerings available.
 	GetInstanceTypes(context.Context, *v1beta1.NodePool) ([]*InstanceType, error)
-	// IsMachineDrifted returns whether a machine has drifted from the provisioning requirements
-	// it is tied to.
-	IsMachineDrifted(context.Context, *v1beta1.NodeClaim) (bool, error)
+	// IsDrifted returns whether a NodeClaim has drifted from
+	// the spec and requirements that it's tied to
+	IsDrifted(context.Context, *v1beta1.NodeClaim) (bool, error)
 	// Name returns the CloudProvider implementation name.
 	Name() string
 }

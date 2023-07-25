@@ -21,6 +21,9 @@ import (
 
 // NodeClaimStatus defines the observed state of NodeClaim
 type NodeClaimStatus struct {
+	// NodeName is the name of the corresponding node object
+	// +optional
+	NodeName string `json:"nodeName,omitempty"`
 	// ProviderID of the corresponding node object
 	// +optional
 	ProviderID string `json:"providerID,omitempty"`
@@ -48,7 +51,6 @@ var (
 	NodeRegistered    apis.ConditionType = "NodeRegistered"
 	NodeInitialized   apis.ConditionType = "NodeInitialized"
 	NodeDrifted       apis.ConditionType = "NodeDrifted"
-	NodeEmpty         apis.ConditionType = "NodeEmpty"
 	NodeExpired       apis.ConditionType = "NodeExpired"
 	NodeUnderutilized apis.ConditionType = "NodeUnderutilized"
 )

@@ -24,7 +24,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -73,12 +72,12 @@ func NodeEventHandler(ctx context.Context, c client.Client) handler.EventHandler
 	})
 }
 
-// ProvisionerEventHandler is a watcher on v1beta1.NodeClaim that maps Provisioner to NodeClaims based
-// on the v1alpha5.ProvsionerNameLabelKey and enqueues reconcile.Requests for the NodeClaim
-func ProvisionerEventHandler(ctx context.Context, c client.Client) handler.EventHandler {
+// NodePoolEventHandler is a watcher on v1beta1.NodeClaim that maps Provisioner to NodeClaims based
+// on the v1beta1.NodePoolLabelKey and enqueues reconcile.Requests for the NodeClaim
+func NodePoolEventHandler(ctx context.Context, c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(o client.Object) (requests []reconcile.Request) {
 		nodeClaimList := &v1beta1.NodeClaimList{}
-		if err := c.List(ctx, nodeClaimList, client.MatchingLabels(map[string]string{v1alpha5.ProvisionerNameLabelKey: o.GetName()})); err != nil {
+		if err := c.List(ctx, nodeClaimList, client.MatchingLabels(map[string]string{v1beta1.NodePoolLabelKey: o.GetName()})); err != nil {
 			return requests
 		}
 		return lo.Map(nodeClaimList.Items, func(n v1beta1.NodeClaim, _ int) reconcile.Request {
@@ -146,13 +145,11 @@ func NodeForNodeClaim(ctx context.Context, c client.Client, nodeClaim *v1beta1.N
 	if err != nil {
 		return nil, err
 	}
-	// If the providerID is defined, use that value; else, use the nodeClaim linked annotation if it's on the nodeClaim
-	providerID := lo.Ternary(nodeClaim.Status.ProviderID != "", nodeClaim.Status.ProviderID, nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey])
 	if len(nodes) > 1 {
-		return nil, &DuplicateNodeError{ProviderID: providerID}
+		return nil, &DuplicateNodeError{ProviderID: nodeClaim.Status.ProviderID}
 	}
 	if len(nodes) == 0 {
-		return nil, &NodeNotFoundError{ProviderID: providerID}
+		return nil, &NodeNotFoundError{ProviderID: nodeClaim.Status.ProviderID}
 	}
 	return nodes[0], nil
 }
@@ -160,34 +157,86 @@ func NodeForNodeClaim(ctx context.Context, c client.Client, nodeClaim *v1beta1.N
 // AllNodesForNodeClaim is a helper function that takes a v1beta1.NodeClaim and finds ALL matching v1.Nodes by their providerID
 // If the providerID is not resolved for a NodeClaim, then no Nodes will map to it
 func AllNodesForNodeClaim(ctx context.Context, c client.Client, nodeClaim *v1beta1.NodeClaim) ([]*v1.Node, error) {
-	// If the providerID is defined, use that value; else, use the nodeClaim linked annotation if it's on the nodeClaim
-	providerID := lo.Ternary(nodeClaim.Status.ProviderID != "", nodeClaim.Status.ProviderID, nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey])
-	// Machines that have no resolved providerID have no nodes mapped to them
-	if providerID == "" {
+	// NodeClaims that have no resolved providerID have no nodes mapped to them
+	if nodeClaim.Status.ProviderID == "" {
 		return nil, nil
 	}
 	nodeList := v1.NodeList{}
-	if err := c.List(ctx, &nodeList, client.MatchingFields{"spec.providerID": providerID}); err != nil {
+	if err := c.List(ctx, &nodeList, client.MatchingFields{"spec.providerID": nodeClaim.Status.ProviderID}); err != nil {
 		return nil, fmt.Errorf("listing nodes, %w", err)
 	}
 	return lo.ToSlicePtr(nodeList.Items), nil
 }
 
-func IsPastEmptinessTTL(machine *v1alpha5.Machine, clock clock.Clock, provisioner *v1alpha5.Provisioner) bool {
-	return machine.StatusConditions().GetCondition(v1alpha5.MachineEmpty) != nil &&
-		machine.StatusConditions().GetCondition(v1alpha5.MachineEmpty).IsTrue() &&
-		!clock.Now().Before(machine.StatusConditions().GetCondition(v1alpha5.MachineEmpty).LastTransitionTime.Inner.Add(time.Duration(lo.FromPtr(provisioner.Spec.TTLSecondsAfterEmpty))*time.Second))
+func New(machine *v1alpha5.Machine) *v1beta1.NodeClaim {
+	nc := &v1beta1.NodeClaim{
+		ObjectMeta: machine.ObjectMeta,
+		Spec: v1beta1.NodeClaimSpec{
+			Taints:        machine.Spec.Taints,
+			StartupTaints: machine.Spec.StartupTaints,
+			Requirements:  machine.Spec.Requirements,
+			Resources: v1beta1.ResourceRequirements{
+				Requests: machine.Spec.Resources.Requests,
+			},
+			KubeletConfiguration: NewKubeletConfiguration(machine.Spec.Kubelet),
+		},
+	}
+	if machine.Spec.MachineTemplateRef != nil {
+		nc.Spec.NodeClass = &v1beta1.NodeClassRef{
+			Kind:           machine.Spec.MachineTemplateRef.Kind,
+			Name:           machine.Spec.MachineTemplateRef.Name,
+			APIVersion:     machine.Spec.MachineTemplateRef.APIVersion,
+			IsNodeTemplate: true,
+		}
+	}
+	return nc
 }
 
-func IsExpired(obj client.Object, clock clock.Clock, provisioner *v1alpha5.Provisioner) bool {
-	return clock.Now().After(GetExpirationTime(obj, provisioner))
+func NewKubeletConfiguration(kc *v1alpha5.KubeletConfiguration) *v1beta1.KubeletConfiguration {
+	if kc == nil {
+		return nil
+	}
+	return &v1beta1.KubeletConfiguration{
+		ClusterDNS:                  kc.ClusterDNS,
+		ContainerRuntime:            kc.ContainerRuntime,
+		MaxPods:                     kc.MaxPods,
+		PodsPerCore:                 kc.PodsPerCore,
+		SystemReserved:              kc.SystemReserved,
+		KubeReserved:                kc.KubeReserved,
+		EvictionHard:                kc.EvictionHard,
+		EvictionSoft:                kc.EvictionSoft,
+		EvictionSoftGracePeriod:     kc.EvictionSoftGracePeriod,
+		EvictionMaxPodGracePeriod:   kc.EvictionMaxPodGracePeriod,
+		ImageGCHighThresholdPercent: kc.ImageGCHighThresholdPercent,
+		ImageGCLowThresholdPercent:  kc.ImageGCLowThresholdPercent,
+		CPUCFSQuota:                 kc.CPUCFSQuota,
+	}
 }
 
-func GetExpirationTime(obj client.Object, provisioner *v1alpha5.Provisioner) time.Time {
-	if provisioner == nil || provisioner.Spec.TTLSecondsUntilExpired == nil || obj == nil {
+func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1beta1.NodeClaimList, error) {
+	machineList := &v1alpha5.MachineList{}
+	if err := c.List(ctx, machineList, opts...); err != nil {
+		return nil, err
+	}
+	convertedNodeClaims := lo.Map(machineList.Items, func(m v1alpha5.Machine, _ int) v1beta1.NodeClaim {
+		return *New(&m)
+	})
+	nodeClaimList := &v1beta1.NodeClaimList{}
+	if err := c.List(ctx, nodeClaimList, opts...); err != nil {
+		return nil, err
+	}
+	nodeClaimList.Items = append(nodeClaimList.Items, convertedNodeClaims...)
+	return nodeClaimList, nil
+}
+
+func IsExpired(obj client.Object, clock clock.Clock, nodePool *v1beta1.NodePool) bool {
+	return clock.Now().After(GetExpirationTime(obj, nodePool))
+}
+
+func GetExpirationTime(obj client.Object, nodePool *v1beta1.NodePool) time.Time {
+	if nodePool == nil || nodePool.Spec.Deprovisioning.ExpirationTTL == nil || obj == nil {
 		// If not defined, return some much larger time.
 		return time.Date(5000, 0, 0, 0, 0, 0, 0, time.UTC)
 	}
-	expirationTTL := time.Duration(ptr.Int64Value(provisioner.Spec.TTLSecondsUntilExpired)) * time.Second
-	return obj.GetCreationTimestamp().Add(expirationTTL)
+	return obj.GetCreationTimestamp().Add(nodePool.Spec.Deprovisioning.ExpirationTTL.Duration)
 }

@@ -50,7 +50,7 @@ func (c *MachineController) Name() string {
 
 func (c *MachineController) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).Named(c.Name()).With("machine", req.NamespacedName.Name))
-	machine := &v1alpha5.Machine{}
+	machine := &v1alpha5.NodeClaim{}
 	if err := c.kubeClient.Get(ctx, req.NamespacedName, machine); err != nil {
 		if errors.IsNotFound(err) {
 			// notify cluster state of the node deletion
@@ -66,6 +66,6 @@ func (c *MachineController) Reconcile(ctx context.Context, req reconcile.Request
 func (c *MachineController) Builder(_ context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}).
+		For(&v1alpha5.NodeClaim{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 10}))
 }

@@ -41,18 +41,18 @@ import (
 	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
-var _ corecontroller.FinalizingTypedController[*v1alpha5.Machine] = (*Controller)(nil)
+var _ corecontroller.FinalizingTypedController[*v1alpha5.NodeClaim] = (*Controller)(nil)
 
-// Controller is a Machine Termination controller that triggers deletion of the Node and the
-// CloudProvider Machine through its graceful termination mechanism
+// Controller is a NodeClaim Termination controller that triggers deletion of the Node and the
+// CloudProvider NodeClaim through its graceful termination mechanism
 type Controller struct {
 	kubeClient    client.Client
 	cloudProvider cloudprovider.CloudProvider
 }
 
-// NewController is a constructor for the Machine Controller
+// NewController is a constructor for the NodeClaim Controller
 func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
-	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
+	return corecontroller.Typed[*v1alpha5.NodeClaim](kubeClient, &Controller{
 		kubeClient:    kubeClient,
 		cloudProvider: cloudProvider,
 	})
@@ -62,11 +62,11 @@ func (*Controller) Name() string {
 	return "machine.termination"
 }
 
-func (c *Controller) Reconcile(_ context.Context, _ *v1alpha5.Machine) (reconcile.Result, error) {
+func (c *Controller) Reconcile(_ context.Context, _ *v1alpha5.NodeClaim) (reconcile.Result, error) {
 	return reconcile.Result{}, nil
 }
 
-func (c *Controller) Finalize(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
+func (c *Controller) Finalize(ctx context.Context, machine *v1alpha5.NodeClaim) (reconcile.Result, error) {
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", machine.Status.NodeName, "provisioner", machine.Labels[v1alpha5.ProvisionerNameLabelKey], "provider-id", machine.Status.ProviderID))
 	stored := machine.DeepCopy()
 	if !controllerutil.ContainsFinalizer(machine, v1alpha5.TerminationFinalizer) {
@@ -104,7 +104,7 @@ func (c *Controller) Finalize(ctx context.Context, machine *v1alpha5.Machine) (r
 func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}).
+		For(&v1alpha5.NodeClaim{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},

@@ -36,8 +36,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
-	machinetermination "github.com/aws/karpenter-core/pkg/controllers/machine/termination"
+	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/lifecycle"
+	machinetermination "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/termination"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
@@ -56,7 +56,7 @@ var terminationController controller.Controller
 func TestAPIs(t *testing.T) {
 	ctx = TestContextWithLogger(t)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Machine")
+	RunSpecs(t, "NodeClaim")
 }
 
 var _ = BeforeSuite(func() {
@@ -84,11 +84,11 @@ var _ = AfterEach(func() {
 
 var _ = Describe("Termination", func() {
 	var provisioner *v1alpha5.Provisioner
-	var machine *v1alpha5.Machine
+	var machine *v1alpha5.NodeClaim
 
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
-		machine = test.Machine(v1alpha5.Machine{
+		machine = test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -109,7 +109,7 @@ var _ = Describe("Termination", func() {
 			},
 		})
 	})
-	It("should delete the node and the CloudProvider Machine when Machine deletion is triggered", func() {
+	It("should delete the node and the CloudProvider NodeClaim when NodeClaim deletion is triggered", func() {
 		ExpectApplied(ctx, env.Client, provisioner, machine)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
@@ -133,7 +133,7 @@ var _ = Describe("Termination", func() {
 		_, err = cloudProvider.Get(ctx, machine.Status.ProviderID)
 		Expect(cloudprovider.IsMachineNotFoundError(err)).To(BeTrue())
 	})
-	It("should delete multiple Nodes if multiple Nodes map to the Machine", func() {
+	It("should delete multiple Nodes if multiple Nodes map to the NodeClaim", func() {
 		ExpectApplied(ctx, env.Client, provisioner, machine)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 
@@ -159,7 +159,7 @@ var _ = Describe("Termination", func() {
 		_, err = cloudProvider.Get(ctx, machine.Status.ProviderID)
 		Expect(cloudprovider.IsMachineNotFoundError(err)).To(BeTrue())
 	})
-	It("should delete the Node if the Machine is linked but doesn't have its providerID resolved yet", func() {
+	It("should delete the Node if the NodeClaim is linked but doesn't have its providerID resolved yet", func() {
 		node := test.MachineLinkedNode(machine)
 
 		machine.Annotations = lo.Assign(machine.Annotations, map[string]string{v1alpha5.MachineLinkedAnnotationKey: machine.Status.ProviderID})
@@ -179,7 +179,7 @@ var _ = Describe("Termination", func() {
 		_, err := cloudProvider.Get(ctx, machine.Annotations[v1alpha5.MachineLinkedAnnotationKey])
 		Expect(cloudprovider.IsMachineNotFoundError(err)).To(BeTrue())
 	})
-	It("should not delete the Machine until all the Nodes are removed", func() {
+	It("should not delete the NodeClaim until all the Nodes are removed", func() {
 		ExpectApplied(ctx, env.Client, provisioner, machine)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 

@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
@@ -40,42 +41,38 @@ type Launch struct {
 	recorder      events.Recorder
 }
 
-func (l *Launch) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
-	if machine.StatusConditions().GetCondition(v1alpha5.MachineLaunched).IsTrue() {
+func (l *Launch) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	if nodeClaim.StatusConditions().GetCondition(v1beta1.NodeLaunched).IsTrue() {
 		return reconcile.Result{}, nil
 	}
 
 	var err error
-	var created *v1alpha5.Machine
+	var created *v1beta1.NodeClaim
 
-	// One of the following scenarios can happen with a Machine that isn't marked as launched:
+	// One of the following scenarios can happen with a NodeClaim that isn't marked as launched:
 	//  1. It was already launched by the CloudProvider but the client-go cache wasn't updated quickly enough or
 	//     patching failed on the status. In this case, we use the in-memory cached value for the created machine.
-	//  2. It is a "linked" machine, which implies that the CloudProvider Machine already exists for the Machine CR, but we
-	//     need to grab info from the CloudProvider to get details on the machine.
-	//  3. It is a standard machine launch where we should call CloudProvider Create() and fill in details of the launched
-	//     machine into the Machine CR.
-	if ret, ok := l.cache.Get(string(machine.UID)); ok {
-		created = ret.(*v1alpha5.Machine)
-	} else if _, ok := machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]; ok {
-		created, err = l.linkMachine(ctx, machine)
+	//  2. It is a standard machine launch where we should call CloudProvider Create() and fill in details of the launched
+	//     machine into the NodeClaim CR.
+	if ret, ok := l.cache.Get(string(nodeClaim.UID)); ok {
+		created = ret.(*v1beta1.NodeClaim)
 	} else {
-		created, err = l.launchMachine(ctx, machine)
+		created, err = l.launchNode(ctx, nodeClaim)
 	}
 	// Either the machine launch/linking failed or the machine was deleted due to InsufficientCapacity/NotFound
 	if err != nil || created == nil {
 		return reconcile.Result{}, err
 	}
-	l.cache.SetDefault(string(machine.UID), created)
-	PopulateMachineDetails(machine, created)
-	machine.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
+	l.cache.SetDefault(string(nodeClaim.UID), created)
+	PopulateMachineDetails(nodeClaim, created)
+	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeLaunched)
 	metrics.NodeClaimsLaunchedCounter.With(prometheus.Labels{
-		metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }
 
-func (l *Launch) linkMachine(ctx context.Context, machine *v1alpha5.Machine) (*v1alpha5.Machine, error) {
+func (l *Launch) linkMachine(ctx context.Context, machine *v1alpha5.NodeClaim) (*v1beta1.NodeClaim, error) {
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]))
 	created, err := l.cloudProvider.Get(ctx, machine.Annotations[v1alpha5.MachineLinkedAnnotationKey])
 	if err != nil {
@@ -102,29 +99,29 @@ func (l *Launch) linkMachine(ctx context.Context, machine *v1alpha5.Machine) (*v
 	return created, nil
 }
 
-func (l *Launch) launchMachine(ctx context.Context, machine *v1alpha5.Machine) (*v1alpha5.Machine, error) {
-	created, err := l.cloudProvider.Create(ctx, machine)
+func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (*v1beta1.NodeClaim, error) {
+	created, err := l.cloudProvider.Create(ctx, nodeClaim)
 	if err != nil {
 		switch {
 		case cloudprovider.IsInsufficientCapacityError(err):
 			l.recorder.Publish(events.Event{
-				InvolvedObject: machine,
+				InvolvedObject: nodeClaim,
 				Type:           v1.EventTypeWarning,
 				Reason:         "InsufficientCapacityError",
-				Message:        fmt.Sprintf("Machine %s event: %s", machine.Name, err),
-				DedupeValues:   []string{machine.Name},
+				Message:        fmt.Sprintf("NodeClaim %s event: %s", nodeClaim.Name, err),
+				DedupeValues:   []string{nodeClaim.Name},
 			})
 			logging.FromContext(ctx).Error(err)
-			if err = l.kubeClient.Delete(ctx, machine); err != nil {
+			if err = l.kubeClient.Delete(ctx, nodeClaim); err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
-			metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
 				metrics.ReasonLabel:      "insufficient_capacity",
-				metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
+				metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
 			}).Inc()
 			return nil, nil
 		default:
-			machine.StatusConditions().MarkFalse(v1alpha5.MachineLaunched, "LaunchFailed", truncateMessage(err.Error()))
+			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeLaunched, "LaunchFailed", truncateMessage(err.Error()))
 			return nil, fmt.Errorf("creating machine, %w", err)
 		}
 	}
@@ -133,11 +130,11 @@ func (l *Launch) launchMachine(ctx context.Context, machine *v1alpha5.Machine) (
 		"instance-type", created.Labels[v1.LabelInstanceTypeStable],
 		"zone", created.Labels[v1.LabelTopologyZone],
 		"capacity-type", created.Labels[v1alpha5.LabelCapacityType],
-		"allocatable", created.Status.Allocatable).Infof("launched machine")
+		"allocatable", created.Status.Allocatable).Infof("launched nodeClaim")
 	return created, nil
 }
 
-func PopulateMachineDetails(machine, retrieved *v1alpha5.Machine) {
+func PopulateMachineDetails(machine, retrieved *v1beta1.NodeClaim) {
 	// These are ordered in priority order so that user-defined machine labels and requirements trump retrieved labels
 	// or the static machine labels
 	machine.Labels = lo.Assign(

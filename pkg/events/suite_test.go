@@ -162,7 +162,7 @@ func NodeWithUID() *v1.Node {
 	return n
 }
 
-func MachineWithUID() *v1alpha5.Machine {
+func MachineWithUID() *v1alpha5.NodeClaim {
 	m := test.Machine()
 	m.UID = uuid.NewUUID()
 	return m

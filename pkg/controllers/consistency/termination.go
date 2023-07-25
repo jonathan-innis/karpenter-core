@@ -37,7 +37,7 @@ func NewTermination(kubeClient client.Client) Check {
 	}
 }
 
-func (t *Termination) Check(ctx context.Context, node *v1.Node, machine *v1alpha5.Machine) ([]Issue, error) {
+func (t *Termination) Check(ctx context.Context, node *v1.Node, machine *v1alpha5.NodeClaim) ([]Issue, error) {
 	// we are only looking at nodes that are hung deleting
 	if machine.DeletionTimestamp.IsZero() {
 		return nil, nil

@@ -140,6 +140,10 @@ type NodeClassRef struct {
 	// API version of the referent
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
+	// IsNodeTemplate tells Karpenter whether the in-memory representation of this object
+	// is actually referring to a NodeTemplate object. This value is not actually part of the v1beta1 public-facing API
+	// TODO @joinnis: Remove this field when v1alpha5 is unsupported in a future version of Karpenter
+	IsNodeTemplate bool `json:"-"`
 }
 
 // ResourceRequirements models the required resources for the NodeClaim to launch

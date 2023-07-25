@@ -31,8 +31,8 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	machinegarbagecollection "github.com/aws/karpenter-core/pkg/controllers/machine/garbagecollection"
-	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
+	machinegarbagecollection "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/garbagecollection"
+	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/lifecycle"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
@@ -55,7 +55,7 @@ var cloudProvider *fake.CloudProvider
 func TestAPIs(t *testing.T) {
 	ctx = TestContextWithLogger(t)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Machine")
+	RunSpecs(t, "NodeClaim")
 }
 
 var _ = BeforeSuite(func() {
@@ -88,8 +88,8 @@ var _ = Describe("GarbageCollection", func() {
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
 	})
-	It("should delete the Machine when the Node never appears and the instance is gone", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should delete the NodeClaim when the Node never appears and the instance is gone", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -106,15 +106,15 @@ var _ = Describe("GarbageCollection", func() {
 		// Delete the machine from the cloudprovider
 		Expect(cloudProvider.Delete(ctx, machine)).To(Succeed())
 
-		// Expect the Machine to be removed now that the Instance is gone
+		// Expect the NodeClaim to be removed now that the Instance is gone
 		ExpectReconcileSucceeded(ctx, garbageCollectionController, client.ObjectKey{})
 		ExpectFinalizersRemoved(ctx, env.Client, machine)
 		ExpectNotFound(ctx, env.Client, machine)
 	})
 	It("should delete many Machines when the Node never appears and the instance is gone", func() {
-		var machines []*v1alpha5.Machine
+		var machines []*v1alpha5.NodeClaim
 		for i := 0; i < 100; i++ {
-			machine := test.Machine(v1alpha5.Machine{
+			machine := test.Machine(v1alpha5.NodeClaim{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -141,10 +141,10 @@ var _ = Describe("GarbageCollection", func() {
 		for _, machine := range machines {
 			ExpectFinalizersRemoved(ctx, env.Client, machine)
 		}
-		ExpectNotFound(ctx, env.Client, lo.Map(machines, func(m *v1alpha5.Machine, _ int) client.Object { return m })...)
+		ExpectNotFound(ctx, env.Client, lo.Map(machines, func(m *v1alpha5.NodeClaim, _ int) client.Object { return m })...)
 	})
-	It("shouldn't delete the Machine when the Node isn't there but the instance is there", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("shouldn't delete the NodeClaim when the Node isn't there but the instance is there", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -158,7 +158,7 @@ var _ = Describe("GarbageCollection", func() {
 		// Step forward to move past the cache eventual consistency timeout
 		fakeClock.SetTime(time.Now().Add(time.Second * 20))
 
-		// Reconcile the Machine. It should not be deleted by this flow since it has never been registered
+		// Reconcile the NodeClaim. It should not be deleted by this flow since it has never been registered
 		ExpectReconcileSucceeded(ctx, garbageCollectionController, client.ObjectKey{})
 		ExpectFinalizersRemoved(ctx, env.Client, machine)
 		ExpectExists(ctx, env.Client, machine)

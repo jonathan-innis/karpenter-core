@@ -21,7 +21,8 @@ import (
 
 const (
 	nodeSubsystem      = "nodes"
-	nodeClaimSubsystem = "node_claims"
+	machineSubsystem   = "machines"
+	nodeClaimSubsystem = "nodeclaims"
 )
 
 var (
@@ -99,6 +100,64 @@ var (
 			Subsystem: nodeSubsystem,
 			Name:      "terminated",
 			Help:      "Number of nodes terminated in total by Karpenter. Labeled by owning provisioner.",
+		},
+		[]string{
+			ProvisionerLabel,
+		},
+	)
+	// TODO @joinnis: Remove these metrics when dropping v1alpha5 and no longer supporting Machines
+	MachinesCreatedCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: machineSubsystem,
+			Name:      "created",
+			Help:      "Number of machines created in total by Karpenter. Labeled by reason the machine was created and the owning provisioner.",
+		},
+		[]string{
+			ReasonLabel,
+			ProvisionerLabel,
+		},
+	)
+	MachinesTerminatedCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: machineSubsystem,
+			Name:      "terminated",
+			Help:      "Number of machines terminated in total by Karpenter. Labeled by reason the machine was terminated.",
+		},
+		[]string{
+			ReasonLabel,
+			ProvisionerLabel,
+		},
+	)
+	MachinesLaunchedCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: machineSubsystem,
+			Name:      "launched",
+			Help:      "Number of machines launched in total by Karpenter. Labeled by the owning provisioner.",
+		},
+		[]string{
+			ProvisionerLabel,
+		},
+	)
+	MachinesRegisteredCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: machineSubsystem,
+			Name:      "registered",
+			Help:      "Number of machines registered in total by Karpenter. Labeled by the owning provisioner.",
+		},
+		[]string{
+			ProvisionerLabel,
+		},
+	)
+	MachinesInitializedCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: Namespace,
+			Subsystem: machineSubsystem,
+			Name:      "initialized",
+			Help:      "Number of machines initialized in total by Karpenter. Labeled by the owning provisioner.",
 		},
 		[]string{
 			ProvisionerLabel,

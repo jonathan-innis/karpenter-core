@@ -39,7 +39,7 @@ import (
 	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
-var _ corecontroller.TypedController[*v1alpha5.Machine] = (*Controller)(nil)
+var _ corecontroller.TypedController[*v1alpha5.NodeClaim] = (*Controller)(nil)
 
 type Controller struct {
 	clock       clock.Clock
@@ -54,7 +54,7 @@ type Issue string
 type Check interface {
 	// Check performs the consistency check, this should return a list of slice discovered, or an empty
 	// slice if no issues were found
-	Check(context.Context, *v1.Node, *v1alpha5.Machine) ([]Issue, error)
+	Check(context.Context, *v1.Node, *v1alpha5.NodeClaim) ([]Issue, error)
 }
 
 // scanPeriod is how often we inspect and report issues that are found.
@@ -63,7 +63,7 @@ const scanPeriod = 10 * time.Minute
 func NewController(clk clock.Clock, kubeClient client.Client, recorder events.Recorder,
 	provider cloudprovider.CloudProvider) corecontroller.Controller {
 
-	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &Controller{
+	return corecontroller.Typed[*v1alpha5.NodeClaim](kubeClient, &Controller{
 		clock:       clk,
 		kubeClient:  kubeClient,
 		recorder:    recorder,
@@ -79,7 +79,7 @@ func (c *Controller) Name() string {
 	return "consistency"
 }
 
-func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
+func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.NodeClaim) (reconcile.Result, error) {
 	if machine.Status.ProviderID == "" {
 		return reconcile.Result{}, nil
 	}
@@ -117,7 +117,7 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Machine{}).
+		For(&v1alpha5.NodeClaim{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
 			machineutil.NodeEventHandler(ctx, c.kubeClient),

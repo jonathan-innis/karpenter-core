@@ -21,7 +21,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/events"
 )
 
-func CheckEvent(machine *v1alpha5.Machine, message string) events.Event {
+func CheckEvent(machine *v1alpha5.NodeClaim, message string) events.Event {
 	return events.Event{
 		InvolvedObject: machine,
 		Type:           v1.EventTypeWarning,

@@ -37,8 +37,8 @@ var _ = Describe("Initialization", func() {
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
 	})
-	It("should consider the Machine initialized when all initialization conditions are met", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should consider the NodeClaim initialized when all initialization conditions are met", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -88,8 +88,8 @@ var _ = Describe("Initialization", func() {
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionTrue))
 	})
-	It("should add the initialization label to the node when the Machine is initialized", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should add the initialization label to the node when the NodeClaim is initialized", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -131,7 +131,7 @@ var _ = Describe("Initialization", func() {
 		Expect(node.Labels).To(HaveKeyWithValue(v1alpha5.LabelNodeInitialized, "true"))
 	})
 	It("should not consider the Node to be initialized when the status of the Node is NotReady", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -173,7 +173,7 @@ var _ = Describe("Initialization", func() {
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
 	It("should not consider the Node to be initialized when all requested resources aren't registered", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -223,7 +223,7 @@ var _ = Describe("Initialization", func() {
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
 	It("should consider the node to be initialized once all the resources are registered", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -278,14 +278,14 @@ var _ = Describe("Initialization", func() {
 		node.Status.Allocatable[fake.ResourceGPUVendorA] = resource.MustParse("2")
 		ExpectApplied(ctx, env.Client, node)
 
-		// Reconcile the machine and the Machine/Node should now be initilized
+		// Reconcile the machine and the NodeClaim/Node should now be initilized
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionTrue))
 	})
 	It("should not consider the Node to be initialized when all startupTaints aren't removed", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -356,7 +356,7 @@ var _ = Describe("Initialization", func() {
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
 	It("should consider the Node to be initialized once the startupTaints are removed", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -414,14 +414,14 @@ var _ = Describe("Initialization", func() {
 		node.Spec.Taints = []v1.Taint{}
 		ExpectApplied(ctx, env.Client, node)
 
-		// Machine should now be ready since all startup taints are removed
+		// NodeClaim should now be ready since all startup taints are removed
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionTrue))
 	})
 	It("should not consider the Node to be initialized when all ephemeralTaints aren't removed", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -490,7 +490,7 @@ var _ = Describe("Initialization", func() {
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineInitialized).Status).To(Equal(v1.ConditionFalse))
 	})
 	It("should consider the Node to be initialized once the ephemeralTaints are removed", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -562,7 +562,7 @@ var _ = Describe("Initialization", func() {
 		node.Spec.Taints = []v1.Taint{}
 		ExpectApplied(ctx, env.Client, node)
 
-		// Machine should now be ready since all startup taints are removed
+		// NodeClaim should now be ready since all startup taints are removed
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
 		Expect(ExpectStatusConditionExists(machine, v1alpha5.MachineRegistered).Status).To(Equal(v1.ConditionTrue))

@@ -33,8 +33,8 @@ var _ = Describe("Registration", func() {
 	BeforeEach(func() {
 		provisioner = test.Provisioner()
 	})
-	It("should match the Machine to the Node when the Node comes online", func() {
-		machine := test.Machine(v1alpha5.Machine{
+	It("should match the NodeClaim to the Node when the Node comes online", func() {
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -54,7 +54,7 @@ var _ = Describe("Registration", func() {
 		Expect(machine.Status.NodeName).To(Equal(node.Name))
 	})
 	It("should add the owner reference to the Node when the Node comes online", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -110,7 +110,7 @@ var _ = Describe("Registration", func() {
 		Expect(node.Labels).To(HaveKeyWithValue(v1alpha5.LabelNodeRegistered, "true"))
 	})
 	It("should sync the labels to the Node when the Node comes online", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -130,13 +130,13 @@ var _ = Describe("Registration", func() {
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		node = ExpectExists(ctx, env.Client, node)
 
-		// Expect Node to have all the labels that the Machine has
+		// Expect Node to have all the labels that the NodeClaim has
 		for k, v := range machine.Labels {
 			Expect(node.Labels).To(HaveKeyWithValue(k, v))
 		}
 	})
 	It("should sync the annotations to the Node when the Node comes online", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -158,13 +158,13 @@ var _ = Describe("Registration", func() {
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		node = ExpectExists(ctx, env.Client, node)
 
-		// Expect Node to have all the annotations that the Machine has
+		// Expect Node to have all the annotations that the NodeClaim has
 		for k, v := range machine.Annotations {
 			Expect(node.Annotations).To(HaveKeyWithValue(k, v))
 		}
 	})
 	It("should sync the taints to the Node when the Node comes online", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -220,7 +220,7 @@ var _ = Describe("Registration", func() {
 		))
 	})
 	It("should sync the startupTaints to the Node when the Node comes online", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
@@ -298,7 +298,7 @@ var _ = Describe("Registration", func() {
 		))
 	})
 	It("should not re-sync the startupTaints to the Node when the startupTaints are removed", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,

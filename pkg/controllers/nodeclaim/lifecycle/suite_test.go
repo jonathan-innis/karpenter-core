@@ -34,7 +34,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/settings"
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider/fake"
-	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
+	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/lifecycle"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
 	"github.com/aws/karpenter-core/pkg/operator/scheme"
@@ -52,7 +52,7 @@ var cloudProvider *fake.CloudProvider
 func TestAPIs(t *testing.T) {
 	ctx = TestContextWithLogger(t)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Machine")
+	RunSpecs(t, "NodeClaim")
 }
 
 var _ = BeforeSuite(func() {
@@ -85,7 +85,7 @@ var _ = Describe("Finalizer", func() {
 		provisioner = test.Provisioner()
 	})
 	It("should add the finalizer if it doesn't exist", func() {
-		machine := test.Machine(v1alpha5.Machine{
+		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,

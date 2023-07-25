@@ -147,7 +147,7 @@ func (s *ProvisionerSpec) validateTaints() (errs *apis.FieldError) {
 func (s *ProvisionerSpec) validateTaintsField(taints []v1.Taint, existing map[taintKeyEffect]struct{}, fieldName string) *apis.FieldError {
 	var errs *apis.FieldError
 	for i, taint := range taints {
-		// Validate Key
+		// Validate OwnerKey
 		if len(taint.Key) == 0 {
 			errs = errs.Also(apis.ErrInvalidArrayValue(errs, fieldName, i))
 		}
@@ -167,10 +167,10 @@ func (s *ProvisionerSpec) validateTaintsField(taints []v1.Taint, existing map[ta
 			errs = errs.Also(apis.ErrInvalidArrayValue(taint.Effect, "effect", i))
 		}
 
-		// Check for duplicate Key/Effect pairs
+		// Check for duplicate OwnerKey/Effect pairs
 		key := taintKeyEffect{Key: taint.Key, Effect: taint.Effect}
 		if _, ok := existing[key]; ok {
-			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("duplicate taint Key/Effect pair %s=%s", taint.Key, taint.Effect), apis.CurrentField).
+			errs = errs.Also(apis.ErrGeneric(fmt.Sprintf("duplicate taint OwnerKey/Effect pair %s=%s", taint.Key, taint.Effect), apis.CurrentField).
 				ViaFieldIndex("taints", i))
 		}
 		existing[key] = struct{}{}
@@ -235,11 +235,11 @@ func (kc *KubeletConfiguration) validateEvictionSoftPairs() (errs *apis.FieldErr
 
 	evictionSoftDiff := evictionSoftKeys.Difference(evictionSoftGracePeriodKeys)
 	for k := range evictionSoftDiff {
-		errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoft", "Key does not have a matching evictionSoftGracePeriod"))
+		errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoft", "OwnerKey does not have a matching evictionSoftGracePeriod"))
 	}
 	evictionSoftGracePeriodDiff := evictionSoftGracePeriodKeys.Difference(evictionSoftKeys)
 	for k := range evictionSoftGracePeriodDiff {
-		errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoftGracePeriod", "Key does not have a matching evictionSoft threshold value"))
+		errs = errs.Also(apis.ErrInvalidKeyName(k, "evictionSoftGracePeriod", "OwnerKey does not have a matching evictionSoft threshold value"))
 	}
 	return errs
 }

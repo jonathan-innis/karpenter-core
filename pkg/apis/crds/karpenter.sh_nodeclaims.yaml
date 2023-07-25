@@ -262,6 +262,8 @@ spec:
                   - key
                   type: object
                 type: array
+            required:
+            - nodeClass
             type: object
           status:
             description: NodeClaimStatus defines the observed state of NodeClaim
@@ -319,6 +321,9 @@ spec:
                   - type
                   type: object
                 type: array
+              nodeName:
+                description: NodeName is the name of the corresponding node object
+                type: string
               providerID:
                 description: ProviderID of the corresponding node object
                 type: string
