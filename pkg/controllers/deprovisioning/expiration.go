@@ -34,7 +34,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 // Expiration is a subreconciler that deletes empty nodes.

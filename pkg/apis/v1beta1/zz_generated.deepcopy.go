@@ -168,8 +168,8 @@ func (in *NodeClaimSpec) DeepCopyInto(out *NodeClaimSpec) {
 		}
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
-	if in.NodeTemplateRef != nil {
-		in, out := &in.NodeTemplateRef, &out.NodeTemplateRef
+	if in.NodeClass != nil {
+		in, out := &in.NodeClass, &out.NodeClass
 		*out = new(NodeClassRef)
 		**out = **in
 	}
@@ -299,13 +299,13 @@ func (in *NodePoolList) DeepCopyObject() runtime.Object {
 func (in *NodePoolSpec) DeepCopyInto(out *NodePoolSpec) {
 	*out = *in
 	in.Template.DeepCopyInto(&out.Template)
-	if in.TTLAfterUnderutilized != nil {
-		in, out := &in.TTLAfterUnderutilized, &out.TTLAfterUnderutilized
+	if in.ConsolidationTTL != nil {
+		in, out := &in.ConsolidationTTL, &out.ConsolidationTTL
 		*out = new(metav1.Duration)
 		**out = **in
 	}
-	if in.TTLUntilExpired != nil {
-		in, out := &in.TTLUntilExpired, &out.TTLUntilExpired
+	if in.ExpirationTTL != nil {
+		in, out := &in.ExpirationTTL, &out.ExpirationTTL
 		*out = new(metav1.Duration)
 		**out = **in
 	}

@@ -39,8 +39,11 @@ type NodeClaimSpec struct {
 	Requirements []v1.NodeSelectorRequirement `json:"requirements,omitempty"`
 	// Resources models the resource requirements for the NodeClaim to launch
 	Resources ResourceRequirements `json:"resources,omitempty"`
-	// NodeTemplateRef is a reference to an object that defines provider specific configuration
-	NodeTemplateRef *NodeClassRef `json:"nodeTemplateRef,omitempty"`
+	// KubeletConfiguration are options passed to the kubelet when provisioning nodes
+	// +optional
+	KubeletConfiguration *KubeletConfiguration `json:"kubeletConfiguration,omitempty"`
+	// NodeClass is a reference to an object that defines provider specific configuration
+	NodeClass *NodeClassRef `json:"nodeClass,omitempty"`
 }
 
 func KubeletAnnotation(k *v1alpha5.KubeletConfiguration) map[string]string {
@@ -57,6 +60,71 @@ func ProviderAnnotation(p *v1alpha5.Provider) map[string]string {
 	}
 	raw := lo.Must(json.Marshal(p)) // Provider should already have been validated so this shouldn't fail
 	return map[string]string{ProviderCompatabilityAnnotationKey: string(raw)}
+}
+
+// KubeletConfiguration defines args to be used when configuring kubelet on provisioned nodes.
+// They are a subset of the upstream types, recognizing not all options may be supported.
+// Wherever possible, the types and names should reflect the upstream kubelet types.
+// https://pkg.go.dev/k8s.io/kubelet/config/v1beta1#KubeletConfiguration
+// https://github.com/kubernetes/kubernetes/blob/9f82d81e55cafdedab619ea25cabf5d42736dacf/cmd/kubelet/app/options/options.go#L53
+type KubeletConfiguration struct {
+	// clusterDNS is a list of IP addresses for the cluster DNS server.
+	// Note that not all providers may use all addresses.
+	//+optional
+	ClusterDNS []string `json:"clusterDNS,omitempty"`
+	// ContainerRuntime is the container runtime to be used with your worker nodes.
+	// +optional
+	ContainerRuntime *string `json:"containerRuntime,omitempty"`
+	// MaxPods is an override for the maximum number of pods that can run on
+	// a worker node instance.
+	// +kubebuilder:validation:Minimum:=0
+	// +optional
+	MaxPods *int32 `json:"maxPods,omitempty"`
+	// PodsPerCore is an override for the number of pods that can run on a worker node
+	// instance based on the number of cpu cores. This value cannot exceed MaxPods, so, if
+	// MaxPods is a lower value, that value will be used.
+	// +kubebuilder:validation:Minimum:=0
+	// +optional
+	PodsPerCore *int32 `json:"podsPerCore,omitempty"`
+	// SystemReserved contains resources reserved for OS system daemons and kernel memory.
+	// +optional
+	SystemReserved v1.ResourceList `json:"systemReserved,omitempty"`
+	// KubeReserved contains resources reserved for Kubernetes system components.
+	// +optional
+	KubeReserved v1.ResourceList `json:"kubeReserved,omitempty"`
+	// EvictionHard is the map of signal names to quantities that define hard eviction thresholds
+	// +optional
+	EvictionHard map[string]string `json:"evictionHard,omitempty"`
+	// EvictionSoft is the map of signal names to quantities that define soft eviction thresholds
+	// +optional
+	EvictionSoft map[string]string `json:"evictionSoft,omitempty"`
+	// EvictionSoftGracePeriod is the map of signal names to quantities that define grace periods for each eviction signal
+	// +optional
+	EvictionSoftGracePeriod map[string]metav1.Duration `json:"evictionSoftGracePeriod,omitempty"`
+	// EvictionMaxPodGracePeriod is the maximum allowed grace period (in seconds) to use when terminating pods in
+	// response to soft eviction thresholds being met.
+	// +optional
+	EvictionMaxPodGracePeriod *int32 `json:"evictionMaxPodGracePeriod,omitempty"`
+	// ImageGCHighThresholdPercent is the percent of disk usage after which image
+	// garbage collection is always run. The percent is calculated by dividing this
+	// field value by 100, so this field must be between 0 and 100, inclusive.
+	// When specified, the value must be greater than ImageGCLowThresholdPercent.
+	// +kubebuilder:validation:Minimum:=0
+	// +kubebuilder:validation:Maximum:=100
+	// +optional
+	ImageGCHighThresholdPercent *int32 `json:"imageGCHighThresholdPercent,omitempty"`
+	// ImageGCLowThresholdPercent is the percent of disk usage before which image
+	// garbage collection is never run. Lowest disk usage to garbage collect to.
+	// The percent is calculated by dividing this field value by 100,
+	// so the field value must be between 0 and 100, inclusive.
+	// When specified, the value must be less than imageGCHighThresholdPercent
+	// +kubebuilder:validation:Minimum:=0
+	// +kubebuilder:validation:Maximum:=100
+	// +optional
+	ImageGCLowThresholdPercent *int32 `json:"imageGCLowThresholdPercent,omitempty"`
+	// CPUCFSQuota enables CPU CFS quota enforcement for containers that specify CPU limits.
+	// +optional
+	CPUCFSQuota *bool `json:"cpuCFSQuota,omitempty"`
 }
 
 type NodeClassRef struct {

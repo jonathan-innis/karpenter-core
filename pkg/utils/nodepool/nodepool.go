@@ -39,10 +39,10 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 					Labels:      provisioner.Labels,
 				},
 				Spec: v1beta1.NodeClaimSpec{
-					Taints:          provisioner.Spec.Taints,
-					StartupTaints:   provisioner.Spec.StartupTaints,
-					Requirements:    provisioner.Spec.Requirements,
-					NodeTemplateRef: NewNodeTemplateRef(provisioner.Spec.ProviderRef),
+					Taints:        provisioner.Spec.Taints,
+					StartupTaints: provisioner.Spec.StartupTaints,
+					Requirements:  provisioner.Spec.Requirements,
+					NodeClass:     NewNodeClassRef(provisioner.Spec.ProviderRef),
 				},
 			},
 			Weight: provisioner.Spec.Weight,
@@ -50,10 +50,10 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 	}
 	np.Name = fmt.Sprintf("provisioner/%s", np.Name) // Use this to uniquely identify a Provisioner from a MachineGroup
 	if provisioner.Spec.TTLSecondsAfterEmpty != nil {
-		np.Spec.TTLAfterUnderutilized = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
+		np.Spec.ConsolidationTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
 	}
 	if provisioner.Spec.TTLSecondsUntilExpired != nil {
-		np.Spec.TTLUntilExpired = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
+		np.Spec.ExpirationTTL = &metav1.Duration{Duration: lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))}
 	}
 	if provisioner.Spec.Consolidation != nil {
 		np.Spec.Consolidation = &v1beta1.Consolidation{
@@ -66,7 +66,7 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 	return np
 }
 
-func NewNodeTemplateRef(pr *v1alpha5.MachineTemplateRef) *v1beta1.NodeClassRef {
+func NewNodeClassRef(pr *v1alpha5.MachineTemplateRef) *v1beta1.NodeClassRef {
 	if pr == nil {
 		return nil
 	}
@@ -142,11 +142,4 @@ func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1b
 	}
 	nodePoolList.Items = append(nodePoolList.Items, convertedNodePools...)
 	return nodePoolList, nil
-}
-
-func ToMachine(np *v1beta1.NodePool) *v1beta1.NodeClaim {
-	return &v1beta1.NodeClaim{
-		ObjectMeta: np.Spec.Template.ObjectMeta,
-		Spec:       np.Spec.Template.Spec,
-	}
 }

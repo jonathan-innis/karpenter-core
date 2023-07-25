@@ -22,17 +22,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	"github.com/aws/karpenter-core/pkg/controllers/consistency"
-	"github.com/aws/karpenter-core/pkg/controllers/counter"
-	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	machinedisruption "github.com/aws/karpenter-core/pkg/controllers/machine/disruption"
 	machinegarbagecollection "github.com/aws/karpenter-core/pkg/controllers/machine/garbagecollection"
 	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
 	machinetermination "github.com/aws/karpenter-core/pkg/controllers/machine/termination"
-	metricspod "github.com/aws/karpenter-core/pkg/controllers/metrics/pod"
-	metricsprovisioner "github.com/aws/karpenter-core/pkg/controllers/metrics/provisioner"
-	metricsstate "github.com/aws/karpenter-core/pkg/controllers/metrics/state"
-	coreprovisioner "github.com/aws/karpenter-core/pkg/controllers/provisioner"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/controllers/state/informer"
@@ -57,21 +50,20 @@ func NewControllers(
 
 	return []controller.Controller{
 		provisioner,
-		metricsstate.NewController(cluster),
-		deprovisioning.NewController(clock, kubeClient, provisioner, cloudProvider, recorder, cluster),
+		//metricsstate.NewController(cluster),
+		//deprovisioning.NewController(clock, kubeClient, provisioner, cloudProvider, recorder, cluster),
 		provisioning.NewController(kubeClient, provisioner, recorder),
-		coreprovisioner.NewController(kubeClient),
 		informer.NewDaemonSetController(kubeClient, cluster),
 		informer.NewNodeController(kubeClient, cluster),
 		informer.NewPodController(kubeClient, cluster),
 		informer.NewProvisionerController(kubeClient, cluster),
 		informer.NewMachineController(kubeClient, cluster),
 		termination.NewController(kubeClient, cloudProvider, terminator, recorder),
-		metricspod.NewController(kubeClient),
-		metricsprovisioner.NewController(kubeClient),
-		counter.NewController(kubeClient, cluster),
-		consistency.NewController(clock, kubeClient, recorder, cloudProvider),
-		machinelifecycle.NewController(clock, kubeClient, cloudProvider, recorder),
+		//metricspod.NewController(kubeClient),
+		//metricsprovisioner.NewController(kubeClient),
+		//counter.NewController(kubeClient, cluster),
+		//consistency.NewController(clock, kubeClient, recorder, cloudProvider),
+		machinelifecycle.NewController(clock, kubeClient, cloudProvider),
 		machinegarbagecollection.NewController(clock, kubeClient, cloudProvider),
 		machinetermination.NewController(kubeClient, cloudProvider),
 		machinedisruption.NewController(clock, kubeClient, cluster, cloudProvider),

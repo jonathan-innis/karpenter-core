@@ -38,7 +38,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 var _ corecontroller.FinalizingTypedController[*v1alpha5.Machine] = (*Controller)(nil)
@@ -72,7 +72,7 @@ func (c *Controller) Finalize(ctx context.Context, machine *v1alpha5.Machine) (r
 	if !controllerutil.ContainsFinalizer(machine, v1alpha5.TerminationFinalizer) {
 		return reconcile.Result{}, nil
 	}
-	nodes, err := machineutil.AllNodesForMachine(ctx, c.kubeClient, machine)
+	nodes, err := machineutil.AllNodesForNodeClaim(ctx, c.kubeClient, machine)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

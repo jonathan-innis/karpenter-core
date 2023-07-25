@@ -278,9 +278,9 @@ package v1beta1
 //			}
 //		})
 //	})
-//	Context("Kubelet", func() {
+//	Context("KubeletConfiguration", func() {
 //		It("should fail on kubeReserved with invalid keys", func() {
-//			provisioner.Spec.KubeletConfiguration = &Kubelet{
+//			provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //				KubeReserved: v1.ResourceList{
 //					v1.ResourcePods: resource.MustParse("2"),
 //				},
@@ -288,7 +288,7 @@ package v1beta1
 //			Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //		})
 //		It("should fail on systemReserved with invalid keys", func() {
-//			provisioner.Spec.KubeletConfiguration = &Kubelet{
+//			provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //				SystemReserved: v1.ResourceList{
 //					v1.ResourcePods: resource.MustParse("2"),
 //				},
@@ -298,7 +298,7 @@ package v1beta1
 //		Context("Eviction Signals", func() {
 //			Context("Eviction Hard", func() {
 //				It("should succeed on evictionHard with valid keys", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						EvictionHard: map[string]string{
 //							"memory.available":   "5%",
 //							"nodefs.available":   "10%",
@@ -311,7 +311,7 @@ package v1beta1
 //					Expect(provisioner.Validate(ctx)).To(Succeed())
 //				})
 //				It("should fail on evictionHard with invalid keys", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						EvictionHard: map[string]string{
 //							"memory": "5%",
 //						},
@@ -319,7 +319,7 @@ package v1beta1
 //					Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //				})
 //				It("should fail on invalid formatted percentage value in evictionHard", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						EvictionHard: map[string]string{
 //							"memory.available": "5%3",
 //						},
@@ -327,7 +327,7 @@ package v1beta1
 //					Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //				})
 //				It("should fail on invalid percentage value (too large) in evictionHard", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						EvictionHard: map[string]string{
 //							"memory.available": "110%",
 //						},
@@ -335,7 +335,7 @@ package v1beta1
 //					Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //				})
 //				It("should fail on invalid quantity value in evictionHard", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						EvictionHard: map[string]string{
 //							"memory.available": "110GB",
 //						},
@@ -346,7 +346,7 @@ package v1beta1
 //		})
 //		Context("Eviction Soft", func() {
 //			It("should succeed on evictionSoft with valid keys", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory.available":   "5%",
 //						"nodefs.available":   "10%",
@@ -367,7 +367,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).To(Succeed())
 //			})
 //			It("should fail on evictionSoft with invalid keys", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory": "5%",
 //					},
@@ -378,7 +378,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			})
 //			It("should fail on invalid formatted percentage value in evictionSoft", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory.available": "5%3",
 //					},
@@ -389,7 +389,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			})
 //			It("should fail on invalid percentage value (too large) in evictionSoft", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory.available": "110%",
 //					},
@@ -400,7 +400,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			})
 //			It("should fail on invalid quantity value in evictionSoft", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory.available": "110GB",
 //					},
@@ -411,7 +411,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			})
 //			It("should fail when eviction soft doesn't have matching grace period", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory.available": "200Mi",
 //					},
@@ -422,13 +422,13 @@ package v1beta1
 //		Context("GCThresholdPercent", func() {
 //			Context("ImageGCHighThresholdPercent", func() {
 //				It("should succeed on a imageGCHighThresholdPercent", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						ImageGCHighThresholdPercent: ptr.Int32(10),
 //					}
 //					Expect(provisioner.Validate(ctx)).To(Succeed())
 //				})
 //				It("should fail when imageGCHighThresholdPercent is less than imageGCLowThresholdPercent", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						ImageGCHighThresholdPercent: ptr.Int32(50),
 //						ImageGCLowThresholdPercent:  ptr.Int32(60),
 //					}
@@ -437,13 +437,13 @@ package v1beta1
 //			})
 //			Context("ImageGCLowThresholdPercent", func() {
 //				It("should succeed on a imageGCLowThresholdPercent", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						ImageGCLowThresholdPercent: ptr.Int32(10),
 //					}
 //					Expect(provisioner.Validate(ctx)).To(Succeed())
 //				})
 //				It("should fail when imageGCLowThresholdPercent is greather than imageGCHighThresheldPercent", func() {
-//					provisioner.Spec.KubeletConfiguration = &Kubelet{
+//					provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //						ImageGCHighThresholdPercent: ptr.Int32(50),
 //						ImageGCLowThresholdPercent:  ptr.Int32(60),
 //					}
@@ -453,7 +453,7 @@ package v1beta1
 //		})
 //		Context("Eviction Soft Grace Period", func() {
 //			It("should succeed on evictionSoftGracePeriod with valid keys", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoft: map[string]string{
 //						"memory.available":   "5%",
 //						"nodefs.available":   "10%",
@@ -474,7 +474,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).To(Succeed())
 //			})
 //			It("should fail on evictionSoftGracePeriod with invalid keys", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoftGracePeriod: map[string]metav1.Duration{
 //						"memory": {Duration: time.Minute},
 //					},
@@ -482,7 +482,7 @@ package v1beta1
 //				Expect(provisioner.Validate(ctx)).ToNot(Succeed())
 //			})
 //			It("should fail when eviction soft grace period doesn't have matching threshold", func() {
-//				provisioner.Spec.KubeletConfiguration = &Kubelet{
+//				provisioner.Spec.KubeletConfiguration = &KubeletConfiguration{
 //					EvictionSoftGracePeriod: map[string]metav1.Duration{
 //						"memory.available": {Duration: time.Minute},
 //					},

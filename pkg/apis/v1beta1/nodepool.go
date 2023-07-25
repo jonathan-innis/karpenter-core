@@ -32,25 +32,11 @@ type NodePoolSpec struct {
 	// Machines launched from this NodePool will often be further constrained than the template specifies.
 	// +optional
 	Template NodeClaimTemplate `json:"template,omitempty"`
-	// TTLAfterUnderutilized is the duration the controller will wait
-	// before attempting to terminate nodes that are empty
-	// Termination due to under-utilization is disabled if this field is not set.
-	// This field is mutually exclusive to consolidation.enabled
+	// Deprovisioning contains the parameters that relate to Karpenter's deprovisioning logic
 	// +optional
-	TTLAfterUnderutilized *metav1.Duration `json:"ttlAfterUnderutilized,omitempty"`
-	// TTLSecondsUntilExpired is the duration the controller will wait
-	// before terminating a machine, measured from when the machine is created. This
-	// is useful to implement features like eventually consistent machine upgrade,
-	// memory leak protection, and disruption testing.
-	//
-	// Termination due to expiration is disabled if this field is not set.
-	// +optional
-	TTLUntilExpired *metav1.Duration `json:"ttlUntilExpired,omitempty"`
-	// Consolidation are the consolidation parameters
-	// This field is mutually exclusive to ttlAfterUnderutilized
-	// +optional
-	Consolidation *Consolidation `json:"consolidation,omitempty"`
+	Deprovisioning Deprovisioning `json:"deprovisioning,omitempty"`
 	// Limits define a set of bounds for provisioning capacity.
+	// +optional
 	Limits Limits `json:"limits,omitempty"`
 	// Weight is the priority given to the provisioner during scheduling. A higher
 	// numerical weight indicates that this provisioner will be ordered
@@ -61,6 +47,31 @@ type NodePoolSpec struct {
 	// +optional
 	Weight *int32 `json:"weight,omitempty"`
 }
+
+type Deprovisioning struct {
+	// ConsolidationTTL is the duration the controller will wait
+	// before attempting to terminate nodes that are empty
+	// Termination due to under-utilization is disabled if this field is not set.
+	// This field is mutually exclusive to consolidation.enabled
+	// +optional
+	ConsolidationTTL *metav1.Duration `json:"ttlAfterUnderutilized,omitempty"`
+	// ConsolidationPolicy describes which nodes Karpenter can deprovision through its consolidation
+	// algorithm. This policy defaults to "WhenUnderutilized" if not specified
+	ConsolidationPolicy ConsolidationPolicy `json:"consolidationPolicy,omitempty"`
+	// ExpirationTTL is the duration the controller will wait
+	// before terminating a node, measured from when the node is created. This
+	// is useful to implement features like eventually consistent node upgrade,
+	// memory leak protection, and disruption testing.
+	// +optional
+	ExpirationTTL *metav1.Duration `json:"ttlUntilExpired,omitempty"`
+}
+
+type ConsolidationPolicy string
+
+const (
+	ConsolidationPolicyWhenEmpty         ConsolidationPolicy = "WhenEmpty"
+	ConsolidationPolicyWhenUnderutilized ConsolidationPolicy = "WhenUnderutilized"
+)
 
 type Limits v1.ResourceList
 

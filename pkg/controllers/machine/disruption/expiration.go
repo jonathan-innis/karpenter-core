@@ -26,7 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 // Expiration is a machine sub-controller that adds or removes status conditions on expired machines based on TTLSecondsUntilExpired
@@ -48,7 +48,7 @@ func (e *Expiration) Reconcile(ctx context.Context, provisioner *v1alpha5.Provis
 		}
 		return reconcile.Result{}, nil
 	}
-	node, err := machineutil.NodeForMachine(ctx, e.kubeClient, machine)
+	node, err := machineutil.NodeForNodeClaim(ctx, e.kubeClient, machine)
 	if machineutil.IgnoreNodeNotFoundError(machineutil.IgnoreDuplicateNodeError(err)) != nil {
 		return reconcile.Result{}, err
 	}

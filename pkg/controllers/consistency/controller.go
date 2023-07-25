@@ -36,7 +36,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/events"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 var _ corecontroller.TypedController[*v1alpha5.Machine] = (*Controller)(nil)
@@ -96,7 +96,7 @@ func (c *Controller) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (
 
 	// We assume the invariant that there is a single node for a single machine. If this invariant is violated,
 	// then we assume this is bubbled up through the machine lifecycle controller and don't perform consistency checks
-	node, err := machineutil.NodeForMachine(ctx, c.kubeClient, machine)
+	node, err := machineutil.NodeForNodeClaim(ctx, c.kubeClient, machine)
 	if err != nil {
 		return reconcile.Result{}, machineutil.IgnoreDuplicateNodeError(machineutil.IgnoreNodeNotFoundError(err))
 	}

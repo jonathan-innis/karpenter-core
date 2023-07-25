@@ -21,7 +21,7 @@ import (
 	"k8s.io/utils/clock"
 
 	"github.com/aws/karpenter-core/pkg/metrics"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 // Emptiness is a subreconciler that deletes empty machines.

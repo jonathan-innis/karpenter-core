@@ -28,8 +28,8 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
 	"github.com/aws/karpenter-core/pkg/utils/node"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 // Emptiness is a machine sub-controller that adds or removes status conditions on empty machines based on TTLSecondsAfterEmpty
@@ -61,7 +61,7 @@ func (e *Emptiness) Reconcile(ctx context.Context, provisioner *v1alpha5.Provisi
 		return reconcile.Result{}, nil
 	}
 	// Get the node to check for pods scheduled to it
-	n, err := machineutil.NodeForMachine(ctx, e.kubeClient, machine)
+	n, err := machineutil.NodeForNodeClaim(ctx, e.kubeClient, machine)
 	if err != nil {
 		// 3. If Machine -> Node mapping doesn't exist, remove the emptiness status condition
 		if machineutil.IsDuplicateNodeError(err) || machineutil.IsNodeNotFoundError(err) {
