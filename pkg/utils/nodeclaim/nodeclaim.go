@@ -171,7 +171,7 @@ func AllNodesForNodeClaim(ctx context.Context, c client.Client, nodeClaim *v1bet
 }
 
 func New(machine *v1alpha5.Machine) *v1beta1.NodeClaim {
-	nc := &v1beta1.NodeClaim{
+	return &v1beta1.NodeClaim{
 		ObjectMeta: machine.ObjectMeta,
 		Spec: v1beta1.NodeClaimSpec{
 			Taints:        machine.Spec.Taints,
@@ -181,17 +181,9 @@ func New(machine *v1alpha5.Machine) *v1beta1.NodeClaim {
 				Requests: machine.Spec.Resources.Requests,
 			},
 			KubeletConfiguration: NewKubeletConfiguration(machine.Spec.Kubelet),
+			NodeClass:            NewNodeClassRef(machine.Spec.MachineTemplateRef),
 		},
 	}
-	if machine.Spec.MachineTemplateRef != nil {
-		nc.Spec.NodeClass = &v1beta1.NodeClassRef{
-			Kind:           machine.Spec.MachineTemplateRef.Kind,
-			Name:           machine.Spec.MachineTemplateRef.Name,
-			APIVersion:     machine.Spec.MachineTemplateRef.APIVersion,
-			IsNodeTemplate: true,
-		}
-	}
-	return nc
 }
 
 func NewKubeletConfiguration(kc *v1alpha5.KubeletConfiguration) *v1beta1.KubeletConfiguration {
@@ -212,6 +204,18 @@ func NewKubeletConfiguration(kc *v1alpha5.KubeletConfiguration) *v1beta1.Kubelet
 		ImageGCHighThresholdPercent: kc.ImageGCHighThresholdPercent,
 		ImageGCLowThresholdPercent:  kc.ImageGCLowThresholdPercent,
 		CPUCFSQuota:                 kc.CPUCFSQuota,
+	}
+}
+
+func NewNodeClassRef(mtr *v1alpha5.MachineTemplateRef) *v1beta1.NodeClassRef {
+	if mtr == nil {
+		return nil
+	}
+	return &v1beta1.NodeClassRef{
+		Kind:           mtr.Kind,
+		Name:           mtr.Name,
+		APIVersion:     mtr.APIVersion,
+		IsNodeTemplate: true,
 	}
 }
 

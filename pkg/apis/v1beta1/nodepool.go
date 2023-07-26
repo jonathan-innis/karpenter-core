@@ -20,6 +20,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/ptr"
 )
 
@@ -46,7 +47,12 @@ type NodePoolSpec struct {
 	// +kubebuilder:validation:Maximum:=100
 	// +optional
 	Weight *int32 `json:"weight,omitempty"`
+	// TODO @joinnis: Add a little write-up here on what to do
+	Provider *Provider `json:"-"`
 }
+
+// +kubebuilder:object:generate=false
+type Provider = runtime.RawExtension
 
 type Deprovisioning struct {
 	// ConsolidationTTL is the duration the controller will wait
