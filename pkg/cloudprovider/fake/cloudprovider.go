@@ -139,7 +139,7 @@ func (c *CloudProvider) Get(_ context.Context, id string) (*v1alpha5.NodeClaim, 
 	if machine, ok := c.CreatedMachines[id]; ok {
 		return machine.DeepCopy(), nil
 	}
-	return nil, cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with id '%s'", id))
+	return nil, cloudprovider.NewNodeClaimNotFoundError(fmt.Errorf("no machine exists with id '%s'", id))
 }
 
 func (c *CloudProvider) List(_ context.Context) ([]*v1alpha5.NodeClaim, error) {
@@ -204,7 +204,7 @@ func (c *CloudProvider) Delete(_ context.Context, m *v1alpha5.NodeClaim) error {
 		delete(c.CreatedMachines, m.Status.ProviderID)
 		return nil
 	}
-	return cloudprovider.NewMachineNotFoundError(fmt.Errorf("no machine exists with provider id '%s'", m.Status.ProviderID))
+	return cloudprovider.NewNodeClaimNotFoundError(fmt.Errorf("no machine exists with provider id '%s'", m.Status.ProviderID))
 }
 
 func (c *CloudProvider) IsMachineDrifted(context.Context, *v1alpha5.NodeClaim) (bool, error) {

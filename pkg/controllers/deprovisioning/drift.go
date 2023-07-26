@@ -52,8 +52,8 @@ func NewDrift(kubeClient client.Client, cluster *state.Cluster, provisioner *pro
 // ShouldDeprovision is a predicate used to filter deprovisionable machines
 func (d *Drift) ShouldDeprovision(ctx context.Context, c *Candidate) bool {
 	return settings.FromContext(ctx).DriftEnabled &&
-		c.Machine.StatusConditions().GetCondition(v1alpha5.MachineDrifted) != nil &&
-		c.Machine.StatusConditions().GetCondition(v1alpha5.MachineDrifted).IsTrue()
+		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineDrifted) != nil &&
+		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineDrifted).IsTrue()
 }
 
 // ComputeCommand generates a deprovisioning command given deprovisionable machines
@@ -85,7 +85,7 @@ func (d *Drift) ComputeCommand(ctx context.Context, nodes ...*Candidate) (Comman
 		}
 		// Log when all pods can't schedule, as the command will get executed immediately.
 		if !results.AllPodsScheduled() {
-			logging.FromContext(ctx).With("machine", candidate.Machine.Name, "node", candidate.Node.Name).Debug("Continuing to terminate drifted machine after scheduling simulation failed to schedule all pods %s", results.PodSchedulingErrors())
+			logging.FromContext(ctx).With("machine", candidate.NodeClaim.Name, "node", candidate.Node.Name).Debug("Continuing to terminate drifted machine after scheduling simulation failed to schedule all pods %s", results.PodSchedulingErrors())
 		}
 		if len(results.NewNodeClaims) == 0 {
 			return Command{

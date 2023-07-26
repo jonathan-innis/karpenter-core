@@ -35,7 +35,7 @@ const (
 	// MetricLabelErrorDefaultVal is the default string value that represents "error type unknown"
 	MetricLabelErrorDefaultVal = ""
 	// Well-known metricLabelError values
-	MachineNotFoundError      = "MachineNotFoundError"
+	MachineNotFoundError      = "NodeClaimNotFoundError"
 	InsufficientCapacityError = "InsufficientCapacityError"
 )
 
@@ -178,7 +178,7 @@ func getLabelsMapForError(ctx context.Context, d *decorator, method string, err 
 func GetErrorTypeLabelValue(err error) string {
 	if cloudprovider.IsInsufficientCapacityError(err) {
 		return InsufficientCapacityError
-	} else if cloudprovider.IsMachineNotFoundError(err) {
+	} else if cloudprovider.IsNodeClaimNotFoundError(err) {
 		return MachineNotFoundError
 	}
 	return MetricLabelErrorDefaultVal

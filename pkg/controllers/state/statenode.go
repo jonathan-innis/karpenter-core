@@ -70,8 +70,8 @@ func (n StateNodes) Pods(ctx context.Context, c client.Client) ([]*v1.Pod, error
 // +k8s:deepcopy-gen=true
 // nolint: revive
 type StateNode struct {
-	Node    *v1.Node
-	Machine *v1beta1.NodeClaim
+	Node      *v1.Node
+	NodeClaim *v1beta1.NodeClaim
 
 	inflightAllocatable v1.ResourceList // TODO @joinnis: This can be removed when machine is added
 	inflightCapacity    v1.ResourceList // TODO @joinnis: This can be removed when machine is added
@@ -120,15 +120,15 @@ func (in *StateNode) OwnerKey() lo.Tuple2[string, bool] {
 
 func (in *StateNode) Name() string {
 	if in.Node == nil {
-		return in.Machine.Name
+		return in.NodeClaim.Name
 	}
-	if in.Machine == nil {
+	if in.NodeClaim == nil {
 		return in.Node.Name
 	}
 	// TODO @joinnis: The !in.Initialized() check can be removed when we can assume that all nodes have the v1alpha5.NodeRegisteredLabel on them
 	// We can assume that all nodes will have this label and no back-propagation will be required once we hit v1
 	if !in.Registered() && !in.Initialized() {
-		return in.Machine.Name
+		return in.NodeClaim.Name
 	}
 	return in.Node.Name
 }
@@ -152,15 +152,15 @@ func (in *StateNode) Annotations() map[string]string {
 	// If the machine exists and the state node isn't initialized
 	// use the machine representation of the annotations
 	if in.Node == nil {
-		return in.Machine.Annotations
+		return in.NodeClaim.Annotations
 	}
-	if in.Machine == nil {
+	if in.NodeClaim == nil {
 		return in.Node.Annotations
 	}
 	// TODO @joinnis: The !in.Initialized() check can be removed when we can assume that all nodes have the v1alpha5.NodeRegisteredLabel on them
 	// We can assume that all nodes will have this label and no back-propagation will be required once we hit v1
 	if !in.Registered() && !in.Initialized() {
-		return in.Machine.Annotations
+		return in.NodeClaim.Annotations
 	}
 	return in.Node.Annotations
 }
@@ -169,15 +169,15 @@ func (in *StateNode) Labels() map[string]string {
 	// If the machine exists and the state node isn't registered
 	// use the machine representation of the labels
 	if in.Node == nil {
-		return in.Machine.Labels
+		return in.NodeClaim.Labels
 	}
-	if in.Machine == nil {
+	if in.NodeClaim == nil {
 		return in.Node.Labels
 	}
 	// TODO @joinnis: The !in.Initialized() check can be removed when we can assume that all nodes have the v1alpha5.NodeRegisteredLabel on them
 	// We can assume that all nodes will have this label and no back-propagation will be required once we hit v1
 	if !in.Registered() && !in.Initialized() {
-		return in.Machine.Labels
+		return in.NodeClaim.Labels
 	}
 	return in.Node.Labels
 }
@@ -188,8 +188,8 @@ func (in *StateNode) Taints() []v1.Taint {
 	// schedule against the node in the future incorrectly.
 	ephemeralTaints := scheduling.KnownEphemeralTaints
 	if !in.Initialized() && in.Owned() {
-		if in.Machine != nil {
-			ephemeralTaints = append(ephemeralTaints, in.Machine.Spec.StartupTaints...)
+		if in.NodeClaim != nil {
+			ephemeralTaints = append(ephemeralTaints, in.NodeClaim.Spec.StartupTaints...)
 		} else {
 			ephemeralTaints = append(ephemeralTaints, in.startupTaints...)
 		}
@@ -198,8 +198,8 @@ func (in *StateNode) Taints() []v1.Taint {
 	var taints []v1.Taint
 	// TODO @joinnis: The !in.Initialized() check can be removed when we can assume that all nodes have the v1alpha5.NodeRegisteredLabel on them
 	// We can assume that all nodes will have this label and no back-propagation will be required once we hit v1
-	if !in.Registered() && !in.Initialized() && in.Machine != nil {
-		taints = in.Machine.Spec.Taints
+	if !in.Registered() && !in.Initialized() && in.NodeClaim != nil {
+		taints = in.NodeClaim.Spec.Taints
 	} else {
 		taints = in.Node.Spec.Taints
 	}
@@ -220,24 +220,24 @@ func (in *StateNode) Registered() bool {
 
 func (in *StateNode) Initialized() bool {
 	if in.Node != nil {
-		return in.Node.Labels[v1alpha5.LabelNodeInitialized] == "true"
+		return in.Node.Labels[v1beta1.LabelNodeInitialized] == "true"
 	}
 	return false
 }
 
 func (in *StateNode) Capacity() v1.ResourceList {
-	if !in.Initialized() && in.Machine != nil {
+	if !in.Initialized() && in.NodeClaim != nil {
 		// Override any zero quantity values in the node status
 		if in.Node != nil {
 			ret := lo.Assign(in.Node.Status.Capacity)
-			for resourceName, quantity := range in.Machine.Status.Capacity {
+			for resourceName, quantity := range in.NodeClaim.Status.Capacity {
 				if resources.IsZero(ret[resourceName]) {
 					ret[resourceName] = quantity
 				}
 			}
 			return ret
 		}
-		return in.Machine.Status.Capacity
+		return in.NodeClaim.Status.Capacity
 	}
 	// TODO @joinnis: Remove this when machine migration is complete
 	if !in.Initialized() && in.Owned() {
@@ -254,18 +254,18 @@ func (in *StateNode) Capacity() v1.ResourceList {
 }
 
 func (in *StateNode) Allocatable() v1.ResourceList {
-	if !in.Initialized() && in.Machine != nil {
+	if !in.Initialized() && in.NodeClaim != nil {
 		// Override any zero quantity values in the node status
 		if in.Node != nil {
 			ret := lo.Assign(in.Node.Status.Allocatable)
-			for resourceName, quantity := range in.Machine.Status.Allocatable {
+			for resourceName, quantity := range in.NodeClaim.Status.Allocatable {
 				if resources.IsZero(ret[resourceName]) {
 					ret[resourceName] = quantity
 				}
 			}
 			return ret
 		}
-		return in.Machine.Status.Allocatable
+		return in.NodeClaim.Status.Allocatable
 	}
 	// TODO @joinnis: Remove this when machine migration is complete
 	if !in.Initialized() && in.Owned() {
@@ -320,8 +320,8 @@ func (in *StateNode) MarkedForDeletion() bool {
 	//  2. The Node has a NodeClaim counterpart and is actively deleting
 	//  3. The Node has no NodeClaim counterpart and is actively deleting
 	return in.markedForDeletion ||
-		(in.Machine != nil && !in.Machine.DeletionTimestamp.IsZero()) ||
-		(in.Node != nil && in.Machine == nil && !in.Node.DeletionTimestamp.IsZero())
+		(in.NodeClaim != nil && !in.NodeClaim.DeletionTimestamp.IsZero()) ||
+		(in.Node != nil && in.NodeClaim == nil && !in.Node.DeletionTimestamp.IsZero())
 }
 
 func (in *StateNode) Nominate(ctx context.Context) {
@@ -333,7 +333,9 @@ func (in *StateNode) Nominated() bool {
 }
 
 func (in *StateNode) Owned() bool {
-	return in.Labels()[v1alpha5.ProvisionerNameLabelKey] != ""
+	return in.Labels()[v1beta1.NodePoolLabelKey] != "" ||
+		in.Labels()[v1alpha5.ProvisionerNameLabelKey] != ""
+
 }
 
 func (in *StateNode) updateForPod(ctx context.Context, kubeClient client.Client, pod *v1.Pod) {

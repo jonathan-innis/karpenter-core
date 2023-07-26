@@ -184,9 +184,9 @@ func (c *Controller) executeCommand(ctx context.Context, d Deprovisioner, comman
 	}
 
 	for _, candidate := range command.candidates {
-		c.recorder.Publish(deprovisioningevents.Terminating(candidate.Node, candidate.Machine, command.String())...)
+		c.recorder.Publish(deprovisioningevents.Terminating(candidate.Node, candidate.NodeClaim, command.String())...)
 
-		if err := c.kubeClient.Delete(ctx, candidate.Machine); err != nil {
+		if err := c.kubeClient.Delete(ctx, candidate.NodeClaim); err != nil {
 			if errors.IsNotFound(err) {
 				continue
 			}
@@ -202,7 +202,7 @@ func (c *Controller) executeCommand(ctx context.Context, d Deprovisioner, comman
 	// We wait for nodes to delete to ensure we don't start another round of deprovisioning until this node is fully
 	// deleted.
 	for _, oldCandidate := range command.candidates {
-		c.waitForDeletion(ctx, oldCandidate.Machine)
+		c.waitForDeletion(ctx, oldCandidate.NodeClaim)
 	}
 	return nil
 }

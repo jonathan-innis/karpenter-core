@@ -36,8 +36,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/scheduling"
+	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 	podutils "github.com/aws/karpenter-core/pkg/utils/pod"
 	"github.com/aws/karpenter-core/pkg/utils/sets"
 )
@@ -204,23 +206,23 @@ func (c *Cluster) MarkForDeletion(names ...string) {
 	}
 }
 
-func (c *Cluster) UpdateMachine(machine *v1alpha5.NodeClaim) {
+func (c *Cluster) UpdateNodeClaim(nodeClaim *v1beta1.NodeClaim) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if machine.Status.ProviderID == "" {
+	if nodeClaim.Status.ProviderID == "" {
 		return // We can't reconcile machines that don't yet have provider ids
 	}
-	n := c.newStateFromMachine(machine, c.nodes[machine.Status.ProviderID])
-	c.nodes[machine.Status.ProviderID] = n
-	c.nameToProviderID[machine.Name] = machine.Status.ProviderID
+	n := c.newStateFromNodeClaim(nodeClaim, c.nodes[nodeClaim.Status.ProviderID])
+	c.nodes[nodeClaim.Status.ProviderID] = n
+	c.nameToProviderID[nodeClaim.Name] = nodeClaim.Status.ProviderID
 }
 
-func (c *Cluster) DeleteMachine(name string) {
+func (c *Cluster) DeleteNodeClaim(name string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.cleanupMachine(name)
+	c.cleanupNodeClaim(name)
 }
 
 func (c *Cluster) UpdateNode(ctx context.Context, node *v1.Node) error {
@@ -349,13 +351,13 @@ func (c *Cluster) DeleteDaemonSet(key types.NamespacedName) {
 // and explicitly modifying the cluster state. If you do not hold the cluster state lock before calling any of these helpers
 // you will hit race conditions and data corruption
 
-func (c *Cluster) newStateFromMachine(machine *v1alpha5.NodeClaim, oldNode *StateNode) *StateNode {
+func (c *Cluster) newStateFromNodeClaim(nodeClaim *v1beta1.NodeClaim, oldNode *StateNode) *StateNode {
 	if oldNode == nil {
 		oldNode = NewNode()
 	}
 	n := &StateNode{
 		Node:              oldNode.Node,
-		Machine:           machine,
+		NodeClaim:         nodeClaim,
 		hostPortUsage:     oldNode.hostPortUsage,
 		volumeUsage:       oldNode.volumeUsage,
 		daemonSetRequests: oldNode.daemonSetRequests,
@@ -365,22 +367,22 @@ func (c *Cluster) newStateFromMachine(machine *v1alpha5.NodeClaim, oldNode *Stat
 		markedForDeletion: oldNode.markedForDeletion,
 		nominatedUntil:    oldNode.nominatedUntil,
 	}
-	// Cleanup the old machine with its old providerID if its providerID changes
+	// Cleanup the old nodeClaim with its old providerID if its providerID changes
 	// This can happen since nodes don't get created with providerIDs. Rather, CCM picks up the
 	// created node and injects the providerID into the spec.providerID
-	if id, ok := c.nameToProviderID[machine.Name]; ok && id != machine.Status.ProviderID {
-		c.cleanupMachine(machine.Name)
+	if id, ok := c.nameToProviderID[nodeClaim.Name]; ok && id != nodeClaim.Status.ProviderID {
+		c.cleanupNodeClaim(nodeClaim.Name)
 	}
 	c.triggerConsolidationOnChange(oldNode, n)
 	return n
 }
 
-func (c *Cluster) cleanupMachine(name string) {
+func (c *Cluster) cleanupNodeClaim(name string) {
 	if id := c.nameToProviderID[name]; id != "" {
 		if c.nodes[id].Node == nil {
 			delete(c.nodes, id)
 		} else {
-			c.nodes[id].Machine = nil
+			c.nodes[id].NodeClaim = nil
 		}
 		delete(c.nameToProviderID, name)
 		c.MarkUnconsolidated()
@@ -393,7 +395,7 @@ func (c *Cluster) newStateFromNode(ctx context.Context, node *v1.Node, oldNode *
 	}
 	n := &StateNode{
 		Node:                node,
-		Machine:             oldNode.Machine,
+		NodeClaim:           oldNode.NodeClaim,
 		inflightAllocatable: oldNode.inflightAllocatable,
 		inflightCapacity:    oldNode.inflightCapacity,
 		startupTaints:       oldNode.startupTaints,
@@ -427,7 +429,7 @@ func (c *Cluster) newStateFromNode(ctx context.Context, node *v1.Node, oldNode *
 
 func (c *Cluster) cleanupNode(name string) {
 	if id := c.nameToProviderID[name]; id != "" {
-		if c.nodes[id].Machine == nil {
+		if c.nodes[id].NodeClaim == nil {
 			delete(c.nodes, id)
 		} else {
 			c.nodes[id].Node = nil
@@ -453,11 +455,20 @@ func (c *Cluster) populateInflight(ctx context.Context, n *StateNode) error {
 	if !n.Owned() {
 		return nil
 	}
-	provisioner := &v1alpha5.Provisioner{}
-	if err := c.kubeClient.Get(ctx, client.ObjectKey{Name: n.Labels()[v1alpha5.ProvisionerNameLabelKey]}, provisioner); err != nil {
-		return client.IgnoreNotFound(fmt.Errorf("getting provisioner, %w", err))
+	nodePool := &v1beta1.NodePool{}
+	if name := n.Labels()[v1alpha5.ProvisionerNameLabelKey]; name != "" {
+		provisioner := &v1alpha5.Provisioner{}
+		if err := c.kubeClient.Get(ctx, client.ObjectKey{Name: name}, provisioner); err != nil {
+			return client.IgnoreNotFound(fmt.Errorf("getting provisioner, %w", err))
+		}
+		nodePool = nodepoolutil.New(provisioner)
 	}
-	instanceTypes, err := c.cloudProvider.GetInstanceTypes(ctx, provisioner)
+	if name := n.Labels()[v1beta1.NodePoolLabelKey]; name != "" {
+		if err := c.kubeClient.Get(ctx, client.ObjectKey{Name: name}, nodePool); err != nil {
+			return client.IgnoreNotFound(fmt.Errorf("getting nodePool, %w", err))
+		}
+	}
+	instanceTypes, err := c.cloudProvider.GetInstanceTypes(ctx, nodePool)
 	if err != nil {
 		return err
 	}

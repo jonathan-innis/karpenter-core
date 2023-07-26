@@ -18,7 +18,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/scheduling"
 )
 
-// PodEventHandler is a watcher on v1.Pods that maps Pods to Machine based on the node names
+// PodEventHandler is a watcher on v1.Pods that maps Pods to NodeClaim based on the node names
 // and enqueues reconcile.Requests for the Machines
 func PodEventHandler(ctx context.Context, c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(o client.Object) (requests []reconcile.Request) {
@@ -59,7 +59,7 @@ func NodeEventHandler(ctx context.Context, c client.Client) handler.EventHandler
 }
 
 // ProvisionerEventHandler is a watcher on v1alpha5.Machine that maps Provisioner to Machines based
-// on the v1alpha5.ProvsionerNameLabelKey and enqueues reconcile.Requests for the Machine
+// on the v1alpha5.ProvsionerNameLabelKey and enqueues reconcile.Requests for the NodeClaim
 func ProvisionerEventHandler(ctx context.Context, c client.Client) handler.EventHandler {
 	return handler.EnqueueRequestsFromMapFunc(func(o client.Object) (requests []reconcile.Request) {
 		machineList := &v1alpha5.MachineList{}
@@ -113,6 +113,7 @@ func NewFromNode(node *v1.Node) *v1alpha5.Machine {
 			},
 		},
 		Status: v1alpha5.MachineStatus{
+			NodeName:    node.Name,
 			ProviderID:  node.Spec.ProviderID,
 			Capacity:    node.Status.Capacity,
 			Allocatable: node.Status.Allocatable,

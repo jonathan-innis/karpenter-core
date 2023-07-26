@@ -57,7 +57,7 @@ func (d *Drift) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, nodeC
 	}
 	drifted, err := d.isDrifted(ctx, nodePool, nodeClaim)
 	if err != nil {
-		return reconcile.Result{}, cloudprovider.IgnoreMachineNotFoundError(fmt.Errorf("getting drift for nodeClaim, %w", err))
+		return reconcile.Result{}, cloudprovider.IgnoreNodeClaimNotFoundError(fmt.Errorf("getting drift for nodeClaim, %w", err))
 	}
 	// 3. Otherwise, if the nodeClaim isn't drifted, but has the status condition, remove it.
 	if !drifted {

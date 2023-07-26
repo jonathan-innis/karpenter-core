@@ -25,7 +25,7 @@ import (
 )
 
 var _ = Describe("Cloudprovider", func() {
-	var machineNotFoundErr = cloudprovider.NewMachineNotFoundError(errors.New("not found"))
+	var machineNotFoundErr = cloudprovider.NewNodeClaimNotFoundError(errors.New("not found"))
 	var insufficientCapacityErr = cloudprovider.NewInsufficientCapacityError(errors.New("not enough capacity"))
 	var unknownErr = errors.New("this is an error we don't know about")
 

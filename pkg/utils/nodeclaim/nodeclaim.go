@@ -22,6 +22,7 @@ import (
 
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
+	"github.com/aws/karpenter-core/pkg/scheduling"
 )
 
 // PodEventHandler is a watcher on v1.Pods that maps Pods to NodeClaim based on the node names
@@ -211,6 +213,38 @@ func NewKubeletConfiguration(kc *v1alpha5.KubeletConfiguration) *v1beta1.Kubelet
 		ImageGCLowThresholdPercent:  kc.ImageGCLowThresholdPercent,
 		CPUCFSQuota:                 kc.CPUCFSQuota,
 	}
+}
+
+// NewFromNode converts a node into a pseudo-NodeClaim using known values from the node
+// Deprecated: This NodeClaim generator function can be removed when v1beta1 migration has completed.
+func NewFromNode(node *v1.Node) *v1beta1.NodeClaim {
+	m := &v1beta1.NodeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        node.Name,
+			Annotations: node.Annotations,
+			Labels:      node.Labels,
+			Finalizers:  []string{v1alpha5.TerminationFinalizer},
+		},
+		Spec: v1beta1.NodeClaimSpec{
+			Taints:       node.Spec.Taints,
+			Requirements: scheduling.NewLabelRequirements(node.Labels).NodeSelectorRequirements(),
+			Resources: v1beta1.ResourceRequirements{
+				Requests: node.Status.Allocatable,
+			},
+		},
+		Status: v1beta1.NodeClaimStatus{
+			NodeName:    node.Name,
+			ProviderID:  node.Spec.ProviderID,
+			Capacity:    node.Status.Capacity,
+			Allocatable: node.Status.Allocatable,
+		},
+	}
+	if _, ok := node.Labels[v1beta1.LabelNodeInitialized]; ok {
+		m.StatusConditions().MarkTrue(v1beta1.NodeInitialized)
+	}
+	m.StatusConditions().MarkTrue(v1beta1.NodeLaunched)
+	m.StatusConditions().MarkTrue(v1beta1.NodeRegistered)
+	return m
 }
 
 func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1beta1.NodeClaimList, error) {

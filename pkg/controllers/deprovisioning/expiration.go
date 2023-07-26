@@ -60,8 +60,8 @@ func NewExpiration(clk clock.Clock, kubeClient client.Client, cluster *state.Clu
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
 func (e *Expiration) ShouldDeprovision(_ context.Context, c *Candidate) bool {
 	return c.provisioner.Spec.TTLSecondsUntilExpired != nil &&
-		c.Machine.StatusConditions().GetCondition(v1alpha5.MachineExpired) != nil &&
-		c.Machine.StatusConditions().GetCondition(v1alpha5.MachineExpired).IsTrue()
+		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineExpired) != nil &&
+		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineExpired).IsTrue()
 }
 
 // SortCandidates orders expired nodes by when they've expired
@@ -71,7 +71,7 @@ func (e *Expiration) filterAndSortCandidates(ctx context.Context, nodes []*Candi
 		return nil, fmt.Errorf("filtering candidates, %w", err)
 	}
 	sort.Slice(candidates, func(i int, j int) bool {
-		return machineutil.GetExpirationTime(candidates[i].Machine, candidates[i].provisioner).Before(machineutil.GetExpirationTime(candidates[j].Machine, candidates[j].provisioner))
+		return machineutil.GetExpirationTime(candidates[i].NodeClaim, candidates[i].provisioner).Before(machineutil.GetExpirationTime(candidates[j].NodeClaim, candidates[j].provisioner))
 	})
 	return candidates, nil
 }
@@ -109,7 +109,7 @@ func (e *Expiration) ComputeCommand(ctx context.Context, nodes ...*Candidate) (C
 		}
 
 		logging.FromContext(ctx).With("ttl", time.Duration(ptr.Int64Value(candidates[0].provisioner.Spec.TTLSecondsUntilExpired))*time.Second).
-			With("delay", time.Since(machineutil.GetExpirationTime(candidates[0].Machine, candidates[0].provisioner))).Infof("triggering termination for expired node after TTL")
+			With("delay", time.Since(machineutil.GetExpirationTime(candidates[0].NodeClaim, candidates[0].provisioner))).Infof("triggering termination for expired node after TTL")
 		return Command{
 			candidates:   []*Candidate{candidate},
 			replacements: results.NewNodeClaims,

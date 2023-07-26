@@ -33,13 +33,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/termination/terminator"
 	terminatorevents "github.com/aws/karpenter-core/pkg/controllers/termination/terminator/events"
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 var _ corecontroller.FinalizingTypedController[*v1.Node] = (*Controller)(nil)
@@ -75,8 +76,13 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 	if !controllerutil.ContainsFinalizer(node, v1alpha5.TerminationFinalizer) {
 		return reconcile.Result{}, nil
 	}
+	// Cleaning up both Machines and NodeClaims associated with the Node before removing
+	// the finalizer from the Node and allowing it to terminate
 	if err := c.deleteAllMachines(ctx, node); err != nil {
 		return reconcile.Result{}, fmt.Errorf("deleting machines, %w", err)
+	}
+	if err := c.deleteAllNodeClaims(ctx, node); err != nil {
+		return reconcile.Result{}, fmt.Errorf("deleting node claims, %w", err)
 	}
 	if err := c.terminator.Cordon(ctx, node); err != nil {
 		return reconcile.Result{}, fmt.Errorf("cordoning node, %w", err)
@@ -88,7 +94,7 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 		c.recorder.Publish(terminatorevents.NodeFailedToDrain(node, err))
 		// If the underlying machine no longer exists.
 		if _, err := c.cloudProvider.Get(ctx, node.Spec.ProviderID); err != nil {
-			if cloudprovider.IsMachineNotFoundError(err) {
+			if cloudprovider.IsNodeClaimNotFoundError(err) {
 				return reconcile.Result{}, c.removeFinalizer(ctx, node)
 			}
 			return reconcile.Result{}, fmt.Errorf("getting machine, %w", err)
@@ -96,7 +102,7 @@ func (c *Controller) Finalize(ctx context.Context, node *v1.Node) (reconcile.Res
 		return reconcile.Result{RequeueAfter: 1 * time.Second}, nil
 	}
 
-	if err := c.cloudProvider.Delete(ctx, machineutil.NewFromNode(node)); cloudprovider.IgnoreMachineNotFoundError(err) != nil {
+	if err := c.cloudProvider.Delete(ctx, nodeclaimutil.NewFromNode(node)); cloudprovider.IgnoreNodeClaimNotFoundError(err) != nil {
 		return reconcile.Result{}, fmt.Errorf("terminating cloudprovider instance, %w", err)
 	}
 	return reconcile.Result{}, c.removeFinalizer(ctx, node)
@@ -109,6 +115,19 @@ func (c *Controller) deleteAllMachines(ctx context.Context, node *v1.Node) error
 	}
 	for i := range machineList.Items {
 		if err := c.kubeClient.Delete(ctx, &machineList.Items[i]); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+	}
+	return nil
+}
+
+func (c *Controller) deleteAllNodeClaims(ctx context.Context, node *v1.Node) error {
+	nodeClaimList := &v1beta1.NodeClaimList{}
+	if err := c.kubeClient.List(ctx, nodeClaimList, client.MatchingFields{"status.providerID": node.Spec.ProviderID}); err != nil {
+		return err
+	}
+	for i := range nodeClaimList.Items {
+		if err := c.kubeClient.Delete(ctx, &nodeClaimList.Items[i]); err != nil {
 			return client.IgnoreNotFound(err)
 		}
 	}

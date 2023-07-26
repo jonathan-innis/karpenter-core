@@ -167,6 +167,11 @@ type NodeClaim struct {
 
 	Spec   NodeClaimSpec   `json:"spec,omitempty"`
 	Status NodeClaimStatus `json:"status,omitempty"`
+
+	// IsMachine tells Karpenter whether the in-memory representation of this object
+	// is actually referring to a NodeClaim object. This value is not actually part of the v1beta1 public-facing API
+	// TODO @joinnis: Remove this field when v1alpha5 is unsupported in a future version of Karpenter
+	IsMachine bool `json:"-"`
 }
 
 // NodeClaimList contains a list of NodeClaims

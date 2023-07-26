@@ -151,31 +151,31 @@ func (ofs Offerings) Cheapest() Offering {
 	})
 }
 
-// MachineNotFoundError is an error type returned by CloudProviders when the reason for failure is NotFound
-type MachineNotFoundError struct {
+// NodeClaimNotFoundError is an error type returned by CloudProviders when the reason for failure is NotFound
+type NodeClaimNotFoundError struct {
 	error
 }
 
-func NewMachineNotFoundError(err error) *MachineNotFoundError {
-	return &MachineNotFoundError{
+func NewNodeClaimNotFoundError(err error) *NodeClaimNotFoundError {
+	return &NodeClaimNotFoundError{
 		error: err,
 	}
 }
 
-func (e *MachineNotFoundError) Error() string {
+func (e *NodeClaimNotFoundError) Error() string {
 	return fmt.Sprintf("machine not found, %s", e.error)
 }
 
-func IsMachineNotFoundError(err error) bool {
+func IsNodeClaimNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
-	var mnfErr *MachineNotFoundError
+	var mnfErr *NodeClaimNotFoundError
 	return errors.As(err, &mnfErr)
 }
 
-func IgnoreMachineNotFoundError(err error) error {
-	if IsMachineNotFoundError(err) {
+func IgnoreNodeClaimNotFoundError(err error) error {
+	if IsNodeClaimNotFoundError(err) {
 		return nil
 	}
 	return err

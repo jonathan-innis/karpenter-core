@@ -72,33 +72,6 @@ func (l *Launch) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (r
 	return reconcile.Result{}, nil
 }
 
-func (l *Launch) linkMachine(ctx context.Context, machine *v1alpha5.NodeClaim) (*v1beta1.NodeClaim, error) {
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", machine.Annotations[v1alpha5.MachineLinkedAnnotationKey]))
-	created, err := l.cloudProvider.Get(ctx, machine.Annotations[v1alpha5.MachineLinkedAnnotationKey])
-	if err != nil {
-		if !cloudprovider.IsMachineNotFoundError(err) {
-			machine.StatusConditions().MarkFalse(v1alpha5.MachineLaunched, "LinkFailed", truncateMessage(err.Error()))
-			return nil, fmt.Errorf("linking machine, %w", err)
-		}
-		if err = l.kubeClient.Delete(ctx, machine); err != nil {
-			return nil, client.IgnoreNotFound(err)
-		}
-		logging.FromContext(ctx).Debugf("garbage collected machine with no cloudprovider representation")
-		metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-			metrics.ReasonLabel:      "garbage_collected",
-			metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
-		}).Inc()
-		return nil, nil
-	}
-	logging.FromContext(ctx).With(
-		"provider-id", created.Status.ProviderID,
-		"instance-type", created.Labels[v1.LabelInstanceTypeStable],
-		"zone", created.Labels[v1.LabelTopologyZone],
-		"capacity-type", created.Labels[v1alpha5.LabelCapacityType],
-		"allocatable", created.Status.Allocatable).Infof("linked machine")
-	return created, nil
-}
-
 func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (*v1beta1.NodeClaim, error) {
 	created, err := l.cloudProvider.Create(ctx, nodeClaim)
 	if err != nil {
