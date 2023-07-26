@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -57,37 +56,37 @@ func (r *Registration) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeCla
 			return reconcile.Result{}, nil
 		}
 		if nodeclaimutil.IsDuplicateNodeError(err) {
-			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "MultipleNodesFound", "Invariant violated, machine matched multiple nodes")
+			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "MultipleNodesFound", "Invariant violated, nodeclaim matched multiple nodes")
 			return reconcile.Result{}, nil
 		}
-		return reconcile.Result{}, fmt.Errorf("getting node for machine, %w", err)
+		return reconcile.Result{}, fmt.Errorf("getting node for nodeclaim, %w", err)
 	}
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", node.Name))
 	if err = r.syncNode(ctx, nodeClaim, node); err != nil {
 		return reconcile.Result{}, fmt.Errorf("syncing node, %w", err)
 	}
-	logging.FromContext(ctx).Debugf("registered machine")
+	logging.FromContext(ctx).Debugf("registered node")
 	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeRegistered)
 	nodeClaim.Status.NodeName = node.Name
 	metrics.NodeClaimsRegisteredCounter.With(prometheus.Labels{
-		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 	}).Inc()
 	metrics.NodesCreatedCounter.With(prometheus.Labels{
-		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }
 
 func (r *Registration) syncNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim, node *v1.Node) error {
 	stored := node.DeepCopy()
-	controllerutil.AddFinalizer(node, v1alpha5.TerminationFinalizer)
+	controllerutil.AddFinalizer(node, v1beta1.TerminationFinalizer)
 
 	// Remove any provisioner owner references since we own them
 	node.OwnerReferences = lo.Reject(node.OwnerReferences, func(o metav1.OwnerReference, _ int) bool {
 		return o.Kind == "Provisioner"
 	})
 	node.OwnerReferences = append(node.OwnerReferences, metav1.OwnerReference{
-		APIVersion:         v1alpha5.SchemeGroupVersion.String(),
+		APIVersion:         v1beta1.SchemeGroupVersion.String(),
 		Kind:               "NodeClaim",
 		Name:               nodeClaim.Name,
 		UID:                nodeClaim.UID,

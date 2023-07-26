@@ -88,6 +88,11 @@ func (c *Cluster) Synced(ctx context.Context) bool {
 		logging.FromContext(ctx).Errorf("checking cluster state sync, %v", err)
 		return false
 	}
+	nodeClaimList := &v1beta1.NodeClaimList{}
+	if err := c.kubeClient.List(ctx, nodeClaimList); err != nil {
+		logging.FromContext(ctx).Errorf("checking cluster state sync, %v", err)
+		return false
+	}
 	nodeList := &v1.NodeList{}
 	if err := c.kubeClient.List(ctx, nodeList); err != nil {
 		logging.FromContext(ctx).Errorf("checking cluster state sync, %v", err)
@@ -105,10 +110,17 @@ func (c *Cluster) Synced(ctx context.Context) bool {
 		}
 		names.Insert(machine.Name)
 	}
+	for _, nodeClaim := range nodeClaimList.Items {
+		// If the machine hasn't resolved its provider id, then it hasn't resolved its status
+		if nodeClaim.Status.ProviderID == "" {
+			return false
+		}
+		names.Insert(nodeClaim.Name)
+	}
 	for _, node := range nodeList.Items {
 		names.Insert(node.Name)
 	}
-	// The provider ids tracked in-memory should at least have all the data that is in the api-server
+	// The names tracked in-memory should at least have all the data that is in the api-server
 	// This doesn't ensure that the two states are exactly aligned (we could still not be tracking a node
 	// that exists in the cluster state but not in the apiserver) but it ensures that we have a state
 	// representation for every node/machine that exists on the apiserver

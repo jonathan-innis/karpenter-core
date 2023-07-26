@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -55,37 +54,37 @@ func (i *Initialization) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeC
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", nodeClaim.Status.ProviderID))
 	node, err := machineutil.NodeForNodeClaim(ctx, i.kubeClient, nodeClaim)
 	if err != nil {
-		nodeClaim.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "NodeNotFound", "Node not registered with cluster")
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "NodeNotFound", "Node not registered with cluster")
 		return reconcile.Result{}, nil //nolint:nilerr
 	}
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", node.Name))
 	if nodeutil.GetCondition(node, v1.NodeReady).Status != v1.ConditionTrue {
-		nodeClaim.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "NodeNotReady", "Node status is NotReady")
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "NodeNotReady", "Node status is NotReady")
 		return reconcile.Result{}, nil
 	}
 	if taint, ok := StartupTaintsRemoved(node, nodeClaim); !ok {
-		nodeClaim.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "StartupTaintsExist", "StartupTaint %q still exists", formatTaint(taint))
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "StartupTaintsExist", "StartupTaint %q still exists", formatTaint(taint))
 		return reconcile.Result{}, nil
 	}
 	if taint, ok := KnownEphemeralTaintsRemoved(node); !ok {
-		nodeClaim.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "KnownEphemeralTaintsExist", "KnownEphemeralTaint %q still exists", formatTaint(taint))
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "KnownEphemeralTaintsExist", "KnownEphemeralTaint %q still exists", formatTaint(taint))
 		return reconcile.Result{}, nil
 	}
 	if name, ok := RequestedResourcesRegistered(node, nodeClaim); !ok {
-		nodeClaim.StatusConditions().MarkFalse(v1alpha5.MachineInitialized, "ResourceNotRegistered", "Resource %q was requested but not registered", name)
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "ResourceNotRegistered", "Resource %q was requested but not registered", name)
 		return reconcile.Result{}, nil
 	}
 	stored := node.DeepCopy()
-	node.Labels = lo.Assign(node.Labels, map[string]string{v1alpha5.LabelNodeInitialized: "true"})
+	node.Labels = lo.Assign(node.Labels, map[string]string{v1beta1.LabelNodeInitialized: "true"})
 	if !equality.Semantic.DeepEqual(stored, node) {
 		if err = i.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
 	logging.FromContext(ctx).Debugf("initialized nodeClaim")
-	nodeClaim.StatusConditions().MarkTrue(v1alpha5.MachineInitialized)
+	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeInitialized)
 	metrics.NodeClaimsInitializedCounter.With(prometheus.Labels{
-		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }

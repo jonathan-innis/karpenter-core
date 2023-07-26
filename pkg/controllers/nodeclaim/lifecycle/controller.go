@@ -51,8 +51,8 @@ type nodeClaimReconciler interface {
 
 var _ corecontroller.TypedController[*v1beta1.NodeClaim] = (*Controller)(nil)
 
-// Controller is a NodeClaim Lifecycle controller that manages the lifecycle of the machine up until its termination
-// The controller is responsible for ensuring that new Machines get launched, that they have properly registered with
+// Controller is a NodeClaim Lifecycle controller that manages the lifecycle of the NodeClaim up until its termination
+// The controller is responsible for ensuring that new Nodes get launched, that they have properly registered with
 // the cluster as nodes and that they are properly initialized, ensuring that Machines that do not have matching nodes
 // after some liveness TTL are removed
 type Controller struct {

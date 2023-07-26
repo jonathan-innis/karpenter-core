@@ -316,7 +316,7 @@ func ExpectMachineDeployedNoNodeWithOffset(offset int, ctx context.Context, c cl
 	ExpectWithOffset(offset+1, err).To(Succeed())
 
 	// Make the machine ready in the status conditions
-	lifecycle.PopulateMachineDetails(m, resolved)
+	lifecycle.PopulateNodeDetails(m, resolved)
 	m.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
 	ExpectAppliedWithOffset(offset+1, ctx, c, m)
 	cluster.UpdateNodeClaim(m)

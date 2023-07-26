@@ -32,6 +32,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/scheduling"
+	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 )
 
 // PodEventHandler is a watcher on v1.Pods that maps Pods to NodeClaim based on the node names
@@ -265,6 +266,34 @@ func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1b
 	}
 	nodeClaimList.Items = append(nodeClaimList.Items, convertedNodeClaims...)
 	return nodeClaimList, nil
+}
+
+func Owner(ctx context.Context, c client.Client, obj interface{ GetLabels() map[string]string }) (*v1beta1.NodePool, error) {
+	if v, ok := obj.GetLabels()[v1beta1.NodePoolLabelKey]; ok {
+		nodePool := &v1beta1.NodePool{}
+		if err := c.Get(ctx, types.NamespacedName{Name: v}, nodePool); err != nil {
+			return nil, err
+		}
+		return nodePool, nil
+	}
+	if v, ok := obj.GetLabels()[v1alpha5.ProvisionerNameLabelKey]; ok {
+		provisioner := &v1alpha5.Provisioner{}
+		if err := c.Get(ctx, types.NamespacedName{Name: v}, provisioner); err != nil {
+			return nil, err
+		}
+		return nodepoolutil.New(provisioner), nil
+	}
+	return nil, fmt.Errorf("object has no owner")
+}
+
+func OwnerName(obj interface{ GetLabels() map[string]string }) (string, error) {
+	if v, ok := obj.GetLabels()[v1beta1.NodePoolLabelKey]; ok {
+		return v, nil
+	}
+	if v, ok := obj.GetLabels()[v1alpha5.ProvisionerNameLabelKey]; ok {
+		return v, nil
+	}
+	return "", fmt.Errorf("object has no owner")
 }
 
 func IsExpired(obj client.Object, clock clock.Clock, nodePool *v1beta1.NodePool) bool {

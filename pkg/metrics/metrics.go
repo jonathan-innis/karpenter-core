@@ -35,7 +35,7 @@ var (
 		},
 		[]string{
 			ReasonLabel,
-			ProvisionerLabel,
+			NodePoolLabel,
 		},
 	)
 	NodeClaimsTerminatedCounter = prometheus.NewCounterVec(
@@ -47,7 +47,7 @@ var (
 		},
 		[]string{
 			ReasonLabel,
-			ProvisionerLabel,
+			NodePoolLabel,
 		},
 	)
 	NodeClaimsLaunchedCounter = prometheus.NewCounterVec(
@@ -58,7 +58,7 @@ var (
 			Help:      "Number of machines launched in total by Karpenter. Labeled by the owning provisioner.",
 		},
 		[]string{
-			ProvisionerLabel,
+			NodePoolLabel,
 		},
 	)
 	NodeClaimsRegisteredCounter = prometheus.NewCounterVec(
@@ -69,7 +69,7 @@ var (
 			Help:      "Number of machines registered in total by Karpenter. Labeled by the owning provisioner.",
 		},
 		[]string{
-			ProvisionerLabel,
+			NodePoolLabel,
 		},
 	)
 	NodeClaimsInitializedCounter = prometheus.NewCounterVec(
@@ -80,7 +80,7 @@ var (
 			Help:      "Number of machines initialized in total by Karpenter. Labeled by the owning provisioner.",
 		},
 		[]string{
-			ProvisionerLabel,
+			NodePoolLabel,
 		},
 	)
 	NodesCreatedCounter = prometheus.NewCounterVec(
@@ -91,6 +91,7 @@ var (
 			Help:      "Number of nodes created in total by Karpenter. Labeled by owning provisioner.",
 		},
 		[]string{
+			NodePoolLabel,
 			ProvisionerLabel,
 		},
 	)
@@ -102,6 +103,7 @@ var (
 			Help:      "Number of nodes terminated in total by Karpenter. Labeled by owning provisioner.",
 		},
 		[]string{
+			NodePoolLabel,
 			ProvisionerLabel,
 		},
 	)

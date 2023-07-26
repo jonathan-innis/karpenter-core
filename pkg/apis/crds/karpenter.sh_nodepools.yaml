@@ -14,12 +14,13 @@ spec:
     listKind: NodePoolList
     plural: nodepools
     shortNames:
-    - np,nps
+    - np
+    - nps
     singular: nodepool
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.template.spec.nodeTemplateRef.name
+    - jsonPath: .spec.template.spec.nodeClass.name
       name: Template
       type: string
     name: v1beta1
@@ -55,7 +56,8 @@ spec:
                       can deprovision through its consolidation algorithm. This policy
                       defaults to "WhenUnderutilized" if not specified
                     enum:
-                    - WhenEmpty,WhenUnderutilized
+                    - WhenEmpty
+                    - WhenUnderutilized
                     type: string
                   ttlAfterUnderutilized:
                     default: 15s

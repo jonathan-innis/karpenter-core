@@ -24,7 +24,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/metrics"
 )
@@ -46,18 +45,18 @@ func (r *Liveness) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) 
 	if registered == nil {
 		return reconcile.Result{Requeue: true}, nil
 	}
-	// If the MachineRegistered statusCondition hasn't gone True during the TTL since we first updated it, we should terminate the nodeClaim
+	// If the NodeRegistered statusCondition hasn't gone True during the TTL since we first updated it, we should terminate the NodeClaim
 	if r.clock.Since(registered.LastTransitionTime.Inner.Time) < registrationTTL {
 		return reconcile.Result{RequeueAfter: registrationTTL - r.clock.Since(registered.LastTransitionTime.Inner.Time)}, nil
 	}
-	// Delete the nodeClaim if we believe the nodeClaim won't register since we haven't seen the node
+	// Delete the NodeClaim if we believe the NodeClaim won't register since we haven't seen the node
 	if err := r.kubeClient.Delete(ctx, nodeClaim); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
 	logging.FromContext(ctx).With("ttl", registrationTTL).Debugf("terminating nodeClaim due to registration ttl")
 	metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-		metrics.ReasonLabel:      "liveness",
-		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.ReasonLabel:   "liveness",
+		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }

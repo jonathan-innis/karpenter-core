@@ -45,6 +45,7 @@ const (
 
 	ProviderCompatabilityAnnotationKey = CompatabilityGroup + "/provider"
 	KubeletCompatabilityAnnotationKey  = CompatabilityGroup + "/kubelet"
+	MachineManagedByAnnotationKey      = Group + "/managed-by"
 )
 
 // Karpenter specific finalizers

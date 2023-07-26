@@ -17,12 +17,10 @@ package nodepool
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -74,57 +72,6 @@ func NewNodeClassRef(pr *v1alpha5.MachineTemplateRef) *v1beta1.NodeClassRef {
 		Name:       pr.Name,
 		APIVersion: pr.APIVersion,
 	}
-}
-
-func IsProvisioner(name string) bool {
-	return strings.HasPrefix(name, "provisioner/")
-}
-
-func Name(name string) string {
-	return strings.TrimPrefix(name, "provisioner/")
-}
-
-func Get(ctx context.Context, c client.Client, name string) (*v1beta1.NodePool, error) {
-	if IsProvisioner(name) {
-		provisioner := &v1alpha5.Provisioner{}
-		if err := c.Get(ctx, types.NamespacedName{Name: Name(name)}, provisioner); err != nil {
-			return nil, err
-		}
-		return New(provisioner), nil
-	}
-	nodePool := &v1beta1.NodePool{}
-	if err := c.Get(ctx, types.NamespacedName{Name: name}, nodePool); err != nil {
-		return nil, err
-	}
-	return nodePool, nil
-}
-
-func Owner(ctx context.Context, c client.Client, obj interface{ GetLabels() map[string]string }) (*v1beta1.NodePool, error) {
-	if v, ok := obj.GetLabels()[v1beta1.NodePoolLabelKey]; ok {
-		nodePool := &v1beta1.NodePool{}
-		if err := c.Get(ctx, types.NamespacedName{Name: v}, nodePool); err != nil {
-			return nil, err
-		}
-		return nodePool, nil
-	}
-	if v, ok := obj.GetLabels()[v1alpha5.ProvisionerNameLabelKey]; ok {
-		provisioner := &v1alpha5.Provisioner{}
-		if err := c.Get(ctx, types.NamespacedName{Name: v}, provisioner); err != nil {
-			return nil, err
-		}
-		return New(provisioner), nil
-	}
-	return nil, fmt.Errorf("object has no owner")
-}
-
-func OwnerName(obj interface{ GetLabels() map[string]string }) (string, error) {
-	if v, ok := obj.GetLabels()[v1beta1.NodePoolLabelKey]; ok {
-		return v, nil
-	}
-	if v, ok := obj.GetLabels()[v1alpha5.ProvisionerNameLabelKey]; ok {
-		return v, nil
-	}
-	return "", fmt.Errorf("object has no owner")
 }
 
 func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1beta1.NodePoolList, error) {

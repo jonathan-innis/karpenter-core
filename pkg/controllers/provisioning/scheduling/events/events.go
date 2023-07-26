@@ -19,20 +19,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/flowcontrol"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/events"
+	"github.com/aws/karpenter-core/pkg/operator/scheme"
 )
 
 // PodNominationRateLimiter is a pointer so it rate-limits across events
 var PodNominationRateLimiter = flowcontrol.NewTokenBucketRateLimiter(5, 10)
 
-func NominatePod(pod *v1.Pod, node *v1.Node, machine *v1beta1.NodeClaim) events.Event {
+func NominatePod(pod *v1.Pod, node *v1.Node, obj client.Object) events.Event {
 	var info []string
-	if machine != nil {
-		info = append(info, fmt.Sprintf("machine/%s", machine.Name))
+	if obj != nil {
+		info = append(info, fmt.Sprintf("%s/%s", lo.Must(apiutil.GVKForObject(obj, scheme.Scheme)).Kind, obj.GetName()))
 	}
 	if node != nil {
 		info = append(info, fmt.Sprintf("node/%s", node.Name))

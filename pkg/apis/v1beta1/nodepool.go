@@ -64,7 +64,7 @@ type Deprovisioning struct {
 	ConsolidationTTL *metav1.Duration `json:"ttlAfterUnderutilized,omitempty"`
 	// ConsolidationPolicy describes which nodes Karpenter can deprovision through its consolidation
 	// algorithm. This policy defaults to "WhenUnderutilized" if not specified
-	// +kubebuilder:validation:Enum:="WhenEmpty,WhenUnderutilized"
+	// +kubebuilder:validation:Enum:={WhenEmpty,WhenUnderutilized}
 	// +optional
 	ConsolidationPolicy ConsolidationPolicy `json:"consolidationPolicy,omitempty"`
 	// ExpirationTTL is the duration the controller will wait
@@ -115,8 +115,8 @@ type Consolidation struct {
 
 // NodePool is the Schema for the Provisioners API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:path=nodepools,scope=Cluster,categories=karpenter,shortName="np,nps"
-// +kubebuilder:printcolumn:name="Template",type="string",JSONPath=".spec.template.spec.nodeTemplateRef.name",description=""
+// +kubebuilder:resource:path=nodepools,scope=Cluster,categories=karpenter,shortName={np,nps}
+// +kubebuilder:printcolumn:name="Template",type="string",JSONPath=".spec.template.spec.nodeClass.name",description=""
 // +kubebuilder:subresource:status
 type NodePool struct {
 	metav1.TypeMeta   `json:",inline"`

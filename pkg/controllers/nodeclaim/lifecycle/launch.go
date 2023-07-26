@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/events"
@@ -52,22 +51,22 @@ func (l *Launch) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (r
 	// One of the following scenarios can happen with a NodeClaim that isn't marked as launched:
 	//  1. It was already launched by the CloudProvider but the client-go cache wasn't updated quickly enough or
 	//     patching failed on the status. In this case, we use the in-memory cached value for the created machine.
-	//  2. It is a standard machine launch where we should call CloudProvider Create() and fill in details of the launched
-	//     machine into the NodeClaim CR.
+	//  2. It is a standard node launch where we should call CloudProvider Create() and fill in details of the launched
+	//     node into the NodeClaim CR.
 	if ret, ok := l.cache.Get(string(nodeClaim.UID)); ok {
 		created = ret.(*v1beta1.NodeClaim)
 	} else {
 		created, err = l.launchNode(ctx, nodeClaim)
 	}
-	// Either the machine launch/linking failed or the machine was deleted due to InsufficientCapacity/NotFound
+	// Either the Node launch failed or the Node was deleted due to InsufficientCapacity/NotFound
 	if err != nil || created == nil {
 		return reconcile.Result{}, err
 	}
 	l.cache.SetDefault(string(nodeClaim.UID), created)
-	PopulateMachineDetails(nodeClaim, created)
+	PopulateNodeDetails(nodeClaim, created)
 	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeLaunched)
 	metrics.NodeClaimsLaunchedCounter.With(prometheus.Labels{
-		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }
@@ -89,8 +88,8 @@ func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (
 				return nil, client.IgnoreNotFound(err)
 			}
 			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-				metrics.ReasonLabel:      "insufficient_capacity",
-				metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+				metrics.ReasonLabel:   "insufficient_capacity",
+				metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 			}).Inc()
 			return nil, nil
 		default:
@@ -102,23 +101,23 @@ func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (
 		"provider-id", created.Status.ProviderID,
 		"instance-type", created.Labels[v1.LabelInstanceTypeStable],
 		"zone", created.Labels[v1.LabelTopologyZone],
-		"capacity-type", created.Labels[v1alpha5.LabelCapacityType],
-		"allocatable", created.Status.Allocatable).Infof("launched nodeClaim")
+		"capacity-type", created.Labels[v1beta1.LabelCapacityType],
+		"allocatable", created.Status.Allocatable).Infof("launched node")
 	return created, nil
 }
 
-func PopulateMachineDetails(machine, retrieved *v1beta1.NodeClaim) {
-	// These are ordered in priority order so that user-defined machine labels and requirements trump retrieved labels
-	// or the static machine labels
-	machine.Labels = lo.Assign(
+func PopulateNodeDetails(nodeClaim, retrieved *v1beta1.NodeClaim) {
+	// These are ordered in priority order so that user-defined nodeClaim labels and requirements trump retrieved labels
+	// or the static nodeClaim labels
+	nodeClaim.Labels = lo.Assign(
 		retrieved.Labels, // CloudProvider-resolved labels
-		scheduling.NewNodeSelectorRequirements(machine.Spec.Requirements...).Labels(), // Single-value requirement resolved labels
-		machine.Labels, // User-defined labels
+		scheduling.NewNodeSelectorRequirements(nodeClaim.Spec.Requirements...).Labels(), // Single-value requirement resolved labels
+		nodeClaim.Labels, // User-defined labels
 	)
-	machine.Annotations = lo.Assign(machine.Annotations, retrieved.Annotations)
-	machine.Status.ProviderID = retrieved.Status.ProviderID
-	machine.Status.Allocatable = retrieved.Status.Allocatable
-	machine.Status.Capacity = retrieved.Status.Capacity
+	nodeClaim.Annotations = lo.Assign(nodeClaim.Annotations, retrieved.Annotations)
+	nodeClaim.Status.ProviderID = retrieved.Status.ProviderID
+	nodeClaim.Status.Allocatable = retrieved.Status.Allocatable
+	nodeClaim.Status.Capacity = retrieved.Status.Capacity
 }
 
 func truncateMessage(msg string) string {
