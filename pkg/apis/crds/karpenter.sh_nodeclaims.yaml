@@ -39,12 +39,12 @@ spec:
       name: Capacity
       priority: 1
       type: string
-    - jsonPath: .metadata.labels.karpenter\.sh/provisioner-name
-      name: Provisioner
+    - jsonPath: .metadata.labels.karpenter\.sh/nodepool
+      name: NodePool
       priority: 1
       type: string
-    - jsonPath: .spec.machineTemplateRef.name
-      name: Template
+    - jsonPath: .spec.nodeClass.name
+      name: NodeClass
       priority: 1
       type: string
     name: v1beta1

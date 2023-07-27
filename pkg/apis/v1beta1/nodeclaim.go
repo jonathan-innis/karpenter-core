@@ -165,8 +165,8 @@ type ResourceRequirements struct {
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 // +kubebuilder:printcolumn:name="Capacity",type="string",JSONPath=".metadata.labels.karpenter\\.sh/capacity-type",priority=1,description=""
-// +kubebuilder:printcolumn:name="Provisioner",type="string",JSONPath=".metadata.labels.karpenter\\.sh/provisioner-name",priority=1,description=""
-// +kubebuilder:printcolumn:name="Template",type="string",JSONPath=".spec.machineTemplateRef.name",priority=1,description=""
+// +kubebuilder:printcolumn:name="NodePool",type="string",JSONPath=".metadata.labels.karpenter\\.sh/nodepool",priority=1,description=""
+// +kubebuilder:printcolumn:name="NodeClass",type="string",JSONPath=".spec.nodeClass.name",priority=1,description=""
 type NodeClaim struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

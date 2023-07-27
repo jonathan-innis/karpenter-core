@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
 	nodeclaimdisruption "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/disruption"
 	nodeclaimgarbagecollection "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/garbagecollection"
 	nodeclaimlifecycle "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/lifecycle"
@@ -59,17 +58,18 @@ func NewControllers(
 		informer.NewPodController(kubeClient, cluster),
 		informer.NewProvisionerController(kubeClient, cluster),
 		informer.NewMachineController(kubeClient, cluster),
+		informer.NewNodeClaimController(kubeClient, cluster),
 		termination.NewController(kubeClient, cloudProvider, terminator, recorder),
 		//metricspod.NewController(kubeClient),
 		//metricsprovisioner.NewController(kubeClient),
 		//counter.NewController(kubeClient, cluster),
 		//consistency.NewController(clock, kubeClient, recorder, cloudProvider),
-		nodeclaimlifecycle.NewController(clock, kubeClient, cloudProvider, recorder),
+		nodeclaimlifecycle.NewNodeClaimController(clock, kubeClient, cloudProvider, recorder),
+		nodeclaimlifecycle.NewMachineController(clock, kubeClient, cloudProvider, recorder),
 		nodeclaimgarbagecollection.NewController(clock, kubeClient, cloudProvider),
 		nodeclaimtermination.NewNodeClaimController(kubeClient, cloudProvider),
 		nodeclaimtermination.NewMachineController(kubeClient, cloudProvider),
 		nodeclaimdisruption.NewNodeClaimController(clock, kubeClient, cluster, cloudProvider),
 		nodeclaimdisruption.NewMachineController(clock, kubeClient, cluster, cloudProvider),
-		machinelifecycle.NewController(clock, kubeClient, cloudProvider, recorder),
 	}
 }

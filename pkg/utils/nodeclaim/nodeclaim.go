@@ -20,19 +20,23 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
 	"knative.dev/pkg/apis"
+	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
+	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
 	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 )
 
@@ -297,6 +301,119 @@ func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1b
 	}
 	nodeClaimList.Items = append(nodeClaimList.Items, convertedNodeClaims...)
 	return nodeClaimList, nil
+}
+
+func UpdateStatus(ctx context.Context, c client.Client, nodeClaim *v1beta1.NodeClaim) error {
+	if nodeClaim.IsMachine {
+		machine := machineutil.NewFromNodeClaim(nodeClaim)
+		return c.Status().Update(ctx, machine)
+	} else {
+		return c.Status().Update(ctx, nodeClaim)
+	}
+}
+
+func Patch(ctx context.Context, c client.Client, stored, nodeClaim *v1beta1.NodeClaim) error {
+	if nodeClaim.IsMachine {
+		storedMachine := machineutil.NewFromNodeClaim(stored)
+		machine := machineutil.NewFromNodeClaim(nodeClaim)
+		return c.Patch(ctx, machine, client.MergeFrom(storedMachine))
+	} else {
+		return c.Patch(ctx, nodeClaim, client.MergeFrom(stored))
+	}
+}
+
+func PatchStatus(ctx context.Context, c client.Client, stored, nodeClaim *v1beta1.NodeClaim) error {
+	if nodeClaim.IsMachine {
+		storedMachine := machineutil.NewFromNodeClaim(stored)
+		machine := machineutil.NewFromNodeClaim(nodeClaim)
+		return c.Status().Patch(ctx, machine, client.MergeFrom(storedMachine))
+	} else {
+		return c.Status().Patch(ctx, nodeClaim, client.MergeFrom(stored))
+	}
+}
+
+func Delete(ctx context.Context, c client.Client, nodeClaim *v1beta1.NodeClaim) error {
+	if nodeClaim.IsMachine {
+		machine := machineutil.NewFromNodeClaim(nodeClaim)
+		return c.Delete(ctx, machine)
+	} else {
+		return c.Delete(ctx, nodeClaim)
+	}
+}
+
+func LaunchedCounter(nodeClaim *v1beta1.NodeClaim) prometheus.Counter {
+	if nodeClaim.IsMachine {
+		return metrics.MachinesLaunchedCounter.With(prometheus.Labels{
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		})
+	} else {
+		return metrics.NodeClaimsLaunchedCounter.With(prometheus.Labels{
+			metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		})
+	}
+}
+
+func RegisteredCounter(nodeClaim *v1beta1.NodeClaim) prometheus.Counter {
+	if nodeClaim.IsMachine {
+		return metrics.MachinesRegisteredCounter.With(prometheus.Labels{
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		})
+	} else {
+		return metrics.NodeClaimsRegisteredCounter.With(prometheus.Labels{
+			metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		})
+	}
+}
+
+func InitializedCounter(nodeClaim *v1beta1.NodeClaim) prometheus.Counter {
+	if nodeClaim.IsMachine {
+		return metrics.MachinesInitializedCounter.With(prometheus.Labels{
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		})
+	} else {
+		return metrics.NodeClaimsInitializedCounter.With(prometheus.Labels{
+			metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		})
+	}
+}
+
+func TerminatedCounter(nodeClaim *v1beta1.NodeClaim, reason string) prometheus.Counter {
+	if nodeClaim.IsMachine {
+		return metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+			metrics.ReasonLabel:      reason,
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		})
+	} else {
+		return metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
+			metrics.ReasonLabel:      reason,
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		})
+	}
+}
+
+func UpdateNodeOwnerReferences(nodeClaim *v1beta1.NodeClaim, node *v1.Node) *v1.Node {
+	// Remove any provisioner owner references since we own them
+	node.OwnerReferences = lo.Reject(node.OwnerReferences, func(o metav1.OwnerReference, _ int) bool {
+		return o.Kind == "Provisioner"
+	})
+	if nodeClaim.IsMachine {
+		node.OwnerReferences = append(node.OwnerReferences, metav1.OwnerReference{
+			APIVersion:         v1alpha5.SchemeGroupVersion.String(),
+			Kind:               "Machine",
+			Name:               nodeClaim.Name,
+			UID:                nodeClaim.UID,
+			BlockOwnerDeletion: ptr.Bool(true),
+		})
+	} else {
+		node.OwnerReferences = append(node.OwnerReferences, metav1.OwnerReference{
+			APIVersion:         v1beta1.SchemeGroupVersion.String(),
+			Kind:               "NodeClaim",
+			Name:               nodeClaim.Name,
+			UID:                nodeClaim.UID,
+			BlockOwnerDeletion: ptr.Bool(true),
+		})
+	}
+	return node
 }
 
 func Owner(ctx context.Context, c client.Client, obj interface{ GetLabels() map[string]string }) (*v1beta1.NodePool, error) {

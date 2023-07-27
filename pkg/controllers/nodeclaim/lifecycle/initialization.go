@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -27,10 +26,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
-	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 	nodeutil "github.com/aws/karpenter-core/pkg/utils/node"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 	"github.com/aws/karpenter-core/pkg/utils/resources"
 )
 
@@ -48,11 +46,11 @@ func (i *Initialization) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeC
 		return reconcile.Result{}, nil
 	}
 	if !nodeClaim.StatusConditions().GetCondition(v1beta1.NodeLaunched).IsTrue() {
-		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "MachineNotLaunched", "NodeClaim is not launched")
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "NotLaunched", "Node node launched")
 		return reconcile.Result{}, nil
 	}
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", nodeClaim.Status.ProviderID))
-	node, err := machineutil.NodeForNodeClaim(ctx, i.kubeClient, nodeClaim)
+	node, err := nodeclaimutil.NodeForNodeClaim(ctx, i.kubeClient, nodeClaim)
 	if err != nil {
 		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeInitialized, "NodeNotFound", "Node not registered with cluster")
 		return reconcile.Result{}, nil //nolint:nilerr
@@ -81,11 +79,9 @@ func (i *Initialization) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeC
 			return reconcile.Result{}, err
 		}
 	}
-	logging.FromContext(ctx).Debugf("initialized nodeClaim")
+	logging.FromContext(ctx).Debugf("initialized")
 	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeInitialized)
-	metrics.NodeClaimsInitializedCounter.With(prometheus.Labels{
-		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
-	}).Inc()
+	nodeclaimutil.InitializedCounter(nodeClaim).Inc()
 	return reconcile.Result{}, nil
 }
 

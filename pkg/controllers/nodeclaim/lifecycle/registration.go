@@ -22,9 +22,7 @@ import (
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"knative.dev/pkg/logging"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -45,7 +43,7 @@ func (r *Registration) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeCla
 		return reconcile.Result{}, nil
 	}
 	if !nodeClaim.StatusConditions().GetCondition(v1beta1.NodeLaunched).IsTrue() {
-		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "NodeNotLaunched", "Node is not launched")
+		nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "NotLaunched", "Node is not launched")
 		return reconcile.Result{}, nil
 	}
 
@@ -57,7 +55,7 @@ func (r *Registration) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeCla
 			return reconcile.Result{}, nil
 		}
 		if nodeclaimutil.IsDuplicateNodeError(err) {
-			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "MultipleNodesFound", "Invariant violated, nodeclaim matched multiple nodes")
+			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeRegistered, "MultipleNodesFound", "Invariant violated, matched multiple nodes")
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, fmt.Errorf("getting node for nodeclaim, %w", err)
@@ -66,16 +64,18 @@ func (r *Registration) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeCla
 	if err = r.syncNode(ctx, nodeClaim, node); err != nil {
 		return reconcile.Result{}, fmt.Errorf("syncing node, %w", err)
 	}
-	logging.FromContext(ctx).Debugf("registered node")
+	logging.FromContext(ctx).Debugf("registered")
 	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeRegistered)
 	nodeClaim.Status.NodeName = node.Name
-	metrics.NodeClaimsRegisteredCounter.With(prometheus.Labels{
-		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
-	}).Inc()
-	metrics.NodesCreatedCounter.With(prometheus.Labels{
-		metrics.NodePoolLabel:    nodeClaim.Labels[v1beta1.NodePoolLabelKey],
-		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
-	}).Inc()
+
+	nodeclaimutil.RegisteredCounter(nodeClaim).Inc()
+	// If the NodeClaim is linked, then the node already existed, so we don't mark it as created
+	if _, ok := nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey]; !ok {
+		metrics.NodesCreatedCounter.With(prometheus.Labels{
+			metrics.NodePoolLabel:    nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		}).Inc()
+	}
 	return reconcile.Result{}, nil
 }
 
@@ -83,26 +83,19 @@ func (r *Registration) syncNode(ctx context.Context, nodeClaim *v1beta1.NodeClai
 	stored := node.DeepCopy()
 	controllerutil.AddFinalizer(node, v1beta1.TerminationFinalizer)
 
-	// Remove any provisioner owner references since we own them
-	node.OwnerReferences = lo.Reject(node.OwnerReferences, func(o metav1.OwnerReference, _ int) bool {
-		return o.Kind == "Provisioner"
-	})
-	node.OwnerReferences = append(node.OwnerReferences, metav1.OwnerReference{
-		APIVersion:         v1beta1.SchemeGroupVersion.String(),
-		Kind:               "NodeClaim",
-		Name:               nodeClaim.Name,
-		UID:                nodeClaim.UID,
-		BlockOwnerDeletion: ptr.Bool(true),
-	})
-
+	node = nodeclaimutil.UpdateNodeOwnerReferences(nodeClaim, node)
+	// If the NodeClaim isn't registered as linked, then sync it
+	// This prevents us from messing with nodes that already exist and are scheduled
+	if _, ok := nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey]; !ok {
+		node.Labels = lo.Assign(node.Labels, nodeClaim.Labels)
+		node.Annotations = lo.Assign(node.Annotations, nodeClaim.Annotations)
+		// Sync all taints inside NodeClaim into the Node taints
+		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(nodeClaim.Spec.Taints)
+		node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(nodeClaim.Spec.StartupTaints)
+	}
 	node.Labels = lo.Assign(node.Labels, nodeClaim.Labels, map[string]string{
 		v1beta1.LabelNodeRegistered: "true",
 	})
-	node.Annotations = lo.Assign(node.Annotations, nodeClaim.Annotations)
-	// Sync all taints inside NodeClaim into the NodeClaim taints
-	node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(nodeClaim.Spec.Taints)
-	node.Spec.Taints = scheduling.Taints(node.Spec.Taints).Merge(nodeClaim.Spec.StartupTaints)
-
 	if !equality.Semantic.DeepEqual(stored, node) {
 		if err := r.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
 			return fmt.Errorf("syncing node labels, %w", err)

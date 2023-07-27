@@ -87,25 +87,16 @@ func (c *Controller) Finalize(ctx context.Context, nodeClaim *v1beta1.NodeClaim)
 		return reconcile.Result{}, nil
 	}
 	if nodeClaim.Status.ProviderID != "" {
-		if err := c.cloudProvider.Delete(ctx, nodeClaim); cloudprovider.IgnoreNodeClaimNotFoundError(err) != nil {
+		if err = c.cloudProvider.Delete(ctx, nodeClaim); cloudprovider.IgnoreNodeClaimNotFoundError(err) != nil {
 			return reconcile.Result{}, fmt.Errorf("terminating cloudprovider instance, %w", err)
 		}
 	}
 	controllerutil.RemoveFinalizer(nodeClaim, v1beta1.TerminationFinalizer)
 	if !equality.Semantic.DeepEqual(stored, nodeClaim) {
-		if nodeClaim.IsMachine {
-			storedMachine := machineutil.NewFromNodeClaim(stored)
-			machine := machineutil.NewFromNodeClaim(nodeClaim)
-			if err := c.kubeClient.Patch(ctx, machine, client.MergeFrom(storedMachine)); err != nil {
-				return reconcile.Result{}, client.IgnoreNotFound(fmt.Errorf("removing machine termination finalizer, %w", err))
-			}
-			logging.FromContext(ctx).Infof("deleted machine")
-		} else {
-			if err := c.kubeClient.Patch(ctx, nodeClaim, client.MergeFrom(stored)); err != nil {
-				return reconcile.Result{}, client.IgnoreNotFound(fmt.Errorf("removing nodeclaim termination finalizer, %w", err))
-			}
-			logging.FromContext(ctx).Infof("deleted nodeclaim")
+		if err = nodeclaimutil.Patch(ctx, c.kubeClient, stored, nodeClaim); err != nil {
+			return reconcile.Result{}, client.IgnoreNotFound(fmt.Errorf("removing termination finalizer, %w", err))
 		}
+		logging.FromContext(ctx).Infof("deleted")
 	}
 	return reconcile.Result{}, nil
 }
@@ -140,7 +131,7 @@ func (c *NodeClaimController) Builder(ctx context.Context, m manager.Manager) co
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
-			machineutil.NodeEventHandler(ctx, c.kubeClient),
+			nodeclaimutil.NodeEventHandler(ctx, c.kubeClient),
 			// Watch for node deletion events
 			builder.WithPredicates(predicate.Funcs{
 				CreateFunc: func(e event.CreateEvent) bool { return false },

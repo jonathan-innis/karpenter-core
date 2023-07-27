@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
+	provisionerutil "github.com/aws/karpenter-core/pkg/utils/provisioner"
 )
 
 func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
@@ -88,4 +89,14 @@ func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1b
 	}
 	nodePoolList.Items = append(nodePoolList.Items, convertedNodePools...)
 	return nodePoolList, nil
+}
+
+func PatchStatus(ctx context.Context, c client.Client, stored, nodePool *v1beta1.NodePool) error {
+	if nodePool.IsProvisioner {
+		storedProvisioner := provisionerutil.New(stored)
+		provisioner := provisionerutil.New(nodePool)
+		return c.Status().Patch(ctx, provisioner, client.MergeFrom(storedProvisioner))
+	} else {
+		return c.Status().Patch(ctx, nodePool, client.MergeFrom(stored))
+	}
 }

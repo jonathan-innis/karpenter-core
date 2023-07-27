@@ -19,18 +19,18 @@ import (
 	"fmt"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
 	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/events"
-	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 type Launch struct {
@@ -50,11 +50,15 @@ func (l *Launch) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (r
 
 	// One of the following scenarios can happen with a NodeClaim that isn't marked as launched:
 	//  1. It was already launched by the CloudProvider but the client-go cache wasn't updated quickly enough or
-	//     patching failed on the status. In this case, we use the in-memory cached value for the created machine.
-	//  2. It is a standard node launch where we should call CloudProvider Create() and fill in details of the launched
-	//     node into the NodeClaim CR.
+	//     patching failed on the status. In this case, we use the in-memory cached value for the created NodeClaim.
+	//  2. It is a "linked" NodeClaim, which implies that the CloudProvider NodeClaim already exists for the NodeClaim CR, but we
+	//     need to grab info from the CloudProvider to get details on the NodeClaim.
+	//  3. It is a standard NodeClaim launch where we should call CloudProvider Create() and fill in details of the launched
+	//     NodeClaim into the NodeClaim CR.
 	if ret, ok := l.cache.Get(string(nodeClaim.UID)); ok {
 		created = ret.(*v1beta1.NodeClaim)
+	} else if _, ok := nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey]; ok {
+		created, err = l.linkNode(ctx, nodeClaim)
 	} else {
 		created, err = l.launchNode(ctx, nodeClaim)
 	}
@@ -65,10 +69,33 @@ func (l *Launch) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (r
 	l.cache.SetDefault(string(nodeClaim.UID), created)
 	PopulateNodeDetails(nodeClaim, created)
 	nodeClaim.StatusConditions().MarkTrue(v1beta1.NodeLaunched)
-	metrics.NodeClaimsLaunchedCounter.With(prometheus.Labels{
-		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
-	}).Inc()
+	nodeclaimutil.LaunchedCounter(nodeClaim).Inc()
+
 	return reconcile.Result{}, nil
+}
+
+func (l *Launch) linkNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (*v1beta1.NodeClaim, error) {
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provider-id", nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey]))
+	created, err := l.cloudProvider.Get(ctx, nodeClaim.Annotations[v1alpha5.MachineLinkedAnnotationKey])
+	if err != nil {
+		if !cloudprovider.IsNodeClaimNotFoundError(err) {
+			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeLaunched, "LinkFailed", truncateMessage(err.Error()))
+			return nil, fmt.Errorf("linking, %w", err)
+		}
+		if err = nodeclaimutil.Delete(ctx, l.kubeClient, nodeClaim); err != nil {
+			return nil, client.IgnoreNotFound(err)
+		}
+		logging.FromContext(ctx).Debugf("garbage collected with no cloudprovider representation")
+		nodeclaimutil.TerminatedCounter(nodeClaim, "garbage_collected").Inc()
+		return nil, nil
+	}
+	logging.FromContext(ctx).With(
+		"provider-id", created.Status.ProviderID,
+		"instance-type", created.Labels[v1.LabelInstanceTypeStable],
+		"zone", created.Labels[v1.LabelTopologyZone],
+		"capacity-type", created.Labels[v1alpha5.LabelCapacityType],
+		"allocatable", created.Status.Allocatable).Infof("linked")
+	return created, nil
 }
 
 func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (*v1beta1.NodeClaim, error) {
@@ -76,25 +103,16 @@ func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (
 	if err != nil {
 		switch {
 		case cloudprovider.IsInsufficientCapacityError(err):
-			l.recorder.Publish(events.Event{
-				InvolvedObject: nodeClaim,
-				Type:           v1.EventTypeWarning,
-				Reason:         "InsufficientCapacityError",
-				Message:        fmt.Sprintf("NodeClaim %s event: %s", nodeClaim.Name, err),
-				DedupeValues:   []string{nodeClaim.Name},
-			})
+			l.recorder.Publish(InsufficientCapacityErrorEvent(nodeClaim, err))
 			logging.FromContext(ctx).Error(err)
-			if err = l.kubeClient.Delete(ctx, nodeClaim); err != nil {
+			if err = nodeclaimutil.Delete(ctx, l.kubeClient, nodeClaim); err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
-			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-				metrics.ReasonLabel:   "insufficient_capacity",
-				metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
-			}).Inc()
+			nodeclaimutil.TerminatedCounter(nodeClaim, "insufficient_capacity").Inc()
 			return nil, nil
 		default:
 			nodeClaim.StatusConditions().MarkFalse(v1beta1.NodeLaunched, "LaunchFailed", truncateMessage(err.Error()))
-			return nil, fmt.Errorf("creating machine, %w", err)
+			return nil, fmt.Errorf("creating, %w", err)
 		}
 	}
 	logging.FromContext(ctx).With(
@@ -102,7 +120,7 @@ func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (
 		"instance-type", created.Labels[v1.LabelInstanceTypeStable],
 		"zone", created.Labels[v1.LabelTopologyZone],
 		"capacity-type", created.Labels[v1beta1.LabelCapacityType],
-		"allocatable", created.Status.Allocatable).Infof("launched node")
+		"allocatable", created.Status.Allocatable).Infof("launched")
 	return created, nil
 }
 

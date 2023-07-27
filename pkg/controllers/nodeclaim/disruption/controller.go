@@ -88,15 +88,7 @@ func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim
 		results = append(results, res)
 	}
 	if !equality.Semantic.DeepEqual(stored, nodeClaim) {
-		// Update the Machine or the NodeClaim based on the underlying Type
-		// If the NodeClaim data representation is actually a Machine, then do the conversion
-		var obj client.Object
-		if nodeClaim.IsMachine {
-			obj = client.Object(machineutil.NewFromNodeClaim(nodeClaim))
-		} else {
-			obj = client.Object(nodeClaim)
-		}
-		if err := c.kubeClient.Status().Update(ctx, obj); err != nil {
+		if err = nodeclaimutil.UpdateStatus(ctx, c.kubeClient, nodeClaim); err != nil {
 			if errors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
