@@ -55,7 +55,7 @@ const (
 
 var (
 	// RestrictedLabelDomains are either prohibited by the kubelet or reserved by karpenter
-	RestrictedLabelDomains = sets.NewString(
+	RestrictedLabelDomains = sets.New(
 		"kubernetes.io",
 		"k8s.io",
 		Group,
@@ -63,7 +63,7 @@ var (
 
 	// LabelDomainExceptions are sub-domains of the RestrictedLabelDomains but allowed because
 	// they are not used in a context where they may be passed as argument to kubelet.
-	LabelDomainExceptions = sets.NewString(
+	LabelDomainExceptions = sets.New(
 		"kops.k8s.io",
 		v1.LabelNamespaceSuffixNode,
 		TestingGroup,
@@ -105,7 +105,7 @@ func IsRestrictedLabel(key string) error {
 		return nil
 	}
 	if IsRestrictedNodeLabel(key) {
-		return fmt.Errorf("label %s is restricted; specify a well known label: %v, or a custom label that does not use a restricted domain: %v", key, WellKnownLabels.List(), RestrictedLabelDomains.List())
+		return fmt.Errorf("label %s is restricted; specify a well known label: %v, or a custom label that does not use a restricted domain: %v", key, WellKnownLabels.List(), sets.List(RestrictedLabelDomains))
 	}
 	return nil
 }

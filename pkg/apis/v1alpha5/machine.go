@@ -19,7 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// MachineSpec describes the desired state of the NodeClaim
+// MachineSpec describes the desired state of the Machine
 type MachineSpec struct {
 	// Taints will be applied to the machine's node.
 	// +optional
@@ -32,7 +32,7 @@ type MachineSpec struct {
 	StartupTaints []v1.Taint `json:"startupTaints,omitempty"`
 	// Requirements are layered with Labels and applied to every node.
 	Requirements []v1.NodeSelectorRequirement `json:"requirements,omitempty"`
-	// Resources models the resource requirements for the NodeClaim to launch
+	// Resources models the resource requirements for the Machine to launch
 	Resources ResourceRequirements `json:"resources,omitempty"`
 	// Kubelet are options passed to the kubelet when provisioning nodes
 	// +optional
@@ -117,10 +117,10 @@ type MachineTemplateRef struct {
 	APIVersion string `json:"apiVersion,omitempty"`
 }
 
-// ResourceRequirements models the required resources for the NodeClaim to launch
+// ResourceRequirements models the required resources for the Machine to launch
 // Ths will eventually be transformed into v1.ResourceRequirements when we support resources.limits
 type ResourceRequirements struct {
-	// Requests describes the minimum required resources for the NodeClaim to launch
+	// Requests describes the minimum required resources for the Machine to launch
 	// +optional
 	Requests v1.ResourceList `json:"requests,omitempty"`
 }

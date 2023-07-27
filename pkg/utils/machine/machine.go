@@ -16,6 +16,8 @@ package machine
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/samber/lo"
@@ -84,6 +86,90 @@ func ProvisionerEventHandler(ctx context.Context, c client.Client) handler.Event
 			return reconcile.Request{NamespacedName: types.NamespacedName{Name: machine.Name}}
 		})
 	})
+}
+
+// NodeNotFoundError is an error returned when no v1.Nodes are found matching the passed providerID
+type NodeNotFoundError struct {
+	ProviderID string
+}
+
+func (e *NodeNotFoundError) Error() string {
+	return fmt.Sprintf("no nodes found for provider id '%s'", e.ProviderID)
+}
+
+func IsNodeNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	nnfErr := &NodeNotFoundError{}
+	return errors.As(err, &nnfErr)
+}
+
+func IgnoreNodeNotFoundError(err error) error {
+	if !IsNodeNotFoundError(err) {
+		return err
+	}
+	return nil
+}
+
+// DuplicateNodeError is an error returned when multiple v1.Nodes are found matching the passed providerID
+type DuplicateNodeError struct {
+	ProviderID string
+}
+
+func (e *DuplicateNodeError) Error() string {
+	return fmt.Sprintf("multiple found for provider id '%s'", e.ProviderID)
+}
+
+func IsDuplicateNodeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	dnErr := &DuplicateNodeError{}
+	return errors.As(err, &dnErr)
+}
+
+func IgnoreDuplicateNodeError(err error) error {
+	if !IsDuplicateNodeError(err) {
+		return err
+	}
+	return nil
+}
+
+// NodeForMachine is a helper function that takes a v1alpha5.Machine and attempts to find the matching v1.Node by its providerID
+// This function will return errors if:
+//  1. No v1.Nodes match the v1alpha5.Machine providerID
+//  2. Multiple v1.Nodes match the v1alpha5.Machine providerID
+func NodeForMachine(ctx context.Context, c client.Client, machine *v1alpha5.Machine) (*v1.Node, error) {
+	nodes, err := AllNodesForMachine(ctx, c, machine)
+	if err != nil {
+		return nil, err
+	}
+	// If the providerID is defined, use that value; else, use the machine linked annotation if it's on the machine
+	providerID := lo.Ternary(machine.Status.ProviderID != "", machine.Status.ProviderID, machine.Annotations[v1alpha5.MachineLinkedAnnotationKey])
+	if len(nodes) > 1 {
+		return nil, &DuplicateNodeError{ProviderID: providerID}
+	}
+	if len(nodes) == 0 {
+		return nil, &NodeNotFoundError{ProviderID: providerID}
+	}
+	return nodes[0], nil
+}
+
+// AllNodesForMachine is a helper function that takes a v1alpha5.Machine and finds ALL matching v1.Nodes by their providerID
+// If the providerID is not resolved for a Machine, then no Nodes will map to it
+func AllNodesForMachine(ctx context.Context, c client.Client, machine *v1alpha5.Machine) ([]*v1.Node, error) {
+	// If the providerID is defined, use that value; else, use the machine linked annotation if it's on the machine
+	providerID := lo.Ternary(machine.Status.ProviderID != "", machine.Status.ProviderID, machine.Annotations[v1alpha5.MachineLinkedAnnotationKey])
+	// Machines that have no resolved providerID have no nodes mapped to them
+	if providerID == "" {
+		return nil, nil
+	}
+	nodeList := v1.NodeList{}
+	if err := c.List(ctx, &nodeList, client.MatchingFields{"spec.providerID": providerID}); err != nil {
+		return nil, fmt.Errorf("listing nodes, %w", err)
+	}
+	return lo.ToSlicePtr(nodeList.Items), nil
 }
 
 // New converts a node into a Machine using known values from the node and provisioner spec values

@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/scheduling"
@@ -72,7 +73,8 @@ func (r *Registration) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeCla
 		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 	}).Inc()
 	metrics.NodesCreatedCounter.With(prometheus.Labels{
-		metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		metrics.NodePoolLabel:    nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
 	}).Inc()
 	return reconcile.Result{}, nil
 }
@@ -94,7 +96,7 @@ func (r *Registration) syncNode(ctx context.Context, nodeClaim *v1beta1.NodeClai
 	})
 
 	node.Labels = lo.Assign(node.Labels, nodeClaim.Labels, map[string]string{
-		v1alpha5.LabelNodeRegistered: "true",
+		v1beta1.LabelNodeRegistered: "true",
 	})
 	node.Annotations = lo.Assign(node.Annotations, nodeClaim.Annotations)
 	// Sync all taints inside NodeClaim into the NodeClaim taints
@@ -104,25 +106,6 @@ func (r *Registration) syncNode(ctx context.Context, nodeClaim *v1beta1.NodeClai
 	if !equality.Semantic.DeepEqual(stored, node) {
 		if err := r.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
 			return fmt.Errorf("syncing node labels, %w", err)
-		}
-	}
-	return nil
-}
-
-// backPropagateRegistrationLabel ports the `karpenter.sh/registered` label onto nodes that are registered by the Machine
-// but don't have this label on the Node yet
-func (r *Registration) backPropagateRegistrationLabel(ctx context.Context, machine *v1alpha5.Machine) error {
-	node, err := machineutil.NodeForMachine(ctx, r.kubeClient, machine)
-	stored := node.DeepCopy()
-	if err != nil {
-		return machineutil.IgnoreDuplicateNodeError(machineutil.IgnoreNodeNotFoundError(err))
-	}
-	node.Labels = lo.Assign(node.Labels, map[string]string{
-		v1alpha5.LabelNodeRegistered: "true",
-	})
-	if !equality.Semantic.DeepEqual(stored, node) {
-		if err := r.kubeClient.Patch(ctx, node, client.MergeFrom(stored)); err != nil {
-			return fmt.Errorf("syncing node registration label, %w", err)
 		}
 	}
 	return nil

@@ -238,10 +238,10 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 		if remaining, ok := s.remainingResources[nodeClaimTemplate.OwnerKey()]; ok {
 			instanceTypes = filterByRemainingResources(s.instanceTypes[nodeClaimTemplate.OwnerKey()], remaining)
 			if len(instanceTypes) == 0 {
-				errs = multierr.Append(errs, fmt.Errorf("all available instance types exceed limits for %s: %q", nodeClaimTemplate.OwnerKind(), nodeClaimTemplate.NodePoolName))
+				errs = multierr.Append(errs, fmt.Errorf("all available instance types exceed limits for %s: %q", nodeClaimTemplate.OwnerKind(), nodeClaimTemplate.OwnerName))
 				continue
 			} else if len(s.instanceTypes[nodeClaimTemplate.OwnerKey()]) != len(instanceTypes) && !s.opts.SimulationMode {
-				logging.FromContext(ctx).With(nodeClaimTemplate.OwnerKind(), nodeClaimTemplate.NodePoolName).Debugf("%d out of %d instance types were excluded because they would breach limits",
+				logging.FromContext(ctx).With(nodeClaimTemplate.OwnerKind(), nodeClaimTemplate.OwnerName).Debugf("%d out of %d instance types were excluded because they would breach limits",
 					len(s.instanceTypes[nodeClaimTemplate.OwnerKey()])-len(instanceTypes), len(s.instanceTypes[nodeClaimTemplate.OwnerKey()]))
 			}
 		}
@@ -251,7 +251,7 @@ func (s *Scheduler) add(ctx context.Context, pod *v1.Pod) error {
 		if err := machine.Add(ctx, pod); err != nil {
 			errs = multierr.Append(errs, fmt.Errorf("incompatible with %s %q, daemonset overhead=%s, %w",
 				nodeClaimTemplate.OwnerKind(),
-				nodeClaimTemplate.NodePoolName,
+				nodeClaimTemplate.OwnerName,
 				resources.String(s.daemonOverhead[nodeClaimTemplate]),
 				err))
 			continue
