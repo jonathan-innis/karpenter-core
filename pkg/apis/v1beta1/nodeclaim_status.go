@@ -46,10 +46,17 @@ func (in *NodeClaim) StatusConditions() apis.ConditionManager {
 	).Manage(in)
 }
 
+var LivingConditions = []apis.ConditionType{
+	NodeLaunched,
+	NodeRegistered,
+	NodeInitialized,
+}
+
 var (
 	NodeLaunched      apis.ConditionType = "NodeLaunched"
 	NodeRegistered    apis.ConditionType = "NodeRegistered"
 	NodeInitialized   apis.ConditionType = "NodeInitialized"
+	NodeEmpty         apis.ConditionType = "NodeEmpty"
 	NodeDrifted       apis.ConditionType = "NodeDrifted"
 	NodeExpired       apis.ConditionType = "NodeExpired"
 	NodeUnderutilized apis.ConditionType = "NodeUnderutilized"

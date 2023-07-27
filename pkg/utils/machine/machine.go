@@ -25,12 +25,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
+	"knative.dev/pkg/apis"
 	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/scheduling"
 )
 
@@ -225,6 +227,83 @@ func NewFromNode(node *v1.Node) *v1alpha5.Machine {
 	m.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
 	m.StatusConditions().MarkTrue(v1alpha5.MachineRegistered)
 	return m
+}
+
+func NewFromNodeClaim(nodeClaim *v1beta1.NodeClaim) *v1alpha5.Machine {
+	return &v1alpha5.Machine{
+		TypeMeta:   nodeClaim.TypeMeta,
+		ObjectMeta: nodeClaim.ObjectMeta,
+		Spec: v1alpha5.MachineSpec{
+			Taints:        nodeClaim.Spec.Taints,
+			StartupTaints: nodeClaim.Spec.StartupTaints,
+			Requirements:  nodeClaim.Spec.Requirements,
+			Resources: v1alpha5.ResourceRequirements{
+				Requests: nodeClaim.Spec.Resources.Requests,
+			},
+			Kubelet:            NewKubeletConfiguration(nodeClaim.Spec.KubeletConfiguration),
+			MachineTemplateRef: NewMachineTemplateRef(nodeClaim.Spec.NodeClass),
+		},
+		Status: v1alpha5.MachineStatus{
+			NodeName:    nodeClaim.Status.NodeName,
+			ProviderID:  nodeClaim.Status.ProviderID,
+			Capacity:    nodeClaim.Status.Capacity,
+			Allocatable: nodeClaim.Status.Allocatable,
+			Conditions:  NewConditions(nodeClaim.Status.Conditions),
+		},
+	}
+}
+
+func NewConditions(conds apis.Conditions) apis.Conditions {
+	out := conds.DeepCopy()
+	for i := range out {
+		switch out[i].Type {
+		case v1beta1.NodeLaunched:
+			out[i].Type = v1alpha5.MachineLaunched
+		case v1beta1.NodeRegistered:
+			out[i].Type = v1alpha5.MachineRegistered
+		case v1beta1.NodeInitialized:
+			out[i].Type = v1alpha5.MachineInitialized
+		case v1beta1.NodeEmpty:
+			out[i].Type = v1alpha5.MachineEmpty
+		case v1beta1.NodeExpired:
+			out[i].Type = v1alpha5.MachineExpired
+		case v1beta1.NodeDrifted:
+			out[i].Type = v1alpha5.MachineDrifted
+		}
+	}
+	return out
+}
+
+func NewKubeletConfiguration(kc *v1beta1.KubeletConfiguration) *v1alpha5.KubeletConfiguration {
+	if kc == nil {
+		return nil
+	}
+	return &v1alpha5.KubeletConfiguration{
+		ClusterDNS:                  kc.ClusterDNS,
+		ContainerRuntime:            kc.ContainerRuntime,
+		MaxPods:                     kc.MaxPods,
+		PodsPerCore:                 kc.PodsPerCore,
+		SystemReserved:              kc.SystemReserved,
+		KubeReserved:                kc.KubeReserved,
+		EvictionHard:                kc.EvictionHard,
+		EvictionSoft:                kc.EvictionSoft,
+		EvictionSoftGracePeriod:     kc.EvictionSoftGracePeriod,
+		EvictionMaxPodGracePeriod:   kc.EvictionMaxPodGracePeriod,
+		ImageGCHighThresholdPercent: kc.ImageGCHighThresholdPercent,
+		ImageGCLowThresholdPercent:  kc.ImageGCLowThresholdPercent,
+		CPUCFSQuota:                 kc.CPUCFSQuota,
+	}
+}
+
+func NewMachineTemplateRef(ncr *v1beta1.NodeClassRef) *v1alpha5.MachineTemplateRef {
+	if ncr == nil {
+		return nil
+	}
+	return &v1alpha5.MachineTemplateRef{
+		Kind:       ncr.Kind,
+		Name:       ncr.Name,
+		APIVersion: ncr.APIVersion,
+	}
 }
 
 func IsExpired(obj client.Object, clock clock.Clock, provisioner *v1alpha5.Provisioner) bool {

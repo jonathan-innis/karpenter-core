@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
+	"knative.dev/pkg/apis"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -173,6 +174,7 @@ func AllNodesForNodeClaim(ctx context.Context, c client.Client, nodeClaim *v1bet
 
 func New(machine *v1alpha5.Machine) *v1beta1.NodeClaim {
 	return &v1beta1.NodeClaim{
+		TypeMeta:   machine.TypeMeta,
 		ObjectMeta: machine.ObjectMeta,
 		Spec: v1beta1.NodeClaimSpec{
 			Taints:        machine.Spec.Taints,
@@ -184,7 +186,36 @@ func New(machine *v1alpha5.Machine) *v1beta1.NodeClaim {
 			KubeletConfiguration: NewKubeletConfiguration(machine.Spec.Kubelet),
 			NodeClass:            NewNodeClassRef(machine.Spec.MachineTemplateRef),
 		},
+		Status: v1beta1.NodeClaimStatus{
+			NodeName:    machine.Status.NodeName,
+			ProviderID:  machine.Status.ProviderID,
+			Capacity:    machine.Status.Capacity,
+			Allocatable: machine.Status.Allocatable,
+			Conditions:  NewConditions(machine.Status.Conditions),
+		},
+		IsMachine: true,
 	}
+}
+
+func NewConditions(conds apis.Conditions) apis.Conditions {
+	out := conds.DeepCopy()
+	for i := range out {
+		switch out[i].Type {
+		case v1alpha5.MachineLaunched:
+			out[i].Type = v1beta1.NodeLaunched
+		case v1alpha5.MachineRegistered:
+			out[i].Type = v1beta1.NodeRegistered
+		case v1alpha5.MachineInitialized:
+			out[i].Type = v1beta1.NodeInitialized
+		case v1alpha5.MachineEmpty:
+			out[i].Type = v1beta1.NodeEmpty
+		case v1alpha5.MachineExpired:
+			out[i].Type = v1beta1.NodeExpired
+		case v1alpha5.MachineDrifted:
+			out[i].Type = v1beta1.NodeDrifted
+		}
+	}
+	return out
 }
 
 func NewKubeletConfiguration(kc *v1alpha5.KubeletConfiguration) *v1beta1.KubeletConfiguration {

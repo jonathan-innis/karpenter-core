@@ -21,7 +21,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/clock"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -38,6 +37,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
 	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 	"github.com/aws/karpenter-core/pkg/utils/result"
 )
@@ -46,8 +46,6 @@ type nodeClaimReconciler interface {
 	Reconcile(context.Context, *v1beta1.NodePool, *v1beta1.NodeClaim) (reconcile.Result, error)
 }
 
-var _ corecontroller.TypedController[*v1beta1.NodeClaim] = (*Controller)(nil)
-
 // Controller is a disruption controller that adds StatusConditions to Machines when they meet certain disruption conditions
 // e.g. When the NodeClaim has surpassed its owning provisioner's expirationTTL, then it is marked as "Expired" in the StatusConditions
 type Controller struct {
@@ -55,40 +53,34 @@ type Controller struct {
 
 	drift      *Drift
 	expiration *Expiration
+	emptiness  *Emptiness
 }
 
 // NewController constructs a machine disruption controller
-func NewController(clk clock.Clock, kubeClient client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
-	return corecontroller.Typed[*v1beta1.NodeClaim](kubeClient, &Controller{
+func NewController(clk clock.Clock, kubeClient client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider) *Controller {
+	return &Controller{
 		kubeClient: kubeClient,
 		drift:      &Drift{cloudProvider: cloudProvider},
 		expiration: &Expiration{kubeClient: kubeClient, clock: clk},
-	})
-}
-
-func (c *Controller) Name() string {
-	return "machine.disruption"
+		emptiness:  &Emptiness{kubeClient: kubeClient, cluster: cluster, clock: clk},
+	}
 }
 
 // Reconcile executes a control loop for the resource
 func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
 	stored := nodeClaim.DeepCopy()
-	if _, ok := nodeClaim.Labels[v1beta1.NodePoolLabelKey]; !ok {
-		return reconcile.Result{}, nil
-	}
-	if !nodeClaim.DeletionTimestamp.IsZero() {
-		return reconcile.Result{}, nil
-	}
-	nodePool := &v1beta1.NodePool{}
-	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: nodeClaim.Labels[v1beta1.NodePoolLabelKey]}, nodePool); err != nil {
+
+	// TODO @joinnis: Add an ability to handle NodeClaims without an owner
+	nodePool, err := nodeclaimutil.Owner(ctx, c.kubeClient, nodeClaim)
+	if err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-
 	var results []reconcile.Result
 	var errs error
 	reconcilers := []nodeClaimReconciler{
 		c.expiration,
 		c.drift,
+		c.emptiness,
 	}
 	for _, reconciler := range reconcilers {
 		res, err := reconciler.Reconcile(ctx, nodePool, nodeClaim)
@@ -96,7 +88,15 @@ func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim
 		results = append(results, res)
 	}
 	if !equality.Semantic.DeepEqual(stored, nodeClaim) {
-		if err := c.kubeClient.Status().Update(ctx, nodeClaim); err != nil {
+		// Update the Machine or the NodeClaim based on the underlying Type
+		// If the NodeClaim data representation is actually a Machine, then do the conversion
+		var obj client.Object
+		if nodeClaim.IsMachine {
+			obj = client.Object(machineutil.NewFromNodeClaim(nodeClaim))
+		} else {
+			obj = client.Object(nodeClaim)
+		}
+		if err := c.kubeClient.Status().Update(ctx, obj); err != nil {
 			if errors.IsConflict(err) {
 				return reconcile.Result{Requeue: true}, nil
 			}
@@ -106,7 +106,25 @@ func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim
 	return result.Min(results...), errs
 }
 
-func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
+type NodeClaimController struct {
+	*Controller
+}
+
+func NewNodeClaimController(clk clock.Clock, kubeClient client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
+	return corecontroller.Typed[*v1beta1.NodeClaim](kubeClient, &NodeClaimController{
+		Controller: NewController(clk, kubeClient, cluster, cloudProvider),
+	})
+}
+
+func (c *NodeClaimController) Name() string {
+	return "nodeclaim.disruption"
+}
+
+func (c *NodeClaimController) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	return c.Controller.Reconcile(ctx, nodeClaim)
+}
+
+func (c *NodeClaimController) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
 		For(&v1beta1.NodeClaim{}, builder.WithPredicates(
@@ -114,15 +132,15 @@ func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontrol
 				predicate.GenerationChangedPredicate{},
 				predicate.Funcs{
 					UpdateFunc: func(e event.UpdateEvent) bool {
-						oldMachine := e.ObjectOld.(*v1beta1.NodeClaim)
-						newMachine := e.ObjectNew.(*v1beta1.NodeClaim)
+						oldNodeClaim := e.ObjectOld.(*v1beta1.NodeClaim)
+						newNodeClaim := e.ObjectNew.(*v1beta1.NodeClaim)
 
 						// One of the status conditions that affects disruption has changed
 						// which means that we should re-consider this for disruption
-						for _, cond := range v1alpha5.LivingConditions {
+						for _, cond := range v1beta1.LivingConditions {
 							if !equality.Semantic.DeepEqual(
-								oldMachine.StatusConditions().GetCondition(cond),
-								newMachine.StatusConditions().GetCondition(cond),
+								oldNodeClaim.StatusConditions().GetCondition(cond),
+								newNodeClaim.StatusConditions().GetCondition(cond),
 							) {
 								return true
 							}
@@ -144,6 +162,66 @@ func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontrol
 		Watches(
 			&source.Kind{Type: &v1.Pod{}},
 			nodeclaimutil.PodEventHandler(ctx, c.kubeClient),
+		),
+	)
+}
+
+type MachineController struct {
+	*Controller
+}
+
+func NewMachineController(clk clock.Clock, kubeClient client.Client, cluster *state.Cluster, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
+	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &MachineController{
+		Controller: NewController(clk, kubeClient, cluster, cloudProvider),
+	})
+}
+
+func (c *MachineController) Name() string {
+	return "machine.disruption"
+}
+
+func (c *MachineController) Reconcile(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
+	return c.Controller.Reconcile(ctx, nodeclaimutil.New(machine))
+}
+
+func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
+	return corecontroller.Adapt(controllerruntime.
+		NewControllerManagedBy(m).
+		For(&v1alpha5.Machine{}, builder.WithPredicates(
+			predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.Funcs{
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						oldMachine := e.ObjectOld.(*v1alpha5.Machine)
+						newMachine := e.ObjectNew.(*v1alpha5.Machine)
+
+						// One of the status conditions that affects disruption has changed
+						// which means that we should re-consider this for disruption
+						for _, cond := range v1alpha5.LivingConditions {
+							if !equality.Semantic.DeepEqual(
+								oldMachine.StatusConditions().GetCondition(cond),
+								newMachine.StatusConditions().GetCondition(cond),
+							) {
+								return true
+							}
+						}
+						return false
+					},
+				},
+			),
+		)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
+		Watches(
+			&source.Kind{Type: &v1alpha5.Provisioner{}},
+			machineutil.ProvisionerEventHandler(ctx, c.kubeClient),
+		).
+		Watches(
+			&source.Kind{Type: &v1.Node{}},
+			machineutil.NodeEventHandler(ctx, c.kubeClient),
+		).
+		Watches(
+			&source.Kind{Type: &v1.Pod{}},
+			machineutil.PodEventHandler(ctx, c.kubeClient),
 		),
 	)
 }

@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
-	machinedisruption "github.com/aws/karpenter-core/pkg/controllers/machine/disruption"
 	machinegarbagecollection "github.com/aws/karpenter-core/pkg/controllers/machine/garbagecollection"
 	machinelifecycle "github.com/aws/karpenter-core/pkg/controllers/machine/lifecycle"
 	machinetermination "github.com/aws/karpenter-core/pkg/controllers/machine/termination"
@@ -70,10 +69,10 @@ func NewControllers(
 		nodeclaimlifecycle.NewController(clock, kubeClient, cloudProvider, recorder),
 		nodeclaimgarbagecollection.NewController(clock, kubeClient, cloudProvider),
 		nodeclaimtermination.NewController(kubeClient, cloudProvider),
-		nodeclaimdisruption.NewController(clock, kubeClient, cluster, cloudProvider),
+		nodeclaimdisruption.NewNodeClaimController(clock, kubeClient, cluster, cloudProvider),
+		nodeclaimdisruption.NewMachineController(clock, kubeClient, cluster, cloudProvider),
 		machinelifecycle.NewController(clock, kubeClient, cloudProvider, recorder),
 		machinegarbagecollection.NewController(clock, kubeClient, cloudProvider),
 		machinetermination.NewController(kubeClient, cloudProvider),
-		machinedisruption.NewController(clock, kubeClient, cluster, cloudProvider),
 	}
 }
