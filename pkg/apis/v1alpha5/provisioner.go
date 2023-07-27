@@ -123,6 +123,8 @@ func ProviderAnnotation(p *Provider) map[string]string {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=provisioners,scope=Cluster,categories=karpenter
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Template",type="string",JSONPath=".spec.providerRef.name",description=""
+// +kubebuilder:printcolumn:name="Weight",type="string",JSONPath=".spec.weight",priority=1,description=""
 type Provisioner struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -21,7 +21,11 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.template.spec.nodeClass.name
-      name: Template
+      name: NodeClass
+      type: string
+    - jsonPath: .spec.weight
+      name: Weight
+      priority: 1
       type: string
     name: v1beta1
     schema:

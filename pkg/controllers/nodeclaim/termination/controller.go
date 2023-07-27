@@ -39,10 +39,9 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
-
-var _ corecontroller.FinalizingTypedController[*v1beta1.NodeClaim] = (*Controller)(nil)
 
 // Controller is a NodeClaim Termination controller that triggers deletion of the Node and the
 // CloudProvider NodeClaim through its graceful termination mechanism
@@ -52,11 +51,11 @@ type Controller struct {
 }
 
 // NewController is a constructor for the NodeClaim Controller
-func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
-	return corecontroller.Typed[*v1beta1.NodeClaim](kubeClient, &Controller{
+func NewController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) *Controller {
+	return &Controller{
 		kubeClient:    kubeClient,
 		cloudProvider: cloudProvider,
-	})
+	}
 }
 
 func (*Controller) Name() string {
@@ -68,12 +67,12 @@ func (c *Controller) Reconcile(_ context.Context, _ *v1beta1.NodeClaim) (reconci
 }
 
 func (c *Controller) Finalize(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", nodeClaim.Status.NodeName, "provisioner", nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey], "provider-id", nodeClaim.Status.ProviderID))
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("node", nodeClaim.Status.NodeName, "provider-id", nodeClaim.Status.ProviderID))
 	stored := nodeClaim.DeepCopy()
 	if !controllerutil.ContainsFinalizer(nodeClaim, v1beta1.TerminationFinalizer) {
 		return reconcile.Result{}, nil
 	}
-	nodes, err := machineutil.AllNodesForNodeClaim(ctx, c.kubeClient, nodeClaim)
+	nodes, err := nodeclaimutil.AllNodesForNodeClaim(ctx, c.kubeClient, nodeClaim)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -94,18 +93,98 @@ func (c *Controller) Finalize(ctx context.Context, nodeClaim *v1beta1.NodeClaim)
 	}
 	controllerutil.RemoveFinalizer(nodeClaim, v1beta1.TerminationFinalizer)
 	if !equality.Semantic.DeepEqual(stored, nodeClaim) {
-		if err := c.kubeClient.Patch(ctx, nodeClaim, client.MergeFrom(stored)); err != nil {
-			return reconcile.Result{}, client.IgnoreNotFound(fmt.Errorf("removing nodeClaim termination finalizer, %w", err))
+		if nodeClaim.IsMachine {
+			storedMachine := machineutil.NewFromNodeClaim(stored)
+			machine := machineutil.NewFromNodeClaim(nodeClaim)
+			if err := c.kubeClient.Patch(ctx, machine, client.MergeFrom(storedMachine)); err != nil {
+				return reconcile.Result{}, client.IgnoreNotFound(fmt.Errorf("removing machine termination finalizer, %w", err))
+			}
+			logging.FromContext(ctx).Infof("deleted machine")
+		} else {
+			if err := c.kubeClient.Patch(ctx, nodeClaim, client.MergeFrom(stored)); err != nil {
+				return reconcile.Result{}, client.IgnoreNotFound(fmt.Errorf("removing nodeclaim termination finalizer, %w", err))
+			}
+			logging.FromContext(ctx).Infof("deleted nodeclaim")
 		}
-		logging.FromContext(ctx).Infof("deleted nodeClaim")
 	}
 	return reconcile.Result{}, nil
 }
 
-func (c *Controller) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
+type NodeClaimController struct {
+	*Controller
+}
+
+func NewNodeClaimController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
+	return corecontroller.Typed[*v1beta1.NodeClaim](kubeClient, &NodeClaimController{
+		Controller: NewController(kubeClient, cloudProvider),
+	})
+}
+
+func (*NodeClaimController) Name() string {
+	return "nodeclaim.termination"
+}
+
+func (c *NodeClaimController) Reconcile(_ context.Context, _ *v1beta1.NodeClaim) (reconcile.Result, error) {
+	return reconcile.Result{}, nil
+}
+
+func (c *NodeClaimController) Finalize(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("nodepool", nodeClaim.Labels[v1beta1.NodePoolLabelKey]))
+	return c.Controller.Finalize(ctx, nodeClaim)
+}
+
+func (c *NodeClaimController) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
 		For(&v1beta1.NodeClaim{}).
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		Watches(
+			&source.Kind{Type: &v1.Node{}},
+			machineutil.NodeEventHandler(ctx, c.kubeClient),
+			// Watch for node deletion events
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(e event.CreateEvent) bool { return false },
+				UpdateFunc: func(e event.UpdateEvent) bool { return false },
+				DeleteFunc: func(e event.DeleteEvent) bool { return true },
+			}),
+		).
+		WithOptions(controller.Options{
+			RateLimiter: workqueue.NewMaxOfRateLimiter(
+				workqueue.NewItemExponentialFailureRateLimiter(time.Second, time.Minute),
+				// 10 qps, 100 bucket size
+				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
+			),
+			MaxConcurrentReconciles: 100, // higher concurrency limit since we want fast reaction to termination
+		}))
+}
+
+type MachineController struct {
+	*Controller
+}
+
+func NewMachineController(kubeClient client.Client, cloudProvider cloudprovider.CloudProvider) corecontroller.Controller {
+	return corecontroller.Typed[*v1alpha5.Machine](kubeClient, &MachineController{
+		Controller: NewController(kubeClient, cloudProvider),
+	})
+}
+
+func (*MachineController) Name() string {
+	return "machine.termination"
+}
+
+func (c *MachineController) Reconcile(_ context.Context, _ *v1alpha5.Machine) (reconcile.Result, error) {
+	return reconcile.Result{}, nil
+}
+
+func (c *MachineController) Finalize(ctx context.Context, machine *v1alpha5.Machine) (reconcile.Result, error) {
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", machine.Labels[v1alpha5.ProvisionerNameLabelKey]))
+	return c.Controller.Finalize(ctx, nodeclaimutil.New(machine))
+}
+
+func (c *MachineController) Builder(ctx context.Context, m manager.Manager) corecontroller.Builder {
+	return corecontroller.Adapt(controllerruntime.
+		NewControllerManagedBy(m).
+		For(&v1alpha5.Machine{}).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},

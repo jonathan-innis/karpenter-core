@@ -116,7 +116,8 @@ type Consolidation struct {
 // NodePool is the Schema for the Provisioners API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=nodepools,scope=Cluster,categories=karpenter,shortName={np,nps}
-// +kubebuilder:printcolumn:name="Template",type="string",JSONPath=".spec.template.spec.nodeClass.name",description=""
+// +kubebuilder:printcolumn:name="NodeClass",type="string",JSONPath=".spec.template.spec.nodeClass.name",description=""
+// +kubebuilder:printcolumn:name="Weight",type="string",JSONPath=".spec.weight",priority=1,description=""
 // +kubebuilder:subresource:status
 type NodePool struct {
 	metav1.TypeMeta   `json:",inline"`

@@ -28,10 +28,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	corecontroller "github.com/aws/karpenter-core/pkg/operator/controller"
+	machineutil "github.com/aws/karpenter-core/pkg/utils/machine"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 	"github.com/aws/karpenter-core/pkg/utils/sets"
 )
 
@@ -50,12 +53,12 @@ func NewController(c clock.Clock, kubeClient client.Client, cloudProvider cloudp
 }
 
 func (c *Controller) Name() string {
-	return "machine.garbagecollection"
+	return "nodeclaim.garbagecollection"
 }
 
 func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
-	nodeClaimList := &v1beta1.NodeClaimList{}
-	if err := c.kubeClient.List(ctx, nodeClaimList); err != nil {
+	nodeClaimList, err := nodeclaimutil.List(ctx, c.kubeClient)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 	cloudProviderNodeClaims, err := c.cloudProvider.List(ctx)
@@ -77,17 +80,32 @@ func (c *Controller) Reconcile(ctx context.Context, _ reconcile.Request) (reconc
 
 	errs := make([]error, len(nodeClaims))
 	workqueue.ParallelizeUntil(ctx, 20, len(nodeClaims), func(i int) {
-		if err := c.kubeClient.Delete(ctx, nodeClaims[i]); err != nil {
-			errs[i] = client.IgnoreNotFound(err)
-			return
+		if nodeClaims[i].IsMachine {
+			machine := machineutil.NewFromNodeClaim(nodeClaims[i])
+			logging.FromContext(ctx).
+				With("provisioner", machine.Labels[v1alpha5.ProvisionerNameLabelKey], "machine", machine.Name, "provider-id", machine.Status.ProviderID).
+				Debugf("garbage collecting machine with no cloudprovider representation")
+			metrics.MachinesTerminatedCounter.With(prometheus.Labels{
+				metrics.ReasonLabel:      "garbage_collected",
+				metrics.ProvisionerLabel: machine.Labels[v1alpha5.ProvisionerNameLabelKey],
+			}).Inc()
+			if err := c.kubeClient.Delete(ctx, machine); err != nil {
+				errs[i] = client.IgnoreNotFound(err)
+				return
+			}
+		} else {
+			logging.FromContext(ctx).
+				With("nodepool", nodeClaims[i].Labels[v1beta1.NodePoolLabelKey], "nodeclaim", nodeClaims[i].Name, "provider-id", nodeClaims[i].Status.ProviderID).
+				Debugf("garbage collecting nodeclaim with no cloudprovider representation")
+			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
+				metrics.ReasonLabel:   "garbage_collected",
+				metrics.NodePoolLabel: nodeClaims[i].Labels[v1beta1.NodePoolLabelKey],
+			}).Inc()
+			if err := c.kubeClient.Delete(ctx, nodeClaims[i]); err != nil {
+				errs[i] = client.IgnoreNotFound(err)
+				return
+			}
 		}
-		logging.FromContext(ctx).
-			With("nodepool", nodeClaims[i].Labels[v1beta1.NodePoolLabelKey], "nodeclaim", nodeClaims[i].Name, "provider-id", nodeClaims[i].Status.ProviderID).
-			Debugf("garbage collecting nodeClaim with no cloudprovider representation")
-		metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-			metrics.ReasonLabel:      "garbage_collected",
-			metrics.ProvisionerLabel: nodeClaims[i].Labels[v1beta1.NodePoolLabelKey],
-		}).Inc()
 	})
 	return reconcile.Result{RequeueAfter: time.Minute * 2}, multierr.Combine(errs...)
 }
