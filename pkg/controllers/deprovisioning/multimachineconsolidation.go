@@ -24,6 +24,7 @@ import (
 	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
@@ -38,6 +39,11 @@ type MultiMachineConsolidation struct {
 func NewMultiMachineConsolidation(clk clock.Clock, cluster *state.Cluster, kubeClient client.Client,
 	provisioner *provisioning.Provisioner, cp cloudprovider.CloudProvider, recorder events.Recorder) *MultiMachineConsolidation {
 	return &MultiMachineConsolidation{makeConsolidation(clk, cluster, kubeClient, provisioner, cp, recorder)}
+}
+
+func (m *MultiMachineConsolidation) ShouldDeprovision(ctx context.Context, cn *Candidate) bool {
+	return m.consolidation.ShouldDeprovision(ctx, cn) &&
+		cn.nodePool.Spec.Deprovisioning.ConsolidationPolicy == v1beta1.ConsolidationPolicyWhenUnderutilized
 }
 
 func (m *MultiMachineConsolidation) ComputeCommand(ctx context.Context, candidates ...*Candidate) (Command, error) {
@@ -63,7 +69,7 @@ func (m *MultiMachineConsolidation) ComputeCommand(ctx context.Context, candidat
 		return cmd, nil
 	}
 
-	v := NewValidation(consolidationTTL, m.clock, m.cluster, m.kubeClient, m.provisioner, m.cloudProvider, m.recorder)
+	v := NewValidation(consolidationTTL(cmd.candidates), m.clock, m.cluster, m.kubeClient, m.provisioner, m.cloudProvider, m.recorder)
 	isValid, err := v.IsValid(ctx, cmd)
 	if err != nil {
 		return Command{}, fmt.Errorf("validating, %w", err)

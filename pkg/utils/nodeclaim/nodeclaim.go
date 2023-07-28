@@ -484,7 +484,7 @@ func IsExpired(obj client.Object, clock clock.Clock, nodePool *v1beta1.NodePool)
 }
 
 func GetExpirationTime(obj client.Object, nodePool *v1beta1.NodePool) time.Time {
-	if nodePool == nil || nodePool.Spec.Deprovisioning.ExpirationTTL == nil || obj == nil {
+	if nodePool == nil || !nodePool.Spec.Deprovisioning.ExpirationTTL.Disabled || obj == nil {
 		// If not defined, return some much larger time.
 		return time.Date(5000, 0, 0, 0, 0, 0, 0, time.UTC)
 	}

@@ -142,7 +142,7 @@ func NewCandidate(ctx context.Context, kubeClient client.Client, recorder events
 // disruption cost is highest, and it approaches zero as the node ages towards its expiration time.
 func (c *Candidate) lifetimeRemaining(clock clock.Clock) float64 {
 	remaining := 1.0
-	if c.nodePool.Spec.Deprovisioning.ExpirationTTL != nil {
+	if !c.nodePool.Spec.Deprovisioning.ExpirationTTL.Disabled {
 		ageSeconds := clock.Since(c.Node.CreationTimestamp.Time).Seconds()
 		totalLifetimeSeconds := c.nodePool.Spec.Deprovisioning.ExpirationTTL.Duration.Seconds()
 		lifetimeRemainingSeconds := totalLifetimeSeconds - ageSeconds

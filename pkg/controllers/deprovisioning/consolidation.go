@@ -23,7 +23,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/clock"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -59,9 +58,6 @@ func makeConsolidation(clock clock.Clock, cluster *state.Cluster, kubeClient cli
 		recorder:      recorder,
 	}
 }
-
-// consolidationTTL is the TTL between creating a consolidation command and validating that it still works.
-const consolidationTTL = 15 * time.Second
 
 // string is the string representation of the deprovisioner
 func (c *consolidation) String() string {
@@ -102,7 +98,7 @@ func (c *consolidation) ShouldDeprovision(_ context.Context, cn *Candidate) bool
 		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, "nodePool is unknown")...)
 		return false
 	}
-	if cn.nodePool.Spec.Deprovisioning.ConsolidationPolicy == nil || !ptr.BoolValue(cn.nodePool.Spec.Consolidation.Enabled) {
+	if cn.nodePool.Spec.Deprovisioning.ConsolidationTTL.Disabled {
 		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, fmt.Sprintf("nodePool %s has consolidation disabled", cn.nodePool.Name))...)
 		return false
 	}

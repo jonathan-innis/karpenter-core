@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/samber/lo"
 
@@ -260,6 +261,12 @@ func clamp(min, val, max float64) float64 {
 		return max
 	}
 	return val
+}
+
+func consolidationTTL(candidates []*Candidate) time.Duration {
+	return lo.MaxBy(candidates, func(a, b *Candidate) bool {
+		return a.nodePool.Spec.Deprovisioning.ConsolidationTTL.Duration > b.nodePool.Spec.Deprovisioning.ConsolidationTTL.Duration
+	}).nodePool.Spec.Deprovisioning.ConsolidationTTL.Duration
 }
 
 func hasDoNotEvictPod(c *Candidate) (*v1.Pod, bool) {
