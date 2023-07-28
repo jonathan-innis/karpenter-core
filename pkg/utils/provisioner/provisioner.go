@@ -23,17 +23,21 @@ func New(nodePool *v1beta1.NodePool) *v1alpha5.Provisioner {
 			ProviderRef:          NewProviderRef(nodePool.Spec.Template.Spec.NodeClass),
 			Limits:               NewLimits(v1.ResourceList(nodePool.Spec.Limits)),
 			Weight:               nodePool.Spec.Weight,
-			Consolidation:        NewConsolidation(), // TODO @joinnis Fix the consolidation conversion logic
 		},
 		Status: v1alpha5.ProvisionerStatus{
 			Resources: nodePool.Status.Resources,
 		},
 	}
-	if nodePool.Spec.Deprovisioning.EmptinessTTL != nil {
+	if !nodePool.Spec.Deprovisioning.EmptinessTTL.Disabled {
 		p.Spec.TTLSecondsAfterEmpty = lo.ToPtr(int64(nodePool.Spec.Deprovisioning.EmptinessTTL.Seconds()))
 	}
-	if nodePool.Spec.Deprovisioning.ExpirationTTL != nil {
+	if !nodePool.Spec.Deprovisioning.ExpirationTTL.Disabled {
 		p.Spec.TTLSecondsUntilExpired = lo.ToPtr(int64(nodePool.Spec.Deprovisioning.ExpirationTTL.Seconds()))
+	}
+	if !nodePool.Spec.Deprovisioning.ConsolidationTTL.Disabled && nodePool.Spec.Deprovisioning.ConsolidationPolicy == v1beta1.ConsolidationPolicyWhenUnderutilized {
+		p.Spec.Consolidation = &v1alpha5.Consolidation{
+			Enabled: lo.ToPtr(true),
+		}
 	}
 	return p
 }
