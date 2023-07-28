@@ -28,6 +28,15 @@ import (
 	provisionerutil "github.com/aws/karpenter-core/pkg/utils/provisioner"
 )
 
+type Key struct {
+	Name          string
+	IsProvisioner bool
+}
+
+func KeyFromNodePool(nodePool *v1beta1.NodePool) Key {
+	return Key{Name: nodePool.Name, IsProvisioner: nodePool.IsProvisioner}
+}
+
 func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 	np := &v1beta1.NodePool{
 		ObjectMeta: provisioner.ObjectMeta,

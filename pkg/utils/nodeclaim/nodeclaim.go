@@ -40,6 +40,11 @@ import (
 	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 )
 
+type Key struct {
+	Name      string
+	IsMachine bool
+}
+
 // PodEventHandler is a watcher on v1.Pods that maps Pods to NodeClaim based on the node names
 // and enqueues reconcile.Requests for the NodeClaims
 func PodEventHandler(ctx context.Context, c client.Client) handler.EventHandler {
@@ -287,6 +292,22 @@ func NewFromNode(node *v1.Node) *v1beta1.NodeClaim {
 	return m
 }
 
+func Get(ctx context.Context, c client.Client, key Key) (*v1beta1.NodeClaim, error) {
+	if key.IsMachine {
+		machine := &v1alpha5.Machine{}
+		if err := c.Get(ctx, types.NamespacedName{Name: key.Name}, machine); err != nil {
+			return nil, err
+		}
+		return New(machine), nil
+	} else {
+		nodeClaim := &v1beta1.NodeClaim{}
+		if err := c.Get(ctx, types.NamespacedName{Name: key.Name}, nodeClaim); err != nil {
+			return nil, err
+		}
+		return nodeClaim, nil
+	}
+}
+
 func List(ctx context.Context, c client.Client, opts ...client.ListOption) (*v1beta1.NodeClaimList, error) {
 	machineList := &v1alpha5.MachineList{}
 	if err := c.List(ctx, machineList, opts...); err != nil {
@@ -341,6 +362,20 @@ func Delete(ctx context.Context, c client.Client, nodeClaim *v1beta1.NodeClaim) 
 	}
 }
 
+func CreatedCounter(nodeClaim *v1beta1.NodeClaim, reason string) prometheus.Counter {
+	if nodeClaim.IsMachine {
+		return metrics.MachinesCreatedCounter.With(prometheus.Labels{
+			metrics.ReasonLabel:      reason,
+			metrics.ProvisionerLabel: nodeClaim.Labels[v1alpha5.ProvisionerNameLabelKey],
+		})
+	} else {
+		return metrics.NodeClaimsCreatedCounter.With(prometheus.Labels{
+			metrics.ReasonLabel:   reason,
+			metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+		})
+	}
+}
+
 func LaunchedCounter(nodeClaim *v1beta1.NodeClaim) prometheus.Counter {
 	if nodeClaim.IsMachine {
 		return metrics.MachinesLaunchedCounter.With(prometheus.Labels{
@@ -385,8 +420,8 @@ func TerminatedCounter(nodeClaim *v1beta1.NodeClaim, reason string) prometheus.C
 		})
 	} else {
 		return metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-			metrics.ReasonLabel:      reason,
-			metrics.ProvisionerLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
+			metrics.ReasonLabel:   reason,
+			metrics.NodePoolLabel: nodeClaim.Labels[v1beta1.NodePoolLabelKey],
 		})
 	}
 }
@@ -454,4 +489,9 @@ func GetExpirationTime(obj client.Object, nodePool *v1beta1.NodePool) time.Time 
 		return time.Date(5000, 0, 0, 0, 0, 0, 0, time.UTC)
 	}
 	return obj.GetCreationTimestamp().Add(nodePool.Spec.Deprovisioning.ExpirationTTL.Duration)
+}
+
+func IsPastEmptinessTTL(nodeClaim *v1beta1.NodeClaim, clock clock.Clock, nodePool *v1beta1.NodePool) bool {
+	return nodeClaim.StatusConditions().GetCondition(v1beta1.NodeEmpty).IsTrue() &&
+		!clock.Now().Before(nodeClaim.StatusConditions().GetCondition(v1beta1.NodeEmpty).LastTransitionTime.Inner.Add(nodePool.Spec.Deprovisioning.EmptinessTTL.Duration))
 }

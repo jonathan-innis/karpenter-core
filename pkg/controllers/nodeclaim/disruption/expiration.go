@@ -62,7 +62,7 @@ func (e *Expiration) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, 
 	}
 	// 3. Otherwise, if the nodeClaim is expired, but doesn't have the status condition, add it.
 	nodeClaim.StatusConditions().SetCondition(apis.Condition{
-		Type:     v1alpha5.MachineExpired,
+		Type:     v1beta1.NodeExpired,
 		Status:   v1.ConditionTrue,
 		Severity: apis.ConditionSeverityWarning,
 	})

@@ -181,7 +181,7 @@ var _ = Describe("Inflight Nodes", func() {
 		machine := test.Machine(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					v1alpha5.DoNotConsolidateNodeAnnotationKey: "true",
+					v1alpha5.DoNotDisruptAnnotationKey: "true",
 				},
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: "default",
@@ -237,7 +237,7 @@ var _ = Describe("Inflight Nodes", func() {
 		Expect(stateNode.Labels()).To(HaveKeyWithValue(v1.LabelTopologyRegion, "test-region"))
 		Expect(stateNode.Labels()).To(HaveKeyWithValue(v1.LabelHostname, "custom-host-name"))
 		Expect(stateNode.HostName()).To(Equal("custom-host-name"))
-		Expect(stateNode.Annotations()).To(HaveKeyWithValue(v1alpha5.DoNotConsolidateNodeAnnotationKey, "true"))
+		Expect(stateNode.Annotations()).To(HaveKeyWithValue(v1alpha5.DoNotDisruptAnnotationKey, "true"))
 		Expect(stateNode.Initialized()).To(BeFalse())
 		Expect(stateNode.Owned()).To(BeTrue())
 	})

@@ -52,10 +52,15 @@ spec:
               pod scheduling constraints.
             properties:
               deprovisioning:
+                default:
+                  consolidationPolicy: WhenUnderutilized
+                  consolidationTTL: 15s
+                  expirationTTL: 90d
                 description: Deprovisioning contains the parameters that relate to
                   Karpenter's deprovisioning logic
                 properties:
                   consolidationPolicy:
+                    default: WhenUnderutilized
                     description: ConsolidationPolicy describes which nodes Karpenter
                       can deprovision through its consolidation algorithm. This policy
                       defaults to "WhenUnderutilized" if not specified
@@ -63,14 +68,14 @@ spec:
                     - WhenEmpty
                     - WhenUnderutilized
                     type: string
-                  ttlAfterUnderutilized:
+                  consolidationTTL:
                     default: 15s
                     description: ConsolidationTTL is the duration the controller will
                       wait before attempting to terminate nodes that are empty Termination
                       due to under-utilization is disabled if this field is not set.
                       This field is mutually exclusive to consolidation.enabled
                     type: string
-                  ttlUntilExpired:
+                  expirationTTL:
                     default: 90d
                     description: ExpirationTTL is the duration the controller will
                       wait before terminating a node, measured from when the node

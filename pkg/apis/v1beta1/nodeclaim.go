@@ -47,6 +47,8 @@ type NodeClaimSpec struct {
 	// NodeClass is a reference to an object that defines provider specific configuration
 	// +required
 	NodeClass *NodeClassRef `json:"nodeClass"`
+	// TODO @joinnis: Add a little write-up here on what to do
+	Provider *Provider `json:"-"`
 }
 
 func KubeletAnnotation(k *v1alpha5.KubeletConfiguration) map[string]string {

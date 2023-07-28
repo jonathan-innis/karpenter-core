@@ -25,11 +25,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	deprovisioningevents "github.com/aws/karpenter-core/pkg/controllers/deprovisioning/events"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning/scheduling"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
+	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 )
 
 type Deprovisioner interface {
@@ -45,7 +47,7 @@ type CandidateFilter func(context.Context, *Candidate) bool
 type Candidate struct {
 	*state.StateNode
 	instanceType   *cloudprovider.InstanceType
-	provisioner    *v1alpha5.Provisioner
+	nodePool       *v1beta1.NodePool
 	zone           string
 	capacityType   string
 	disruptionCost float64
@@ -54,32 +56,45 @@ type Candidate struct {
 
 //nolint:gocyclo
 func NewCandidate(ctx context.Context, kubeClient client.Client, recorder events.Recorder, clk clock.Clock, node *state.StateNode,
-	provisionerMap map[string]*v1alpha5.Provisioner, provisionerToInstanceTypes map[string]map[string]*cloudprovider.InstanceType) (*Candidate, error) {
+	nodePoolMap map[nodepoolutil.Key]*v1beta1.NodePool, nodePoolToInstanceTypesMap map[nodepoolutil.Key]map[string]*cloudprovider.InstanceType) (*Candidate, error) {
 
 	if node.Node == nil || node.NodeClaim == nil {
 		return nil, fmt.Errorf("state node doesn't contain both a node and a machine")
 	}
+	if _, ok := node.Annotations()[v1beta1.DoNotDisruptAnnotationKey]; ok {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, node.NodeClaim, fmt.Sprintf("disruption is blocked thorugh the %q annotation", v1beta1.DoNotDisruptAnnotationKey))...)
+		return nil, fmt.Errorf("disruption is blocked thorugh the %q annotation", v1beta1.DoNotDisruptAnnotationKey)
+	}
+
+	var ownerName string
+	var isProvisionerOwner bool
+	if name := node.Labels()[v1alpha5.ProvisionerNameLabelKey]; name != "" {
+		ownerName = name
+		isProvisionerOwner = true
+	} else if name = node.Labels()[v1beta1.NodePoolLabelKey]; name != "" {
+		ownerName = name
+		isProvisionerOwner = false
+	} else {
+		return nil, fmt.Errorf("state node doesn't have the Karpenter owner label")
+	}
+
 	// check whether the node has all the labels we need
 	for _, label := range []string{
-		v1alpha5.LabelCapacityType,
+		v1beta1.LabelCapacityType,
 		v1.LabelTopologyZone,
-		v1alpha5.ProvisionerNameLabelKey,
 	} {
 		if _, ok := node.Labels()[label]; !ok {
-			// This means that we don't own the candidate which means we shouldn't fire an event for it
-			if label != v1alpha5.ProvisionerNameLabelKey {
-				recorder.Publish(deprovisioningevents.Blocked(node.Node, node.NodeClaim, fmt.Sprintf("required label %q doesn't exist", label))...)
-			}
+			recorder.Publish(deprovisioningevents.Blocked(node.Node, node.NodeClaim, fmt.Sprintf("required label %q doesn't exist", label))...)
 			return nil, fmt.Errorf("state node doesn't have required label '%s'", label)
 		}
 	}
 
-	provisioner := provisionerMap[node.Labels()[v1alpha5.ProvisionerNameLabelKey]]
-	instanceTypeMap := provisionerToInstanceTypes[node.Labels()[v1alpha5.ProvisionerNameLabelKey]]
-	// skip any nodes where we can't determine the provisioner
-	if provisioner == nil || instanceTypeMap == nil {
-		recorder.Publish(deprovisioningevents.Blocked(node.Node, node.NodeClaim, fmt.Sprintf("owning provisioner %q not found", node.Labels()[v1alpha5.ProvisionerNameLabelKey]))...)
-		return nil, fmt.Errorf("provisioner '%s' can't be resolved for state node", node.Labels()[v1alpha5.ProvisionerNameLabelKey])
+	nodePool := nodePoolMap[nodepoolutil.Key{Name: ownerName, IsProvisioner: isProvisionerOwner}]
+	instanceTypeMap := nodePoolToInstanceTypesMap[nodepoolutil.Key{Name: ownerName, IsProvisioner: isProvisionerOwner}]
+	// skip any nodes where we can't determine the nodePool
+	if nodePool == nil || instanceTypeMap == nil {
+		recorder.Publish(deprovisioningevents.Blocked(node.Node, node.NodeClaim, fmt.Sprintf("owning nodePool %q not found", ownerName))...)
+		return nil, fmt.Errorf("nodePool '%s' can't be resolved for state node", ownerName)
 	}
 	instanceType := instanceTypeMap[node.Labels()[v1.LabelInstanceTypeStable]]
 	// skip any nodes that we can't determine the instance of
@@ -113,8 +128,8 @@ func NewCandidate(ctx context.Context, kubeClient client.Client, recorder events
 	cn := &Candidate{
 		StateNode:    node.DeepCopy(),
 		instanceType: instanceType,
-		provisioner:  provisioner,
-		capacityType: node.Labels()[v1alpha5.LabelCapacityType],
+		nodePool:     nodePool,
+		capacityType: node.Labels()[v1beta1.LabelCapacityType],
 		zone:         node.Labels()[v1.LabelTopologyZone],
 		pods:         pods,
 	}
@@ -127,10 +142,10 @@ func NewCandidate(ctx context.Context, kubeClient client.Client, recorder events
 // disruption cost is highest, and it approaches zero as the node ages towards its expiration time.
 func (c *Candidate) lifetimeRemaining(clock clock.Clock) float64 {
 	remaining := 1.0
-	if c.provisioner.Spec.TTLSecondsUntilExpired != nil {
-		ageInSeconds := clock.Since(c.Node.CreationTimestamp.Time).Seconds()
-		totalLifetimeSeconds := float64(*c.provisioner.Spec.TTLSecondsUntilExpired)
-		lifetimeRemainingSeconds := totalLifetimeSeconds - ageInSeconds
+	if c.nodePool.Spec.Deprovisioning.ExpirationTTL != nil {
+		ageSeconds := clock.Since(c.Node.CreationTimestamp.Time).Seconds()
+		totalLifetimeSeconds := c.nodePool.Spec.Deprovisioning.ExpirationTTL.Duration.Seconds()
+		lifetimeRemainingSeconds := totalLifetimeSeconds - ageSeconds
 		remaining = clamp(0.0, lifetimeRemainingSeconds/totalLifetimeSeconds, 1.0)
 	}
 	return remaining

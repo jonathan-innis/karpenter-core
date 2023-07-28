@@ -109,7 +109,7 @@ func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1beta1.NodeClaim
 		if err := nodeclaimutil.Patch(ctx, c.kubeClient, stored, nodeClaim); err != nil {
 			return reconcile.Result{}, client.IgnoreNotFound(multierr.Append(errs, err))
 		}
-		if err := nodeclaimutil.PatchStatus(ctx, c.kubeClient, statusCopy, nodeClaim); err != nil {
+		if err := nodeclaimutil.PatchStatus(ctx, c.kubeClient, stored, statusCopy); err != nil {
 			return reconcile.Result{}, client.IgnoreNotFound(multierr.Append(errs, err))
 		}
 		// We sleep here after a patch operation since we want to ensure that we are able to read our own writes

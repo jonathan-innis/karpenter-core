@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 	nodepoolutil "github.com/aws/karpenter-core/pkg/utils/nodepool"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -138,19 +139,19 @@ func (p *Provisioner) Reconcile(ctx context.Context, _ reconcile.Request) (resul
 
 // LaunchNodeClaims launches nodes passed into the function in parallel. It returns a slice of the successfully created node
 // names as well as a multierr of any errors that occurred while launching nodes
-func (p *Provisioner) LaunchNodeClaims(ctx context.Context, nodeClaims []*scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) ([]string, error) {
+func (p *Provisioner) LaunchNodeClaims(ctx context.Context, nodeClaims []*scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) ([]nodeclaimutil.Key, error) {
 	// Launch capacity and bind pods
 	errs := make([]error, len(nodeClaims))
-	nodeClaimNames := make([]string, len(nodeClaims))
+	nodeClaimKeys := make([]nodeclaimutil.Key, len(nodeClaims))
 	workqueue.ParallelizeUntil(ctx, len(nodeClaims), len(nodeClaims), func(i int) {
 		// create a new context to avoid a data race on the ctx variable
-		if nodeClaimName, err := p.Launch(ctx, nodeClaims[i], opts...); err != nil {
+		if key, err := p.Launch(ctx, nodeClaims[i], opts...); err != nil {
 			errs[i] = fmt.Errorf("creating node claim, %w", err)
 		} else {
-			nodeClaimNames[i] = nodeClaimName
+			nodeClaimKeys[i] = key
 		}
 	})
-	return nodeClaimNames, multierr.Combine(errs...)
+	return nodeClaimKeys, multierr.Combine(errs...)
 }
 
 func (p *Provisioner) GetPendingPods(ctx context.Context) ([]*v1.Pod, error) {
@@ -319,8 +320,7 @@ func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) 
 	return scheduler.Solve(ctx, pods)
 }
 
-func (p *Provisioner) Launch(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (string, error) {
-
+func (p *Provisioner) Launch(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (nodeclaimutil.Key, error) {
 	if n.FromProvisioner {
 		return p.launchMachine(ctx, n, opts...)
 	} else {
@@ -328,19 +328,19 @@ func (p *Provisioner) Launch(ctx context.Context, n *scheduler.NodeClaim, opts .
 	}
 }
 
-func (p *Provisioner) launchMachine(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (string, error) {
+func (p *Provisioner) launchMachine(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (nodeclaimutil.Key, error) {
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("provisioner", n.OwnerName))
 	options := functional.ResolveOptions(opts...)
 	latest := &v1alpha5.Provisioner{}
 	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: n.OwnerName}, latest); err != nil {
-		return "", fmt.Errorf("getting current resource usage, %w", err)
+		return nodeclaimutil.Key{}, fmt.Errorf("getting current resource usage, %w", err)
 	}
 	if err := latest.Spec.Limits.ExceededBy(latest.Status.Resources); err != nil {
-		return "", err
+		return nodeclaimutil.Key{}, err
 	}
 	machine := n.ToMachine(latest)
 	if err := p.kubeClient.Create(ctx, machine); err != nil {
-		return "", err
+		return nodeclaimutil.Key{}, err
 	}
 	instanceTypeRequirement, _ := lo.Find(machine.Spec.Requirements, func(req v1.NodeSelectorRequirement) bool { return req.Key == v1.LabelInstanceTypeStable })
 	logging.FromContext(ctx).With("machine", machine.Name, "requests", machine.Spec.Resources.Requests, "instance-types", instanceTypeList(instanceTypeRequirement.Values)).Infof("created machine")
@@ -354,25 +354,25 @@ func (p *Provisioner) launchMachine(ctx context.Context, n *scheduler.NodeClaim,
 			p.recorder.Publish(schedulingevents.NominatePod(pod, nil, machine))
 		}
 	}
-	return machine.Name, nil
+	return nodeclaimutil.Key{Name: machine.Name, IsMachine: true}, nil
 }
 
-func (p *Provisioner) launchNodeClaim(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (string, error) {
+func (p *Provisioner) launchNodeClaim(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (nodeclaimutil.Key, error) {
 	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("nodepool", n.OwnerName))
 	options := functional.ResolveOptions(opts...)
 	latest := &v1beta1.NodePool{}
 	if err := p.kubeClient.Get(ctx, types.NamespacedName{Name: n.OwnerName}, latest); err != nil {
-		return "", fmt.Errorf("getting current resource usage, %w", err)
+		return nodeclaimutil.Key{}, fmt.Errorf("getting current resource usage, %w", err)
 	}
 	if err := latest.Spec.Limits.ExceededBy(latest.Status.Resources); err != nil {
-		return "", err
+		return nodeclaimutil.Key{}, err
 	}
 	nodeClaim := n.ToNodeClaim(latest)
 	if err := p.kubeClient.Create(ctx, nodeClaim); err != nil {
-		return "", err
+		return nodeclaimutil.Key{}, err
 	}
 	instanceTypeRequirement, _ := lo.Find(nodeClaim.Spec.Requirements, func(req v1.NodeSelectorRequirement) bool { return req.Key == v1.LabelInstanceTypeStable })
-	logging.FromContext(ctx).With("nodeclaim", nodeClaim.Name, "requests", nodeClaim.Spec.Resources.Requests, "instance-types", instanceTypeList(instanceTypeRequirement.Values)).Infof("created nodeClaim")
+	logging.FromContext(ctx).With("nodeclaim", nodeClaim.Name, "requests", nodeClaim.Spec.Resources.Requests, "instance-types", instanceTypeList(instanceTypeRequirement.Values)).Infof("created nodeclaim")
 	p.cluster.NominateNodeForPod(ctx, nodeClaim.Name)
 	metrics.NodeClaimsCreatedCounter.With(prometheus.Labels{
 		metrics.ReasonLabel:   options.Reason,
@@ -383,7 +383,7 @@ func (p *Provisioner) launchNodeClaim(ctx context.Context, n *scheduler.NodeClai
 			p.recorder.Publish(schedulingevents.NominatePod(pod, nil, nodeClaim))
 		}
 	}
-	return nodeClaim.Name, nil
+	return nodeclaimutil.Key{Name: nodeClaim.Name}, nil
 }
 
 func instanceTypeList(names []string) string {

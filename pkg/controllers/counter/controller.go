@@ -115,7 +115,7 @@ func (c *NodePoolController) Name() string {
 func (c *NodePoolController) Builder(_ context.Context, m manager.Manager) corecontroller.Builder {
 	return corecontroller.Adapt(controllerruntime.
 		NewControllerManagedBy(m).
-		For(&v1alpha5.Provisioner{}).
+		For(&v1beta1.NodePool{}).
 		Watches(
 			&source.Kind{Type: &v1.Node{}},
 			handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
@@ -132,7 +132,7 @@ type ProvisionerController struct {
 	*Controller
 }
 
-func NewNProvisionerController(kubeClient client.Client, cluster *state.Cluster) corecontroller.Controller {
+func NewProvisionerController(kubeClient client.Client, cluster *state.Cluster) corecontroller.Controller {
 	return corecontroller.Typed[*v1alpha5.Provisioner](kubeClient, &ProvisionerController{
 		Controller: NewController(kubeClient, cluster),
 	})

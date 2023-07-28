@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"k8s.io/utils/clock"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
@@ -108,10 +107,12 @@ func (v *Validation) IsValid(ctx context.Context, cmd Command) (bool, error) {
 
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
 func (v *Validation) ShouldDeprovision(_ context.Context, c *Candidate) bool {
-	if val, ok := c.Annotations()[v1alpha5.DoNotConsolidateNodeAnnotationKey]; ok {
+	if val, ok := c.Annotations()[v1alpha5.DoNotDisruptAnnotationKey]; ok {
 		return val != "true"
 	}
-	return c.provisioner != nil && c.provisioner.Spec.Consolidation != nil && ptr.BoolValue(c.provisioner.Spec.Consolidation.Enabled)
+	return false
+	// TODO @joinnis: Uncomment this
+	//return c.nodePool != nil && c.nodePool.Spec.Consolidation != nil && ptr.BoolValue(c.nodePool.Spec.Consolidation.Enabled)
 }
 
 // ValidateCommand validates a command for a deprovisioner

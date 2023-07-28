@@ -40,9 +40,7 @@ const (
 
 // Karpenter specific annotations
 const (
-	DoNotEvictPodAnnotationKey        = Group + "/do-not-disrupt"
-	DoNotConsolidateNodeAnnotationKey = Group + "/do-not-consolidate"
-
+	DoNotDisruptAnnotationKey          = Group + "/do-not-disrupt"
 	ProviderCompatabilityAnnotationKey = CompatabilityGroup + "/provider"
 	KubeletCompatabilityAnnotationKey  = CompatabilityGroup + "/kubelet"
 	MachineManagedByAnnotationKey      = Group + "/managed-by"
@@ -72,7 +70,7 @@ var (
 	// WellKnownLabels are labels that belong to the RestrictedLabelDomains but allowed.
 	// Karpenter is aware of these labels, and they can be used to further narrow down
 	// the range of the corresponding values by either provisioner or pods.
-	WellKnownLabels = sets.NewString(
+	WellKnownLabels = sets.New(
 		NodePoolLabelKey,
 		v1.LabelTopologyZone,
 		v1.LabelTopologyRegion,
@@ -84,7 +82,7 @@ var (
 
 	// RestrictedLabels are labels that should not be used
 	// because they may interfere with the internal provisioning logic.
-	RestrictedLabels = sets.NewString(
+	RestrictedLabels = sets.New(
 		v1.LabelHostname,
 	)
 
@@ -105,7 +103,7 @@ func IsRestrictedLabel(key string) error {
 		return nil
 	}
 	if IsRestrictedNodeLabel(key) {
-		return fmt.Errorf("label %s is restricted; specify a well known label: %v, or a custom label that does not use a restricted domain: %v", key, WellKnownLabels.List(), sets.List(RestrictedLabelDomains))
+		return fmt.Errorf("label %s is restricted; specify a well known label: %v, or a custom label that does not use a restricted domain: %v", key, sets.List(WellKnownLabels), sets.List(RestrictedLabelDomains))
 	}
 	return nil
 }

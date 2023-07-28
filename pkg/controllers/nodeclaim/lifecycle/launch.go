@@ -120,7 +120,7 @@ func (l *Launch) launchNode(ctx context.Context, nodeClaim *v1beta1.NodeClaim) (
 		"instance-type", created.Labels[v1.LabelInstanceTypeStable],
 		"zone", created.Labels[v1.LabelTopologyZone],
 		"capacity-type", created.Labels[v1beta1.LabelCapacityType],
-		"allocatable", created.Status.Allocatable).Infof("launched")
+		"allocatable", created.Status.Allocatable).Infof("launched %s", lo.Ternary(nodeClaim.IsMachine, "machine", "nodeclaim"))
 	return created, nil
 }
 

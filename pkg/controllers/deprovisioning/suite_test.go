@@ -468,7 +468,7 @@ var _ = Describe("Replace Nodes", func() {
 		annotatedMachine, annotatedNode := test.MachineAndNode(v1alpha5.NodeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					v1alpha5.DoNotConsolidateNodeAnnotationKey: "true",
+					v1alpha5.DoNotDisruptAnnotationKey: "true",
 				},
 				Labels: map[string]string{
 					v1alpha5.ProvisionerNameLabelKey: prov.Name,
@@ -678,7 +678,7 @@ var _ = Describe("Replace Nodes", func() {
 					},
 				}}})
 
-		// provisioner should require on-demand instance for this test case
+		// nodePool should require on-demand instance for this test case
 		prov := test.Provisioner(test.ProvisionerOptions{
 			Consolidation: &v1alpha5.Consolidation{Enabled: ptr.Bool(true)},
 			Requirements: []v1.NodeSelectorRequirement{

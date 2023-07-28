@@ -25,7 +25,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/aws/karpenter-core/pkg/apis/settings"
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
@@ -52,8 +52,7 @@ func NewDrift(kubeClient client.Client, cluster *state.Cluster, provisioner *pro
 // ShouldDeprovision is a predicate used to filter deprovisionable machines
 func (d *Drift) ShouldDeprovision(ctx context.Context, c *Candidate) bool {
 	return settings.FromContext(ctx).DriftEnabled &&
-		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineDrifted) != nil &&
-		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineDrifted).IsTrue()
+		c.NodeClaim.StatusConditions().GetCondition(v1beta1.NodeDrifted).IsTrue()
 }
 
 // ComputeCommand generates a deprovisioning command given deprovisionable machines

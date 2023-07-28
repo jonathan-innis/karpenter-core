@@ -98,12 +98,12 @@ func (c *consolidation) ShouldDeprovision(_ context.Context, cn *Candidate) bool
 		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, fmt.Sprintf("%s annotation exists", v1alpha5.DoNotConsolidateNodeAnnotationKey))...)
 		return val != "true"
 	}
-	if cn.provisioner == nil {
-		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, "provisioner is unknown")...)
+	if cn.nodePool == nil {
+		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, "nodePool is unknown")...)
 		return false
 	}
-	if cn.provisioner.Spec.Consolidation == nil || !ptr.BoolValue(cn.provisioner.Spec.Consolidation.Enabled) {
-		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, fmt.Sprintf("provisioner %s has consolidation disabled", cn.provisioner.Name))...)
+	if cn.nodePool.Spec.Deprovisioning.ConsolidationPolicy == nil || !ptr.BoolValue(cn.nodePool.Spec.Consolidation.Enabled) {
+		c.recorder.Publish(deprovisioningevents.Unconsolidatable(cn.Node, cn.NodeClaim, fmt.Sprintf("nodePool %s has consolidation disabled", cn.nodePool.Name))...)
 		return false
 	}
 	return true

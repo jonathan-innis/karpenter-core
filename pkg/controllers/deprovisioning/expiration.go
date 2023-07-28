@@ -24,12 +24,11 @@ import (
 	"k8s.io/utils/clock"
 
 	"knative.dev/pkg/logging"
-	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/samber/lo"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
 	"github.com/aws/karpenter-core/pkg/events"
@@ -59,9 +58,8 @@ func NewExpiration(clk clock.Clock, kubeClient client.Client, cluster *state.Clu
 
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
 func (e *Expiration) ShouldDeprovision(_ context.Context, c *Candidate) bool {
-	return c.provisioner.Spec.TTLSecondsUntilExpired != nil &&
-		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineExpired) != nil &&
-		c.NodeClaim.StatusConditions().GetCondition(v1alpha5.MachineExpired).IsTrue()
+	return c.nodePool.Spec.Deprovisioning.ExpirationTTL != nil &&
+		c.NodeClaim.StatusConditions().GetCondition(v1beta1.NodeExpired).IsTrue()
 }
 
 // SortCandidates orders expired nodes by when they've expired
@@ -71,7 +69,7 @@ func (e *Expiration) filterAndSortCandidates(ctx context.Context, nodes []*Candi
 		return nil, fmt.Errorf("filtering candidates, %w", err)
 	}
 	sort.Slice(candidates, func(i int, j int) bool {
-		return machineutil.GetExpirationTime(candidates[i].NodeClaim, candidates[i].provisioner).Before(machineutil.GetExpirationTime(candidates[j].NodeClaim, candidates[j].provisioner))
+		return machineutil.GetExpirationTime(candidates[i].NodeClaim, candidates[i].nodePool).Before(machineutil.GetExpirationTime(candidates[j].NodeClaim, candidates[j].nodePool))
 	})
 	return candidates, nil
 }
@@ -108,8 +106,8 @@ func (e *Expiration) ComputeCommand(ctx context.Context, nodes ...*Candidate) (C
 			logging.FromContext(ctx).With("node", candidate.Name).Debugf("continuing to expire node after scheduling simulation failed to schedule all pods, %s", results.PodSchedulingErrors())
 		}
 
-		logging.FromContext(ctx).With("ttl", time.Duration(ptr.Int64Value(candidates[0].provisioner.Spec.TTLSecondsUntilExpired))*time.Second).
-			With("delay", time.Since(machineutil.GetExpirationTime(candidates[0].NodeClaim, candidates[0].provisioner))).Infof("triggering termination for expired node after TTL")
+		logging.FromContext(ctx).With("ttl", candidates[0].nodePool.Spec.Deprovisioning.ExpirationTTL.Duration.String()).
+			With("delay", time.Since(machineutil.GetExpirationTime(candidates[0].NodeClaim, candidates[0].nodePool))).Infof("triggering termination for expired node after TTL")
 		return Command{
 			candidates:   []*Candidate{candidate},
 			replacements: results.NewNodeClaims,

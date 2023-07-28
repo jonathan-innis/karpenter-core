@@ -21,12 +21,10 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 	"knative.dev/pkg/logging"
@@ -34,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	deprovisioningevents "github.com/aws/karpenter-core/pkg/controllers/deprovisioning/events"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
@@ -42,6 +40,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/events"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/operator/controller"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 // Controller is the deprovisioning controller.
@@ -66,11 +65,14 @@ var errCandidateDeleting = fmt.Errorf("candidate is deleting")
 // waitRetryOptions are the retry options used when waiting on a machine to become ready or to be deleted
 // readiness can take some time as the node needs to come up, have any daemonset extended resoruce plugins register, etc.
 // deletion can take some time in the case of restrictive PDBs that throttle the rate at which the node is drained
-var waitRetryOptions = []retry.Option{
-	retry.Delay(2 * time.Second),
-	retry.LastErrorOnly(true),
-	retry.Attempts(60),
-	retry.MaxDelay(10 * time.Second), // 22 + (60-5)*10 =~ 9.5 minutes in total
+func waitRetryOptions(ctx context.Context) []retry.Option {
+	return []retry.Option{
+		retry.Context(ctx),
+		retry.Delay(2 * time.Second),
+		retry.LastErrorOnly(true),
+		retry.Attempts(60),
+		retry.MaxDelay(10 * time.Second), // 22 + (60-5)*10 =~ 9.5 minutes in total
+	}
 }
 
 func NewController(clk clock.Clock, kubeClient client.Client, provisioner *provisioning.Provisioner,
@@ -192,10 +194,7 @@ func (c *Controller) executeCommand(ctx context.Context, d Deprovisioner, comman
 			}
 			logging.FromContext(ctx).Errorf("terminating machine, %s", err)
 		} else {
-			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-				metrics.ReasonLabel:      reason,
-				metrics.ProvisionerLabel: candidate.provisioner.Name,
-			}).Inc()
+			nodeclaimutil.TerminatedCounter(candidate.NodeClaim, reason).Inc()
 		}
 	}
 
@@ -218,25 +217,25 @@ func (c *Controller) launchReplacementMachines(ctx context.Context, action Comma
 		return fmt.Errorf("cordoning nodes, %w", err)
 	}
 
-	machineNames, err := c.provisioner.LaunchNodeClaims(ctx, action.replacements, provisioning.WithReason(reason))
+	nodeClaimKeys, err := c.provisioner.LaunchNodeClaims(ctx, action.replacements, provisioning.WithReason(reason))
 	if err != nil {
 		// uncordon the nodes as the launch may fail (e.g. ICE)
 		err = multierr.Append(err, c.setNodesUnschedulable(ctx, false, candidateNodeNames...))
 		return err
 	}
-	if len(machineNames) != len(action.replacements) {
+	if len(nodeClaimKeys) != len(action.replacements) {
 		// shouldn't ever occur since a partially failed LaunchNodeClaims should return an error
-		return fmt.Errorf("expected %d machines, got %d", len(action.replacements), len(machineNames))
+		return fmt.Errorf("expected %d nodes, got %d", len(action.replacements), len(nodeClaimKeys))
 	}
 
 	// We have the new machines created at the API server so mark the old machines for deletion
 	c.cluster.MarkForDeletion(candidateNodeNames...)
 
-	errs := make([]error, len(machineNames))
-	workqueue.ParallelizeUntil(ctx, len(machineNames), len(machineNames), func(i int) {
+	errs := make([]error, len(nodeClaimKeys))
+	workqueue.ParallelizeUntil(ctx, len(nodeClaimKeys), len(nodeClaimKeys), func(i int) {
 		// machine never became ready or the machines that we tried to launch got Insufficient Capacity or some
 		// other transient error
-		errs[i] = c.waitForReadiness(ctx, action, machineNames[i])
+		errs[i] = c.waitForReadiness(ctx, action, nodeClaimKeys[i])
 	})
 	if err = multierr.Combine(errs...); err != nil {
 		c.cluster.UnmarkForDeletion(candidateNodeNames...)
@@ -247,53 +246,50 @@ func (c *Controller) launchReplacementMachines(ctx context.Context, action Comma
 }
 
 // TODO @njtran: Allow to bypass this check for certain deprovisioners
-func (c *Controller) waitForReadiness(ctx context.Context, action Command, name string) error {
+func (c *Controller) waitForReadiness(ctx context.Context, action Command, key nodeclaimutil.Key) error {
 	// Wait for the machine to be initialized
 	var once sync.Once
 	pollStart := time.Now()
 	return retry.Do(func() error {
-		machine := &v1alpha5.NodeClaim{}
-		if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: name}, machine); err != nil {
-			// If the machine was deleted after a few seconds (to give the cache time to update), then we assume
-			// that the machine was deleted due to an Insufficient Capacity error
+		nodeClaim, err := nodeclaimutil.Get(ctx, c.kubeClient, key)
+		if err != nil {
 			if errors.IsNotFound(err) && c.clock.Since(pollStart) > time.Second*5 {
 				return retry.Unrecoverable(fmt.Errorf("getting machine, %w", err))
 			}
 			return fmt.Errorf("getting machine, %w", err)
 		}
 		once.Do(func() {
-			c.recorder.Publish(deprovisioningevents.Launching(machine, action.String()))
+			c.recorder.Publish(deprovisioningevents.Launching(nodeClaim, action.String()))
 		})
-		if !machine.StatusConditions().GetCondition(v1alpha5.MachineInitialized).IsTrue() {
+		if !nodeClaim.StatusConditions().GetCondition(v1beta1.NodeInitialized).IsTrue() {
 			// make the user aware of why deprovisioning is paused
-			c.recorder.Publish(deprovisioningevents.WaitingOnReadiness(machine))
-			return fmt.Errorf("machine is not initialized")
+			c.recorder.Publish(deprovisioningevents.WaitingOnReadiness(nodeClaim))
+			return fmt.Errorf("node is not initialized")
 		}
 		return nil
-	}, waitRetryOptions...)
+	}, waitRetryOptions(ctx)...)
 }
 
 // waitForDeletion waits for the specified machine to be removed from the API server. This deletion can take some period
 // of time if there are PDBs that govern pods on the machine as we need to wait until the node drains before
 // it's actually deleted.
-func (c *Controller) waitForDeletion(ctx context.Context, machine *v1alpha5.NodeClaim) {
+func (c *Controller) waitForDeletion(ctx context.Context, nodeClaim *v1beta1.NodeClaim) {
 	if err := retry.Do(func() error {
-		m := &v1alpha5.NodeClaim{}
-		nerr := c.kubeClient.Get(ctx, client.ObjectKeyFromObject(machine), m)
+		nodeClaim, nerr := nodeclaimutil.Get(ctx, c.kubeClient, nodeclaimutil.Key{Name: nodeClaim.Name, IsMachine: nodeClaim.IsMachine})
 		// We expect the not machine found error, at which point we know the machine is deleted.
 		if errors.IsNotFound(nerr) {
 			return nil
 		}
 		// make the user aware of why deprovisioning is paused
-		c.recorder.Publish(deprovisioningevents.WaitingOnDeletion(machine))
+		c.recorder.Publish(deprovisioningevents.WaitingOnDeletion(nodeClaim))
 		if nerr != nil {
 			return fmt.Errorf("expected machine to be not found, %w", nerr)
 		}
 		// the machine still exists
-		return fmt.Errorf("expected machine to be not found")
-	}, waitRetryOptions...,
+		return fmt.Errorf("expected node to be not found")
+	}, waitRetryOptions(ctx)...,
 	); err != nil {
-		logging.FromContext(ctx).Errorf("Waiting on machine deletion, %s", err)
+		logging.FromContext(ctx).Errorf("Waiting on node deletion, %s", err)
 	}
 }
 

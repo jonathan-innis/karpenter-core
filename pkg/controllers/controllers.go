@@ -22,6 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
+	"github.com/aws/karpenter-core/pkg/controllers/consistency"
+	"github.com/aws/karpenter-core/pkg/controllers/counter"
+	"github.com/aws/karpenter-core/pkg/controllers/deprovisioning"
 	nodeclaimdisruption "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/disruption"
 	nodeclaimgarbagecollection "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/garbagecollection"
 	nodeclaimlifecycle "github.com/aws/karpenter-core/pkg/controllers/nodeclaim/lifecycle"
@@ -51,7 +54,9 @@ func NewControllers(
 	return []controller.Controller{
 		provisioner,
 		//metricsstate.NewController(cluster),
-		//deprovisioning.NewController(clock, kubeClient, provisioner, cloudProvider, recorder, cluster),
+		//metricspod.NewController(kubeClient),
+		//metricsprovisioner.NewController(kubeClient),
+		deprovisioning.NewController(clock, kubeClient, provisioner, cloudProvider, recorder, cluster),
 		provisioning.NewController(kubeClient, provisioner, recorder),
 		informer.NewDaemonSetController(kubeClient, cluster),
 		informer.NewNodeController(kubeClient, cluster),
@@ -60,10 +65,10 @@ func NewControllers(
 		informer.NewMachineController(kubeClient, cluster),
 		informer.NewNodeClaimController(kubeClient, cluster),
 		termination.NewController(kubeClient, cloudProvider, terminator, recorder),
-		//metricspod.NewController(kubeClient),
-		//metricsprovisioner.NewController(kubeClient),
-		//counter.NewController(kubeClient, cluster),
-		//consistency.NewController(clock, kubeClient, recorder, cloudProvider),
+		counter.NewProvisionerController(kubeClient, cluster),
+		counter.NewNodePoolController(kubeClient, cluster),
+		consistency.NewMachineController(clock, kubeClient, recorder, cloudProvider),
+		consistency.NewNodeClaimController(clock, kubeClient, recorder, cloudProvider),
 		nodeclaimlifecycle.NewNodeClaimController(clock, kubeClient, cloudProvider, recorder),
 		nodeclaimlifecycle.NewMachineController(clock, kubeClient, cloudProvider, recorder),
 		nodeclaimgarbagecollection.NewController(clock, kubeClient, cloudProvider),

@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 )
 
 // Requirements are an efficient set representation under the hood. Since its underlying
@@ -122,7 +123,7 @@ func (r Requirements) Get(key string) *Requirement {
 // Compatible ensures the provided requirements can be met.
 func (r Requirements) Compatible(requirements Requirements) (errs error) {
 	// Custom Labels must intersect, but if not defined are denied.
-	for key := range requirements.Keys().Difference(v1alpha5.WellKnownLabels) {
+	for key := range requirements.Keys().Difference(v1beta1.WellKnownLabels) {
 		if operator := requirements.Get(key).Operator(); r.Has(key) || operator == v1.NodeSelectorOpNotIn || operator == v1.NodeSelectorOpDoesNotExist {
 			continue
 		}

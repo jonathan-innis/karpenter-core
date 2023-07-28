@@ -34,8 +34,9 @@ type NodePoolSpec struct {
 	// +optional
 	Template NodeClaimTemplate `json:"template,omitempty"`
 	// Deprovisioning contains the parameters that relate to Karpenter's deprovisioning logic
+	// +kubebuilder:default={"consolidationTTL": "15s","consolidationPolicy": "WhenUnderutilized", "expirationTTL": "90d"}
 	// +optional
-	Deprovisioning Deprovisioning `json:"deprovisioning,omitempty"`
+	Deprovisioning Deprovisioning `json:"deprovisioning"`
 	// Limits define a set of bounds for provisioning capacity.
 	// +optional
 	Limits Limits `json:"limits,omitempty"`
@@ -47,8 +48,6 @@ type NodePoolSpec struct {
 	// +kubebuilder:validation:Maximum:=100
 	// +optional
 	Weight *int32 `json:"weight,omitempty"`
-	// TODO @joinnis: Add a little write-up here on what to do
-	Provider *Provider `json:"-"`
 }
 
 // +kubebuilder:object:generate=false
@@ -60,10 +59,13 @@ type Deprovisioning struct {
 	// Termination due to under-utilization is disabled if this field is not set.
 	// This field is mutually exclusive to consolidation.enabled
 	// +kubebuilder:default:="15s"
+	// +kubebuilder:validation:Type:="string"
+	// +kubebuilder:validation:Schemaless
 	// +optional
-	ConsolidationTTL *metav1.Duration `json:"ttlAfterUnderutilized,omitempty"`
+	ConsolidationTTL DisableableDuration `json:"consolidationTTL,omitempty"`
 	// ConsolidationPolicy describes which nodes Karpenter can deprovision through its consolidation
 	// algorithm. This policy defaults to "WhenUnderutilized" if not specified
+	// +kubebuilder:default:="WhenUnderutilized"
 	// +kubebuilder:validation:Enum:={WhenEmpty,WhenUnderutilized}
 	// +optional
 	ConsolidationPolicy ConsolidationPolicy `json:"consolidationPolicy,omitempty"`
@@ -72,12 +74,14 @@ type Deprovisioning struct {
 	// is useful to implement features like eventually consistent node upgrade,
 	// memory leak protection, and disruption testing.
 	// +kubebuilder:default:="90d"
+	// +kubebuilder:validation:Type:="string"
+	// +kubebuilder:validation:Schemaless
 	// +optional
-	ExpirationTTL *metav1.Duration `json:"ttlUntilExpired,omitempty"`
+	ExpirationTTL DisableableDuration `json:"expirationTTL,omitempty"`
 	// EmptinessTTL exists for compatability to allow us to model the v1alpha5 APIs in
 	// terms of the v1beta1 APIs. This value is not actually part of the v1beta1 public-facing API
 	// TODO @joinnis: Remove this field when v1alpha5 is unsupported in a future version of Karpenter
-	EmptinessTTL *metav1.Duration `json:"-"`
+	EmptinessTTL DisableableDuration `json:"-"`
 }
 
 type ConsolidationPolicy string

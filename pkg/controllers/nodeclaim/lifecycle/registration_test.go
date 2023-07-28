@@ -142,15 +142,15 @@ var _ = Describe("Registration", func() {
 					v1alpha5.ProvisionerNameLabelKey: provisioner.Name,
 				},
 				Annotations: map[string]string{
-					v1alpha5.DoNotConsolidateNodeAnnotationKey: "true",
-					"my-custom-annotation":                     "my-custom-value",
+					v1alpha5.DoNotDisruptAnnotationKey: "true",
+					"my-custom-annotation":             "my-custom-value",
 				},
 			},
 		})
 		ExpectApplied(ctx, env.Client, provisioner, machine)
 		ExpectReconcileSucceeded(ctx, machineController, client.ObjectKeyFromObject(machine))
 		machine = ExpectExists(ctx, env.Client, machine)
-		Expect(machine.Annotations).To(HaveKeyWithValue(v1alpha5.DoNotConsolidateNodeAnnotationKey, "true"))
+		Expect(machine.Annotations).To(HaveKeyWithValue(v1alpha5.DoNotDisruptAnnotationKey, "true"))
 		Expect(machine.Annotations).To(HaveKeyWithValue("my-custom-annotation", "my-custom-value"))
 
 		node := test.Node(test.NodeOptions{ProviderID: machine.Status.ProviderID})

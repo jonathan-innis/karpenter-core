@@ -590,13 +590,13 @@ var _ = Describe("Provisioning", func() {
 	Context("Annotations", func() {
 		It("should annotate nodes", func() {
 			provisioner := test.Provisioner(test.ProvisionerOptions{
-				Annotations: map[string]string{v1alpha5.DoNotConsolidateNodeAnnotationKey: "true"},
+				Annotations: map[string]string{v1alpha5.DoNotDisruptAnnotationKey: "true"},
 			})
 			ExpectApplied(ctx, env.Client, provisioner)
 			pod := test.UnschedulablePod()
 			ExpectProvisioned(ctx, env.Client, cluster, cloudProvider, prov, pod)
 			node := ExpectScheduled(ctx, env.Client, pod)
-			Expect(node.Annotations).To(HaveKeyWithValue(v1alpha5.DoNotConsolidateNodeAnnotationKey, "true"))
+			Expect(node.Annotations).To(HaveKeyWithValue(v1alpha5.DoNotDisruptAnnotationKey, "true"))
 		})
 	})
 	Context("Labels", func() {
