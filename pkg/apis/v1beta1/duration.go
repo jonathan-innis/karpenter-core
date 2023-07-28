@@ -2,7 +2,10 @@ package v1beta1
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
+
+	durationutil "github.com/aws/karpenter-core/pkg/utils/duration"
 )
 
 // DisableableDuration is a wrapper around time.Duration which supports correct
@@ -20,11 +23,11 @@ func (d *DisableableDuration) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-	if str == "disabled" {
+	if strings.ToLower(str) == "disabled" {
 		d.Disabled = true
 		return nil
 	}
-	pd, err := time.ParseDuration(str)
+	pd, err := durationutil.ParseDuration(str)
 	if err != nil {
 		return err
 	}

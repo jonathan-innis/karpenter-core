@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
+	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/cloudprovider"
 	"github.com/aws/karpenter-core/pkg/controllers/provisioning"
 	"github.com/aws/karpenter-core/pkg/controllers/state"
@@ -107,8 +108,11 @@ func (v *Validation) IsValid(ctx context.Context, cmd Command) (bool, error) {
 
 // ShouldDeprovision is a predicate used to filter deprovisionable nodes
 func (v *Validation) ShouldDeprovision(_ context.Context, c *Candidate) bool {
-	if val, ok := c.Annotations()[v1alpha5.DoNotDisruptAnnotationKey]; ok {
-		return val != "true"
+	if _, ok := c.Annotations()[v1alpha5.DoNotConsolidateNodeAnnotationKey]; ok {
+		return true
+	}
+	if _, ok := c.Annotations()[v1beta1.DoNotDisruptAnnotationKey]; ok {
+		return true
 	}
 	return false
 	// TODO @joinnis: Uncomment this

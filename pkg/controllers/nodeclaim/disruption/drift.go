@@ -43,7 +43,7 @@ func (d *Drift) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, nodeC
 	if !settings.FromContext(ctx).DriftEnabled {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeDrifted)
 		if hasDriftedCondition {
-			logging.FromContext(ctx).Debugf("removing drift status condition from nodeClaim as drift has been disabled")
+			logging.FromContext(ctx).Debugf("removing drift status condition since drift has been disabled")
 		}
 		return reconcile.Result{}, nil
 	}
@@ -51,7 +51,7 @@ func (d *Drift) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, nodeC
 	if !nodeClaim.StatusConditions().GetCondition(v1beta1.NodeLaunched).IsTrue() {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeDrifted)
 		if hasDriftedCondition {
-			logging.FromContext(ctx).Debugf("removing drift status condition from nodeClaim as nodeClaim isn't launched")
+			logging.FromContext(ctx).Debugf("removing drift status condition since isn't launched")
 		}
 		return reconcile.Result{}, nil
 	}
@@ -63,7 +63,7 @@ func (d *Drift) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, nodeC
 	if !drifted {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeDrifted)
 		if hasDriftedCondition {
-			logging.FromContext(ctx).Debugf("removing drifted status condition from nodeClaim")
+			logging.FromContext(ctx).Debugf("removing drifted status condition since not drifted")
 		}
 		return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
@@ -74,7 +74,7 @@ func (d *Drift) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, nodeC
 		Severity: apis.ConditionSeverityWarning,
 	})
 	if !hasDriftedCondition {
-		logging.FromContext(ctx).Debugf("marking nodeClaim as drifted")
+		logging.FromContext(ctx).Debugf("marking as drifted")
 	}
 	// Requeue after 5 minutes for the cache TTL
 	return reconcile.Result{RequeueAfter: 5 * time.Minute}, nil

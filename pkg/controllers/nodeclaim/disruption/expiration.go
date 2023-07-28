@@ -26,7 +26,7 @@ import (
 
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
-	machineutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
+	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 )
 
 // Expiration is a machine sub-controller that adds or removes status conditions on expired machines based on TTLSecondsUntilExpired
@@ -41,20 +41,20 @@ func (e *Expiration) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, 
 
 	// From here there are three scenarios to handle:
 	// 1. If ExpirationTTL is not configured, remove the expired status condition
-	if nodePool.Spec.Deprovisioning.ExpirationTTL == nil {
+	if nodePool.Spec.Deprovisioning.ExpirationTTL.Disabled {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeExpired)
 		if hasExpiredCondition {
-			logging.FromContext(ctx).Debugf("removing expiration status condition from nodeClaim as expiration has been disabled")
+			logging.FromContext(ctx).Debugf("removing expiration status condition since expiration has been disabled")
 		}
 		return reconcile.Result{}, nil
 	}
-	expired := machineutil.IsExpired(nodeClaim, e.clock, nodePool)
-	expirationTime := machineutil.GetExpirationTime(nodeClaim, nodePool)
+	expired := nodeclaimutil.IsExpired(nodeClaim, e.clock, nodePool)
+	expirationTime := nodeclaimutil.GetExpirationTime(nodeClaim, nodePool)
 	// 2. If the nodeClaim isn't expired, remove the status condition.
 	if !expired {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1alpha5.MachineExpired)
 		if hasExpiredCondition {
-			logging.FromContext(ctx).Debugf("removing expired status condition from nodeClaim")
+			logging.FromContext(ctx).Debugf("removing expired status condition since not expired")
 		}
 		// If the nodeClaim isn't expired and doesn't have the status condition, return.
 		// Use t.Sub(clock.Now()) instead of time.Until() to ensure we're using the injected clock.
@@ -67,7 +67,7 @@ func (e *Expiration) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, 
 		Severity: apis.ConditionSeverityWarning,
 	})
 	if !hasExpiredCondition {
-		logging.FromContext(ctx).Debugf("marking nodeClaim as expired")
+		logging.FromContext(ctx).Debugf("marking as expired")
 	}
 
 	return reconcile.Result{}, nil

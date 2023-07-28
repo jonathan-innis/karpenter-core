@@ -177,7 +177,7 @@ func (o Command) Action() Action {
 
 func (o Command) String() string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s, terminating %d machines ", o.Action(), len(o.candidates))
+	fmt.Fprintf(&buf, "%s, terminating %d nodeclaims/machines ", o.Action(), len(o.candidates))
 	for i, old := range o.candidates {
 		if i != 0 {
 			fmt.Fprint(&buf, ", ")

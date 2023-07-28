@@ -41,14 +41,11 @@ type Emptiness struct {
 
 //nolint:gocyclo
 func (e *Emptiness) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, nodeClaim *v1beta1.NodeClaim) (reconcile.Result, error) {
-	if !nodeClaim.IsMachine {
-		return reconcile.Result{}, nil
-	}
 	hasEmptyCondition := nodeClaim.StatusConditions().GetCondition(v1beta1.NodeEmpty) != nil
 
 	// From here there are three scenarios to handle:
 	// 1. If TTLSecondsAfterEmpty is not configured, remove the emptiness status condition
-	if nodePool.Spec.Deprovisioning.EmptinessTTL == nil {
+	if nodePool.Spec.Deprovisioning.EmptinessTTL.Disabled {
 		if hasEmptyCondition {
 			_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeEmpty)
 			logging.FromContext(ctx).Debugf("removing emptiness status condition since emptiness is disabled")
@@ -59,7 +56,7 @@ func (e *Emptiness) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, n
 	if !nodeClaim.StatusConditions().GetCondition(v1beta1.NodeInitialized).IsTrue() {
 		if hasEmptyCondition {
 			_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeEmpty)
-			logging.FromContext(ctx).Debugf("removing emptiness status condition from machine since machine isn't initialized")
+			logging.FromContext(ctx).Debugf("removing emptiness status condition since isn't initialized")
 		}
 		return reconcile.Result{}, nil
 	}
@@ -70,7 +67,7 @@ func (e *Emptiness) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, n
 		if nodeclaimutil.IsDuplicateNodeError(err) || nodeclaimutil.IsNodeNotFoundError(err) {
 			_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeEmpty)
 			if hasEmptyCondition {
-				logging.FromContext(ctx).Debugf("removing emptiness status condition from machine since machine doesn't have a single node mapping")
+				logging.FromContext(ctx).Debugf("removing emptiness status condition since doesn't have a single node mapping")
 			}
 			return reconcile.Result{}, nil
 		}
@@ -83,7 +80,7 @@ func (e *Emptiness) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, n
 	if e.cluster.IsNodeNominated(n.Name) {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeEmpty)
 		if hasEmptyCondition {
-			logging.FromContext(ctx).Debugf("removing emptiness status condition from machine since machine is nominated for pods")
+			logging.FromContext(ctx).Debugf("removing emptiness status condition since is nominated for pods")
 		}
 		return reconcile.Result{RequeueAfter: time.Second * 30}, nil
 	}
@@ -95,7 +92,7 @@ func (e *Emptiness) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, n
 	if len(pods) > 0 {
 		_ = nodeClaim.StatusConditions().ClearCondition(v1beta1.NodeEmpty)
 		if hasEmptyCondition {
-			logging.FromContext(ctx).Debugf("removing emptiness status condition from node")
+			logging.FromContext(ctx).Debugf("removing emptiness status condition since not empty")
 		}
 		return reconcile.Result{}, nil
 	}
@@ -106,7 +103,7 @@ func (e *Emptiness) Reconcile(ctx context.Context, nodePool *v1beta1.NodePool, n
 		Severity: apis.ConditionSeverityWarning,
 	})
 	if !hasEmptyCondition {
-		logging.FromContext(ctx).Debugf("marking machine as empty")
+		logging.FromContext(ctx).Debugf("marking as empty")
 	}
 	return reconcile.Result{}, nil
 }

@@ -67,8 +67,8 @@ func New(provisioner *v1alpha5.Provisioner) *v1beta1.NodePool {
 		np.Spec.Deprovisioning.EmptinessTTL.Duration = lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))
 	}
 	if provisioner.Spec.TTLSecondsUntilExpired != nil {
-		np.Spec.Deprovisioning.EmptinessTTL.Disabled = false
-		np.Spec.Deprovisioning.ExpirationTTL.Duration = lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsAfterEmpty))))
+		np.Spec.Deprovisioning.ExpirationTTL.Disabled = false
+		np.Spec.Deprovisioning.ExpirationTTL.Duration = lo.Must(time.ParseDuration(fmt.Sprintf("%ds", lo.FromPtr[int64](provisioner.Spec.TTLSecondsUntilExpired))))
 	}
 	if provisioner.Spec.Consolidation != nil {
 		np.Spec.Deprovisioning.ConsolidationPolicy = v1beta1.ConsolidationPolicyWhenUnderutilized

@@ -188,14 +188,13 @@ func (c *Controller) executeCommand(ctx context.Context, d Deprovisioner, comman
 	for _, candidate := range command.candidates {
 		c.recorder.Publish(deprovisioningevents.Terminating(candidate.Node, candidate.NodeClaim, command.String())...)
 
-		if err := c.kubeClient.Delete(ctx, candidate.NodeClaim); err != nil {
-			if errors.IsNotFound(err) {
-				continue
+		if err := nodeclaimutil.Delete(ctx, c.kubeClient, candidate.NodeClaim); err != nil {
+			if !errors.IsNotFound(err) {
+				logging.FromContext(ctx).Errorf("terminating machine, %s", err)
 			}
-			logging.FromContext(ctx).Errorf("terminating machine, %s", err)
-		} else {
-			nodeclaimutil.TerminatedCounter(candidate.NodeClaim, reason).Inc()
+			continue
 		}
+		nodeclaimutil.TerminatedCounter(candidate.NodeClaim, reason).Inc()
 	}
 
 	// We wait for nodes to delete to ensure we don't start another round of deprovisioning until this node is fully
@@ -253,6 +252,8 @@ func (c *Controller) waitForReadiness(ctx context.Context, action Command, key n
 	return retry.Do(func() error {
 		nodeClaim, err := nodeclaimutil.Get(ctx, c.kubeClient, key)
 		if err != nil {
+			// The NodeClaim got deleted after an initial eventual consistency delay
+			// This means that there was an ICE error or the Node initializationTTL expired
 			if errors.IsNotFound(err) && c.clock.Since(pollStart) > time.Second*5 {
 				return retry.Unrecoverable(fmt.Errorf("getting machine, %w", err))
 			}
