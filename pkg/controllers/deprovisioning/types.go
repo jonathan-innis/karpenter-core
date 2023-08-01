@@ -189,7 +189,7 @@ func (o Command) String() string {
 	if len(o.replacements) > 1 {
 		fmt.Fprintf(&buf, " and replacing with %d spot and %d on-demand machines from types %s",
 			spotMachines, odMachines,
-			scheduling.InstanceTypeList(o.replacements[0].InstanceTypeOptions))
+			o.replacements[0].InstanceTypeOptions)
 		return buf.String()
 	}
 	ct := o.replacements[0].Requirements.Get(v1alpha5.LabelCapacityType)
@@ -199,6 +199,6 @@ func (o Command) String() string {
 	}
 	fmt.Fprintf(&buf, " and replacing with %s from types %s",
 		machineDesc,
-		scheduling.InstanceTypeList(o.replacements[0].InstanceTypeOptions))
+		o.replacements[0].InstanceTypeOptions)
 	return buf.String()
 }

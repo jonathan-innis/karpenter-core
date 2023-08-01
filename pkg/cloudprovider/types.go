@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/samber/lo"
@@ -72,6 +73,21 @@ func (its InstanceTypes) OrderByPrice(reqs scheduling.Requirements) InstanceType
 		return iPrice < jPrice
 	})
 	return its
+}
+
+func (its InstanceTypes) String() string {
+	var itSb strings.Builder
+	for i, it := range its {
+		// print the first 5 instance types only (indices 0-4)
+		if i > 4 {
+			fmt.Fprintf(&itSb, " and %d other(s)", len(its)-i)
+			break
+		} else if i > 0 {
+			fmt.Fprint(&itSb, ", ")
+		}
+		fmt.Fprint(&itSb, it.Name)
+	}
+	return itSb.String()
 }
 
 // InstanceType describes the properties of a potential node (either concrete attributes of an instance of this type

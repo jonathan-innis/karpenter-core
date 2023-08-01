@@ -17,7 +17,6 @@ package scheduling
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync/atomic"
 
 	v1 "k8s.io/api/core/v1"
@@ -116,21 +115,6 @@ func (m *Machine) FinalizeScheduling() {
 	// We need nodes to have hostnames for topology purposes, but we don't want to pass that node name on to consumers
 	// of the node as it will be displayed in error messages
 	delete(m.Requirements, v1.LabelHostname)
-}
-
-func InstanceTypeList(instanceTypeOptions []*cloudprovider.InstanceType) string {
-	var itSb strings.Builder
-	for i, it := range instanceTypeOptions {
-		// print the first 5 instance types only (indices 0-4)
-		if i > 4 {
-			fmt.Fprintf(&itSb, " and %d other(s)", len(instanceTypeOptions)-i)
-			break
-		} else if i > 0 {
-			fmt.Fprint(&itSb, ", ")
-		}
-		fmt.Fprint(&itSb, it.Name)
-	}
-	return itSb.String()
 }
 
 type filterResults struct {
