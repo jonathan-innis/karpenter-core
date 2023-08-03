@@ -72,9 +72,11 @@ type StateNode struct {
 	Node    *v1.Node
 	Machine *v1alpha5.Machine
 
-	inflightAllocatable v1.ResourceList // TODO @joinnis: This can be removed when machine is added
-	inflightCapacity    v1.ResourceList // TODO @joinnis: This can be removed when machine is added
-	startupTaints       []v1.Taint      // TODO: @joinnis: This can be removed when machine is added
+	inflightPopulated      bool            // Marks whether the inflight details have been updated
+	inflightAllocatable    v1.ResourceList // TODO @joinnis: This can be removed when machine is added
+	inflightCapacity       v1.ResourceList // TODO @joinnis: This can be removed when machine is added
+	startupTaintsPopulated bool            // Marks whether the startup taints have been updated
+	startupTaints          []v1.Taint      // TODO: @joinnis: This can be removed when machine is added
 
 	// daemonSetRequests is the total amount of resources that have been requested by daemon sets. This allows users
 	// of the Node to identify the remaining resources that we expect future daemonsets to consume.

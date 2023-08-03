@@ -228,6 +228,10 @@ func (c *Cluster) UpdateNode(ctx context.Context, node *v1.Node) error {
 	defer c.mu.Unlock()
 
 	if node.Spec.ProviderID == "" {
+		// If we know that we own this node, we shouldn't allow the providerID to be empty
+		if node.Labels[v1alpha5.ProvisionerNameLabelKey] != "" {
+			return nil
+		}
 		node.Spec.ProviderID = node.Name
 	}
 	n, err := c.newStateFromNode(ctx, node, c.nodes[node.Spec.ProviderID])
@@ -354,16 +358,21 @@ func (c *Cluster) newStateFromMachine(machine *v1alpha5.Machine, oldNode *StateN
 		oldNode = NewNode()
 	}
 	n := &StateNode{
-		Node:              oldNode.Node,
-		Machine:           machine,
-		hostPortUsage:     oldNode.hostPortUsage,
-		volumeUsage:       oldNode.volumeUsage,
-		daemonSetRequests: oldNode.daemonSetRequests,
-		daemonSetLimits:   oldNode.daemonSetLimits,
-		podRequests:       oldNode.podRequests,
-		podLimits:         oldNode.podLimits,
-		markedForDeletion: oldNode.markedForDeletion,
-		nominatedUntil:    oldNode.nominatedUntil,
+		Node:                   oldNode.Node,
+		Machine:                machine,
+		inflightPopulated:      oldNode.inflightPopulated,
+		inflightAllocatable:    oldNode.inflightAllocatable,
+		inflightCapacity:       oldNode.inflightCapacity,
+		startupTaintsPopulated: oldNode.startupTaintsPopulated,
+		startupTaints:          oldNode.startupTaints,
+		hostPortUsage:          oldNode.hostPortUsage,
+		volumeUsage:            oldNode.volumeUsage,
+		daemonSetRequests:      oldNode.daemonSetRequests,
+		daemonSetLimits:        oldNode.daemonSetLimits,
+		podRequests:            oldNode.podRequests,
+		podLimits:              oldNode.podLimits,
+		markedForDeletion:      oldNode.markedForDeletion,
+		nominatedUntil:         oldNode.nominatedUntil,
 	}
 	// Cleanup the old machine with its old providerID if its providerID changes
 	// This can happen since nodes don't get created with providerIDs. Rather, CCM picks up the
@@ -392,20 +401,22 @@ func (c *Cluster) newStateFromNode(ctx context.Context, node *v1.Node, oldNode *
 		oldNode = NewNode()
 	}
 	n := &StateNode{
-		Node:                node,
-		Machine:             oldNode.Machine,
-		inflightAllocatable: oldNode.inflightAllocatable,
-		inflightCapacity:    oldNode.inflightCapacity,
-		startupTaints:       oldNode.startupTaints,
-		daemonSetRequests:   map[types.NamespacedName]v1.ResourceList{},
-		daemonSetLimits:     map[types.NamespacedName]v1.ResourceList{},
-		podRequests:         map[types.NamespacedName]v1.ResourceList{},
-		podLimits:           map[types.NamespacedName]v1.ResourceList{},
-		hostPortUsage:       scheduling.NewHostPortUsage(),
-		volumeUsage:         scheduling.NewVolumeUsage(),
-		volumeLimits:        scheduling.VolumeCount{},
-		markedForDeletion:   oldNode.markedForDeletion,
-		nominatedUntil:      oldNode.nominatedUntil,
+		Node:                   node,
+		Machine:                oldNode.Machine,
+		inflightPopulated:      oldNode.inflightPopulated,
+		inflightAllocatable:    oldNode.inflightAllocatable,
+		inflightCapacity:       oldNode.inflightCapacity,
+		startupTaintsPopulated: oldNode.startupTaintsPopulated,
+		startupTaints:          oldNode.startupTaints,
+		daemonSetRequests:      map[types.NamespacedName]v1.ResourceList{},
+		daemonSetLimits:        map[types.NamespacedName]v1.ResourceList{},
+		podRequests:            map[types.NamespacedName]v1.ResourceList{},
+		podLimits:              map[types.NamespacedName]v1.ResourceList{},
+		hostPortUsage:          scheduling.NewHostPortUsage(),
+		volumeUsage:            scheduling.NewVolumeUsage(),
+		volumeLimits:           scheduling.VolumeCount{},
+		markedForDeletion:      oldNode.markedForDeletion,
+		nominatedUntil:         oldNode.nominatedUntil,
 	}
 	if err := multierr.Combine(
 		c.populateStartupTaints(ctx, n),
@@ -438,6 +449,9 @@ func (c *Cluster) cleanupNode(name string) {
 }
 
 func (c *Cluster) populateStartupTaints(ctx context.Context, n *StateNode) error {
+	if n.startupTaintsPopulated {
+		return nil
+	}
 	if n.Labels()[v1alpha5.ProvisionerNameLabelKey] == "" {
 		return nil
 	}
@@ -446,10 +460,14 @@ func (c *Cluster) populateStartupTaints(ctx context.Context, n *StateNode) error
 		return client.IgnoreNotFound(fmt.Errorf("getting provisioner, %w", err))
 	}
 	n.startupTaints = provisioner.Spec.StartupTaints
+	n.startupTaintsPopulated = true
 	return nil
 }
 
 func (c *Cluster) populateInflight(ctx context.Context, n *StateNode) error {
+	if n.inflightPopulated {
+		return nil
+	}
 	if n.Labels()[v1alpha5.ProvisionerNameLabelKey] == "" {
 		return nil
 	}
@@ -469,6 +487,7 @@ func (c *Cluster) populateInflight(ctx context.Context, n *StateNode) error {
 	}
 	n.inflightCapacity = instanceType.Capacity
 	n.inflightAllocatable = instanceType.Allocatable()
+	n.inflightPopulated = true
 	return nil
 }
 
