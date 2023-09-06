@@ -166,6 +166,18 @@ var AllowUndefinedWellKnownLabelsV1Beta1 = func(options CompatabilityOptions) Co
 	return options
 }
 
+func (r Requirements) CompatibleOld(requirements Requirements) (errs error) {
+	// Custom Labels must intersect, but if not defined are denied.
+	for key := range requirements.Keys().Difference(v1alpha5.WellKnownLabels) {
+		if operator := requirements.Get(key).Operator(); r.Has(key) || operator == v1.NodeSelectorOpNotIn || operator == v1.NodeSelectorOpDoesNotExist {
+			continue
+		}
+		errs = multierr.Append(errs, fmt.Errorf("label %q does not have known values%s", key, labelHint(r, key, v1alpha5.WellKnownLabels)))
+	}
+	// Well Known Labels must intersect, but if not defined, are allowed.
+	return multierr.Append(errs, r.Intersects(requirements))
+}
+
 // Compatible ensures the provided requirements can loosely be met.
 func (r Requirements) Compatible(requirements Requirements, options ...functional.Option[CompatabilityOptions]) (errs error) {
 	opts := functional.ResolveOptions(options...)
