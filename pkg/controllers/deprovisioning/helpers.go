@@ -101,9 +101,7 @@ func simulateScheduling(ctx context.Context, kubeClient client.Client, cluster *
 		pods = append(pods, n.pods...)
 	}
 	pods = append(pods, deletingNodePods...)
-	scheduler, err := provisioner.NewScheduler(ctx, pods, stateNodes, pscheduling.SchedulerOptions{
-		SimulationMode: true,
-	})
+	scheduler, err := provisioner.NewScheduler(ctx, pods, stateNodes)
 
 	if err != nil {
 		return nil, fmt.Errorf("creating scheduler, %w", err)
@@ -116,7 +114,7 @@ func simulateScheduling(ctx context.Context, kubeClient client.Client, cluster *
 	for _, n := range results.ExistingNodes {
 		if !n.Initialized() || nodeutils.GetCondition(n.Node, v1.NodeReady).Status != v1.ConditionTrue {
 			for _, p := range n.Pods {
-				results.PodErrors[p] = fmt.Errorf("would schedule against a non-initialized node %s", n.Name())
+				results.PodResults[p] = fmt.Errorf("would schedule against a non-initialized node %s", n.Name())
 			}
 		}
 	}

@@ -98,8 +98,8 @@ func (d *Drift) ComputeCommand(ctx context.Context, nodes ...*Candidate) (Comman
 			return Command{}, err
 		}
 		// Log when all pods can't schedule, as the command will get executed immediately.
-		if !results.AllNonPendingPodsScheduled() {
-			logging.FromContext(ctx).With("machine", candidate.NodeClaim.Name, "node", candidate.Node.Name).Debugf("cannot terminate drifted machine since scheduling simulation failed to schedule all pods %s", results.NonPendingPodSchedulingErrors())
+		if !results.NonPendingPods().AllScheduled() {
+			logging.FromContext(ctx).With("machine", candidate.NodeClaim.Name, "node", candidate.Node.Name).Debugf("cannot terminate drifted machine since scheduling simulation failed to schedule all pods %s", results.NonPendingPods().Errors())
 			d.recorder.Publish(deprovisioningevents.Blocked(candidate.Node, candidate.NodeClaim, "Scheduling simulation failed to schedule all pods")...)
 			continue
 		}

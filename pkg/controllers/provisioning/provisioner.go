@@ -203,7 +203,7 @@ func (p *Provisioner) consolidationWarnings(ctx context.Context, po v1.Pod) {
 var ErrProvisionersNotFound = errors.New("no provisioners found")
 
 //nolint:gocyclo
-func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNodes []*state.StateNode, opts scheduler.SchedulerOptions) (*scheduler.Scheduler, error) {
+func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNodes []*state.StateNode) (*scheduler.Scheduler, error) {
 	// Build node templates
 	var nodeClaimTemplates []*scheduler.NodeClaimTemplate
 	instanceTypes := map[nodepoolutil.Key][]*cloudprovider.InstanceType{}
@@ -284,7 +284,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 	if err != nil {
 		return nil, fmt.Errorf("getting daemon pods, %w", err)
 	}
-	return scheduler.NewScheduler(ctx, p.kubeClient, nodeClaimTemplates, nodePoolList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder, opts), nil
+	return scheduler.NewScheduler(ctx, p.kubeClient, nodeClaimTemplates, nodePoolList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder), nil
 }
 
 func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) {
@@ -319,7 +319,7 @@ func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) 
 	if len(pods) == 0 {
 		return &scheduler.Results{}, nil
 	}
-	s, err := p.NewScheduler(ctx, pods, nodes.Active(), scheduler.SchedulerOptions{})
+	s, err := p.NewScheduler(ctx, pods, nodes.Active())
 	if err != nil {
 		if errors.Is(err, ErrProvisionersNotFound) {
 			logging.FromContext(ctx).Info(ErrProvisionersNotFound)
@@ -327,7 +327,9 @@ func (p *Provisioner) Schedule(ctx context.Context) (*scheduler.Results, error) 
 		}
 		return nil, fmt.Errorf("creating scheduler, %w", err)
 	}
-	return s.Solve(ctx, pods), nil
+	results := s.Solve(ctx, pods)
+	results.Record(ctx, p.cluster, p.recorder)
+	return results, nil
 }
 
 func (p *Provisioner) Launch(ctx context.Context, n *scheduler.NodeClaim, opts ...functional.Option[LaunchOptions]) (nodeclaimutil.Key, error) {
