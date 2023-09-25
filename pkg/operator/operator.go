@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/zapr"
 	"github.com/samber/lo"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
@@ -34,7 +33,6 @@ import (
 	"knative.dev/pkg/configmap/informer"
 	knativeinjection "knative.dev/pkg/injection"
 	"knative.dev/pkg/injection/sharedmain"
-	"knative.dev/pkg/logging"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/system"
 	"knative.dev/pkg/webhook"
@@ -42,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	logging "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/aws/karpenter-core/pkg/apis"
@@ -57,6 +56,8 @@ const (
 	appName   = "karpenter"
 	component = "controller"
 )
+
+var globalLog = logging.Log.WithName("global")
 
 type Operator struct {
 	manager.Manager
@@ -100,8 +101,7 @@ func NewOperator() (context.Context, *Operator) {
 	lo.Must0(configMapWatcher.Start(ctx.Done()))
 
 	// Logging
-	logger := NewLogger(ctx, component, config, configMapWatcher)
-	ctx = logging.WithLogger(ctx, logger)
+	ctx = logging.IntoContext(ctx, globalLog)
 	ConfigureGlobalLoggers(ctx)
 
 	// Inject settings from the ConfigMap(s) into the context
@@ -109,7 +109,7 @@ func NewOperator() (context.Context, *Operator) {
 
 	// Manager
 	mgr, err := controllerruntime.NewManager(config, controllerruntime.Options{
-		Logger:                     ignoreDebugEvents(zapr.NewLogger(logger.Desugar())),
+		Logger:                     ignoreDebugEvents(logging.FromContext(ctx)),
 		LeaderElection:             opts.EnableLeaderElection,
 		LeaderElectionID:           "karpenter-leader-election",
 		LeaderElectionResourceLock: resourcelock.LeasesResourceLock,
@@ -119,7 +119,6 @@ func NewOperator() (context.Context, *Operator) {
 		HealthProbeBindAddress:     fmt.Sprintf(":%d", opts.HealthProbePort),
 		BaseContext: func() context.Context {
 			ctx := context.Background()
-			ctx = logging.WithLogger(ctx, logger)
 			ctx = injection.WithSettingsOrDie(ctx, kubernetesInterface, apis.Settings...)
 			ctx = injection.WithConfig(ctx, config)
 			ctx = injection.WithOptions(ctx, *opts)
@@ -186,7 +185,7 @@ func (o *Operator) Start(ctx context.Context) {
 		lo.Must0(o.Manager.Start(ctx))
 	}()
 	if injection.GetOptions(ctx).DisableWebhook {
-		logging.FromContext(ctx).Infof("webhook disabled")
+		logging.FromContext(ctx).Info("webhook disabled")
 	} else {
 		wg.Add(1)
 		go func() {
