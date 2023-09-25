@@ -16,11 +16,14 @@ package operator
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 
+	"github.com/blendle/zapdriver"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapio"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -81,4 +84,30 @@ func (i ignoreDebugEventsSink) WithName(name string) logr.LogSink {
 // pod scheduling decisions as events for visibility.
 func ignoreDebugEvents(logger logr.Logger) logr.Logger {
 	return logr.New(&ignoreDebugEventsSink{sink: logger.GetSink()})
+}
+
+func stackdriverConfig() zap.Config {
+	cfg := zapdriver.NewProductionConfig()
+	cfg.EncoderConfig.EncodeDuration = zapcore.StringDurationEncoder
+	return cfg
+}
+
+// JSONToConfig converts a JSON string of a Config.
+// Always returns a non-nil Config.
+func JSONToConfig(jsonCfg string) (*zap.Config, error) {
+	if jsonCfg == "" {
+		return nil, errEmptyJSONLogginString
+	}
+
+	var configMap map[string]string
+	if err := json.Unmarshal([]byte(jsonCfg), &configMap); err != nil {
+		return nil, err
+	}
+
+	cfg, err := NewConfigFromMap(configMap)
+	if err != nil {
+		// Get the default config from logging package.
+		return NewConfigFromConfigMap(nil)
+	}
+	return cfg, nil
 }

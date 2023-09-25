@@ -101,6 +101,7 @@ func NewOperator() (context.Context, *Operator) {
 	lo.Must0(configMapWatcher.Start(ctx.Done()))
 
 	// Logging
+
 	ctx = logging.IntoContext(ctx, globalLog)
 	ConfigureGlobalLoggers(ctx)
 
