@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/zapr"
 	"github.com/samber/lo"
+	"go.uber.org/zap"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -100,7 +101,7 @@ func NewOperator() (context.Context, *Operator) {
 	lo.Must0(configMapWatcher.Start(ctx.Done()))
 
 	// Logging
-	logger := NewLogger(ctx, component, config, configMapWatcher)
+	logger := lo.Must(zap.NewProduction()).Sugar()
 	ctx = logging.WithLogger(ctx, logger)
 	ConfigureGlobalLoggers(ctx)
 
