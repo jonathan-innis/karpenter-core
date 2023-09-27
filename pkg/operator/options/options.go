@@ -20,6 +20,8 @@ import (
 	"os"
 	"runtime/debug"
 
+	"go.uber.org/zap"
+
 	"github.com/aws/karpenter-core/pkg/utils/env"
 )
 
@@ -36,6 +38,7 @@ type Options struct {
 	KubeClientBurst      int
 	EnableProfiling      bool
 	EnableLeaderElection bool
+	LogLevel             *zap.AtomicLevel
 	MemoryLimit          int64
 }
 

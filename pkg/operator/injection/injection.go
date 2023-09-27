@@ -21,6 +21,8 @@ import (
 
 	"github.com/samber/lo"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -89,14 +91,14 @@ func WithSettingsOrDie(ctx context.Context, kubernetesInterface kubernetes.Inter
 	factory.Start(cancelCtx.Done())
 
 	for _, setting := range settings {
-		cm := lo.Must(waitForConfigMap(ctx, setting.ConfigMap(), informer))
+		cm := lo.Must(WaitForConfigMap(ctx, setting.ConfigMap(), informer))
 		ctx = lo.Must(setting.Inject(ctx, cm))
 	}
 	return ctx
 }
 
-// waitForConfigMap waits until all registered configMaps in the settingsStore are created
-func waitForConfigMap(ctx context.Context, name string, informer cache.SharedIndexInformer) (*v1.ConfigMap, error) {
+// WaitForConfigMap waits until all registered configMaps in the settingsStore are created
+func WaitForConfigMap(ctx context.Context, name string, informer cache.SharedIndexInformer) (*v1.ConfigMap, error) {
 	for {
 		configMap, exists, err := informer.GetStore().GetByKey(types.NamespacedName{Namespace: system.Namespace(), Name: name}.String())
 		if configMap != nil && exists && err == nil {
@@ -104,7 +106,7 @@ func waitForConfigMap(ctx context.Context, name string, informer cache.SharedInd
 		}
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context canceled")
+			return nil, fmt.Errorf("context cancelled, %w", errors.NewNotFound(schema.GroupResource{Resource: "configmaps"}, types.NamespacedName{Namespace: system.Namespace(), Name: name}.String()))
 		case <-time.After(time.Millisecond * 500):
 		}
 	}
