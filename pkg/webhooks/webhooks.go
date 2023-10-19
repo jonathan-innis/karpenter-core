@@ -47,7 +47,7 @@ import (
 	"github.com/aws/karpenter-core/pkg/operator/options"
 )
 
-const component = "webhook"
+const WebhookComponent = "webhook"
 
 var Resources = map[schema.GroupVersionKind]resourcesemantics.GenericCRD{
 	v1alpha5.SchemeGroupVersion.WithKind("Provisioner"): &v1alpha5.Provisioner{},
@@ -87,7 +87,7 @@ func NewConfigValidationWebhook(ctx context.Context, _ configmap.Watcher) *contr
 // https://github.com/knative/pkg/blob/0f52db700d63/injection/sharedmain/main.go#L227
 func Start(ctx context.Context, cfg *rest.Config, kubernetesInterface kubernetes.Interface, ctors ...knativeinjection.ControllerConstructor) {
 	ctx, startInformers := knativeinjection.EnableInjectionOrDie(ctx, cfg)
-	logger := logging.NewLogger(ctx, component, kubernetesInterface)
+	logger := logging.NewLogger(ctx, WebhookComponent, kubernetesInterface)
 	ctx = knativelogging.WithLogger(ctx, logger)
 
 	cmw := sharedmain.SetupConfigMapWatchOrDie(ctx, knativelogging.FromContext(ctx))
@@ -109,7 +109,7 @@ func Start(ctx context.Context, cfg *rest.Config, kubernetesInterface kubernetes
 	if len(webhooks) > 0 {
 		// Update the metric exporter to point to a prometheus endpoint
 		lo.Must0(metrics.UpdateExporter(ctx, metrics.ExporterOptions{
-			Component:      strings.ReplaceAll(component, "-", "_"),
+			Component:      strings.ReplaceAll(WebhookComponent, "-", "_"),
 			ConfigMap:      lo.Must(metrics.NewObservabilityConfigFromConfigMap(nil)).GetConfigMap().Data,
 			Secrets:        sharedmain.SecretFetcher(ctx),
 			PrometheusPort: options.FromContext(ctx).WebhookMetricsPort,

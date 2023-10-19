@@ -58,9 +58,13 @@ import (
 )
 
 const (
-	appName   = "karpenter"
-	component = "controller"
+	AppName             = "karpenter"
+	ControllerComponent = "controller"
 )
+
+type Options struct {
+	UserAgent string
+}
 
 type Operator struct {
 	manager.Manager
@@ -73,7 +77,7 @@ type Operator struct {
 }
 
 // NewOperator instantiates a controller manager or panics
-func NewOperator() (context.Context, *Operator) {
+func NewOperator(opts Options) (context.Context, *Operator) {
 	// Root Context
 	ctx := signals.NewContext()
 	ctx = knativeinjection.WithNamespaceScope(ctx, system.Namespace())
@@ -99,7 +103,7 @@ func NewOperator() (context.Context, *Operator) {
 	// Client Config
 	config := controllerruntime.GetConfigOrDie()
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(float32(options.FromContext(ctx).KubeClientQPS), options.FromContext(ctx).KubeClientBurst)
-	config.UserAgent = appName
+	config.UserAgent = lo.Ternary(opts.UserAgent != "", opts.UserAgent, AppName)
 
 	// Client
 	kubernetesInterface := kubernetes.NewForConfigOrDie(config)
@@ -114,7 +118,7 @@ func NewOperator() (context.Context, *Operator) {
 	}
 
 	// Logging
-	logger := logging.NewLogger(ctx, component, kubernetesInterface)
+	logger := logging.NewLogger(ctx, ControllerComponent, kubernetesInterface)
 	ctx = knativelogging.WithLogger(ctx, logger)
 	logging.ConfigureGlobalLoggers(ctx)
 
@@ -189,7 +193,7 @@ func NewOperator() (context.Context, *Operator) {
 	return ctx, &Operator{
 		Manager:             mgr,
 		KubernetesInterface: kubernetesInterface,
-		EventRecorder:       events.NewRecorder(mgr.GetEventRecorderFor(appName)),
+		EventRecorder:       events.NewRecorder(mgr.GetEventRecorderFor(AppName)),
 		Clock:               clock.RealClock{},
 	}
 }
