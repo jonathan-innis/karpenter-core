@@ -59,7 +59,9 @@ func (c *NodeClaimController) Reconcile(ctx context.Context, req reconcile.Reque
 		}
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
-	c.cluster.UpdateNodeClaim(nodeClaim)
+	if err := c.cluster.UpdateNodeClaim(ctx, nodeClaim); err != nil {
+		return reconcile.Result{}, err
+	}
 	// ensure it's aware of any nodes we discover, this is a no-op if the node is already known to our cluster state
 	return reconcile.Result{RequeueAfter: stateRetryPeriod}, nil
 }

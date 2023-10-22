@@ -333,7 +333,7 @@ func ExpectMachineDeployedNoNode(ctx context.Context, c client.Client, cluster *
 	m = machineutil.NewFromNodeClaim(lifecycle.PopulateNodeClaimDetails(nodeclaimutil.New(m), resolved))
 	m.StatusConditions().MarkTrue(v1alpha5.MachineLaunched)
 	ExpectApplied(ctx, c, m)
-	cluster.UpdateNodeClaim(nodeclaimutil.New(m))
+	Expect(cluster.UpdateNodeClaim(ctx, nodeclaimutil.New(m))).To(Succeed())
 	return m, nil
 }
 
@@ -350,7 +350,7 @@ func ExpectMachineDeployed(ctx context.Context, c client.Client, cluster *state.
 	node.Labels = lo.Assign(node.Labels, map[string]string{v1alpha5.LabelNodeRegistered: "true"})
 	ExpectApplied(ctx, c, m, node)
 	Expect(cluster.UpdateNode(ctx, node)).To(Succeed())
-	cluster.UpdateNodeClaim(nodeclaimutil.New(m))
+	Expect(cluster.UpdateNodeClaim(ctx, nodeclaimutil.New(m))).To(Succeed())
 	return m, node
 }
 
@@ -367,7 +367,7 @@ func ExpectNodeClaimDeployedNoNode(ctx context.Context, c client.Client, cluster
 	nc = lifecycle.PopulateNodeClaimDetails(nc, resolved)
 	nc.StatusConditions().MarkTrue(v1beta1.Launched)
 	ExpectApplied(ctx, c, nc)
-	cluster.UpdateNodeClaim(nc)
+	Expect(cluster.UpdateNodeClaim(ctx, nc)).To(Succeed())
 	return nc, nil
 }
 
@@ -384,7 +384,7 @@ func ExpectNodeClaimDeployed(ctx context.Context, c client.Client, cluster *stat
 	node.Labels = lo.Assign(node.Labels, map[string]string{v1beta1.NodeRegisteredLabelKey: "true"})
 	ExpectApplied(ctx, c, nc, node)
 	Expect(cluster.UpdateNode(ctx, node)).To(Succeed())
-	cluster.UpdateNodeClaim(nc)
+	Expect(cluster.UpdateNodeClaim(ctx, nc)).To(Succeed())
 	return nc, node
 }
 

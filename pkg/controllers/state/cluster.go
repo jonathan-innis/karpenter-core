@@ -239,16 +239,20 @@ func (c *Cluster) MarkForDeletion(providerIDs ...string) {
 	}
 }
 
-func (c *Cluster) UpdateNodeClaim(nodeClaim *v1beta1.NodeClaim) {
+func (c *Cluster) UpdateNodeClaim(ctx context.Context, nodeClaim *v1beta1.NodeClaim) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if nodeClaim.Status.ProviderID == "" {
-		return // We can't reconcile machines that don't yet have provider ids
+		return nil // We can't reconcile machines that don't yet have provider ids
 	}
-	n := c.newStateFromNodeClaim(nodeClaim, c.nodes[nodeClaim.Status.ProviderID])
+	n, err := c.newStateFromNodeClaim(ctx, nodeClaim, c.nodes[nodeClaim.Status.ProviderID])
+	if err != nil {
+		return err
+	}
 	c.nodes[nodeClaim.Status.ProviderID] = n
 	c.nodeClaimKeyToProviderID[nodeclaimutil.Key{Name: nodeClaim.Name, IsMachine: nodeClaim.IsMachine}] = nodeClaim.Status.ProviderID
+	return nil
 }
 
 func (c *Cluster) DeleteNodeClaim(key nodeclaimutil.Key) {
@@ -264,7 +268,7 @@ func (c *Cluster) UpdateNode(ctx context.Context, node *v1.Node) error {
 
 	if node.Spec.ProviderID == "" {
 		// If we know that we own this node, we shouldn't allow the providerID to be empty
-		if node.Labels[v1alpha5.ProvisionerNameLabelKey] != "" || (node.Labels[v1beta1.NodePoolLabelKey] != "") {
+		if node.Labels[v1alpha5.ProvisionerNameLabelKey] != "" || node.Labels[v1beta1.NodePoolLabelKey] != "" {
 			return nil
 		}
 		node.Spec.ProviderID = node.Name
@@ -389,7 +393,7 @@ func (c *Cluster) DeleteDaemonSet(key types.NamespacedName) {
 // and explicitly modifying the cluster state. If you do not hold the cluster state lock before calling any of these helpers
 // you will hit race conditions and data corruption
 
-func (c *Cluster) newStateFromNodeClaim(nodeClaim *v1beta1.NodeClaim, oldNode *StateNode) *StateNode {
+func (c *Cluster) newStateFromNodeClaim(ctx context.Context, nodeClaim *v1beta1.NodeClaim, oldNode *StateNode) (*StateNode, error) {
 	if oldNode == nil {
 		oldNode = NewNode()
 	}
@@ -410,6 +414,12 @@ func (c *Cluster) newStateFromNodeClaim(nodeClaim *v1beta1.NodeClaim, oldNode *S
 		markedForDeletion:        oldNode.markedForDeletion,
 		nominatedUntil:           oldNode.nominatedUntil,
 	}
+	if err := multierr.Combine(
+		c.populateStartupTaints(ctx, n),
+		c.populateInflight(ctx, n),
+	); err != nil {
+		return nil, err
+	}
 	// Cleanup the old nodeClaim with its old providerID if its providerID changes
 	// This can happen since nodes don't get created with providerIDs. Rather, CCM picks up the
 	// created node and injects the providerID into the spec.providerID
@@ -417,7 +427,7 @@ func (c *Cluster) newStateFromNodeClaim(nodeClaim *v1beta1.NodeClaim, oldNode *S
 		c.cleanupNodeClaim(nodeclaimutil.Key{Name: nodeClaim.Name, IsMachine: nodeClaim.IsMachine})
 	}
 	c.triggerConsolidationOnChange(oldNode, n)
-	return n
+	return n, nil
 }
 
 func (c *Cluster) cleanupNodeClaim(key nodeclaimutil.Key) {
