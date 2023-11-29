@@ -35,7 +35,6 @@ import (
 	"knative.dev/pkg/metrics"
 	"knative.dev/pkg/webhook"
 	"knative.dev/pkg/webhook/certificates"
-	"knative.dev/pkg/webhook/configmaps"
 	"knative.dev/pkg/webhook/resourcesemantics"
 	"knative.dev/pkg/webhook/resourcesemantics/validation"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -58,7 +57,6 @@ func NewWebhooks() []knativeinjection.ControllerConstructor {
 	return []knativeinjection.ControllerConstructor{
 		certificates.NewController,
 		NewCRDValidationWebhook,
-		NewConfigValidationWebhook,
 	}
 }
 
@@ -69,16 +67,6 @@ func NewCRDValidationWebhook(ctx context.Context, _ configmap.Watcher) *controll
 		Resources,
 		func(ctx context.Context) context.Context { return ctx },
 		true,
-	)
-}
-
-func NewConfigValidationWebhook(ctx context.Context, _ configmap.Watcher) *controller.Impl {
-	return configmaps.NewAdmissionController(ctx,
-		"validation.webhook.config.karpenter.sh",
-		"/validate/config.karpenter.sh",
-		configmap.Constructors{
-			knativelogging.ConfigMapName(): knativelogging.NewConfigFromConfigMap,
-		},
 	)
 }
 
