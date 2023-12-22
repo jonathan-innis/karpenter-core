@@ -28,6 +28,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"knative.dev/pkg/changeset"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
@@ -190,6 +191,18 @@ func NewOperator() (context.Context, *Operator) {
 	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1beta1.NodeClaim{}, "status.providerID", func(o client.Object) []string {
 		return []string{o.(*v1beta1.NodeClaim).Status.ProviderID}
 	}), "failed to setup nodeclaim provider id indexer")
+	lo.Must0(mgr.GetFieldIndexer().IndexField(ctx, &v1beta1.NodeClaim{}, "spec.nodeClassRef", func(o client.Object) []string {
+		nodeClassRef := o.(*v1beta1.NodeClaim).Spec.NodeClassRef
+		if nodeClassRef == nil {
+			return nil
+		}
+		nodeClaimGV, err := schema.ParseGroupVersion(nodeClassRef.APIVersion)
+		if err != nil {
+			return nil
+		}
+		// The string returned here will get of the following format "<group>/<kind>/<name>"
+		return []string{fmt.Sprintf("%s/%s/%s", nodeClaimGV.Group, nodeClassRef.Kind, nodeClassRef.Name)}
+	}))
 
 	lo.Must0(mgr.AddReadyzCheck("manager", func(req *http.Request) error {
 		return lo.Ternary(mgr.GetCache().WaitForCacheSync(req.Context()), nil, fmt.Errorf("failed to sync caches"))

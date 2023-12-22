@@ -37,12 +37,17 @@ import (
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	"sigs.k8s.io/karpenter/pkg/scheduling"
 	podutils "sigs.k8s.io/karpenter/pkg/utils/pod"
 )
+
+// NodeClassEventChannel is a global channel used for sending NodeClassEvents
+// triggered by any NodeClass referenced by a NodePool through the NodeClassRef
+var NodeClassEventChannel = make(chan event.GenericEvent, 2048)
 
 // Cluster maintains cluster state that is often needed but expensive to compute.
 type Cluster struct {

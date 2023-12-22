@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -45,6 +46,7 @@ import (
 )
 
 func NewControllers(
+	config *rest.Config,
 	clock clock.Clock,
 	kubeClient client.Client,
 	kubernetesInterface kubernetes.Interface,
@@ -67,6 +69,7 @@ func NewControllers(
 		informer.NewPodController(kubeClient, cluster),
 		informer.NewNodePoolController(kubeClient, cluster),
 		informer.NewNodeClaimController(kubeClient, cluster),
+		informer.NewNodeClassRefController(config, kubeClient),
 		termination.NewController(kubeClient, cloudProvider, terminator.NewTerminator(clock, kubeClient, evictionQueue), recorder),
 		metricspod.NewController(kubeClient),
 		metricsnodepool.NewController(kubeClient),

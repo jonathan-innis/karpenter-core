@@ -18,7 +18,9 @@ package disruption
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/samber/lo"
 	"go.uber.org/multierr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -28,8 +30,11 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
@@ -48,7 +53,8 @@ type nodeClaimReconciler interface {
 // Controller is a disruption controller that adds StatusConditions to nodeclaims when they meet certain disruption conditions
 // e.g. When the NodeClaim has surpassed its owning provisioner's expirationTTL, then it is marked as "Expired" in the StatusConditions
 type Controller struct {
-	kubeClient client.Client
+	kubeClient   client.Client
+	watchChannel <-chan event.GenericEvent
 
 	drift      *Drift
 	expiration *Expiration
@@ -122,6 +128,20 @@ func (c *Controller) Builder(_ context.Context, m manager.Manager) operatorcontr
 		Watches(
 			&v1.Pod{},
 			nodeclaimutil.PodEventHandler(c.kubeClient),
-		),
+		).
+		// Raw sources coming from the watch channel should always have their GVK populated
+		WatchesRawSource(&source.Channel{Source: state.NodeClassEventChannel}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) (requests []reconcile.Request) {
+			gvk := o.GetObjectKind().GroupVersionKind()
+			nodeClaimList := &v1beta1.NodeClaimList{}
+			if err := c.kubeClient.List(ctx, nodeClaimList, client.MatchingFields{
+				// The string returned here will get of the following format "<group>/<kind>/<name>"
+				"spec.nodeClassRef": fmt.Sprintf("%s/%s/%s", gvk.Group, gvk.Kind, o.GetName()),
+			}); err != nil {
+				return []reconcile.Request{}
+			}
+			return lo.Map(nodeClaimList.Items, func(nc v1beta1.NodeClaim, _ int) reconcile.Request {
+				return reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&nc)}
+			})
+		})),
 	)
 }
