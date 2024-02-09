@@ -24,16 +24,18 @@ import (
 	"github.com/aws/karpenter-core/pkg/apis/v1alpha5"
 	"github.com/aws/karpenter-core/pkg/apis/v1beta1"
 	"github.com/aws/karpenter-core/pkg/controllers/node/termination"
+	"github.com/aws/karpenter-core/pkg/controllers/node/termination/terminator"
 	"github.com/aws/karpenter-core/pkg/metrics"
 	"github.com/aws/karpenter-core/pkg/test"
 	nodeclaimutil "github.com/aws/karpenter-core/pkg/utils/nodeclaim"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"knative.dev/pkg/ptr"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	. "github.com/aws/karpenter-core/pkg/test/expectations"
 )
@@ -279,7 +281,7 @@ var _ = Describe("Machine/Termination", func() {
 
 			// Expect podNoEvict to fail eviction due to PDB, and be retried
 			Eventually(func() int {
-				return queue.NumRequeues(client.ObjectKeyFromObject(podNoEvict))
+				return queue.NumRequeues(terminator.QueueKey{NamespacedName: client.ObjectKeyFromObject(podNoEvict)})
 			}).Should(BeNumerically(">=", 1))
 
 			// Delete pod to simulate successful eviction
@@ -538,6 +540,36 @@ var _ = Describe("Machine/Termination", func() {
 			fakeClock.SetTime(time.Now().Add(90 * time.Second))
 			ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(node))
 			ExpectNotFound(ctx, env.Client, node)
+		})
+		It("should not keep pods in the eviction queue after the node has finished draining", func() {
+			pod := test.Pod(test.PodOptions{
+				NodeName: node.Name,
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "test-pod",
+					OwnerReferences: defaultOwnerRefs,
+				},
+			})
+			ExpectApplied(ctx, env.Client, node, pod)
+
+			// Trigger Termination Controller
+			Expect(env.Client.Delete(ctx, node)).To(Succeed())
+			node = ExpectNodeExists(ctx, env.Client, node.Name)
+			ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(node))
+
+			// Don't trigger a call into the queue to make sure that we effectively aren't triggering eviction
+			// We'll use this to try to leave pods in the queue
+
+			// Expect node to exist and be draining
+			ExpectNodeWithNodeClaimDraining(env.Client, node.Name)
+
+			// Delete the pod directly to act like something else is doing the pod termination
+			ExpectDeleted(ctx, env.Client, pod)
+
+			// Requeue the termination controller to completely delete the node
+			ExpectReconcileSucceeded(ctx, terminationController, client.ObjectKeyFromObject(node))
+
+			// Expect that the queue no longer has the pod present in it
+			Expect(queue.Has(pod)).To(BeFalse())
 		})
 	})
 	Context("Metrics", func() {

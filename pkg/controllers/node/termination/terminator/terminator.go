@@ -107,6 +107,10 @@ func (t *Terminator) Drain(ctx context.Context, node *v1.Node) error {
 	if len(podsToEvict) > 0 {
 		return NewNodeDrainError(fmt.Errorf("%d pods are waiting to be evicted", len(podsToEvict)))
 	}
+	// Once we see no more pods that were left around from the drain, we can clear out the eviction queue
+	// This is needed because it's possible that there are other entities that Karpenter is interacting with
+	// that may actually perform the pod deletion rather than Karpenter itself
+	t.evictionQueue.ClearForNode(node.Name)
 	return nil
 }
 
