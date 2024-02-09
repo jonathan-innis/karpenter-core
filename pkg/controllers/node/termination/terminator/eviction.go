@@ -20,15 +20,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
-	set "github.com/deckarep/golang-set"
 	v1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
 	"knative.dev/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,19 +62,29 @@ func IsNodeDrainError(err error) bool {
 	return errors.As(err, &nodeDrainErr)
 }
 
-type Queue struct {
-	workqueue.RateLimitingInterface
-	set.Set
+type QueueKey struct {
+	types.NamespacedName
 
-	coreV1Client corev1.CoreV1Interface
-	recorder     events.Recorder
+	NodeName string
 }
 
-func NewQueue(coreV1Client corev1.CoreV1Interface, recorder events.Recorder) *Queue {
+type Queue struct {
+	workqueue.RateLimitingInterface
+
+	// evictionMapping is a mapping from the node name to the pods that require eviction
+	// This is a map from NodeName -> sets.Set[QueueKey] to enable cleanup on the eviction queue when the node cleans up
+	mu              sync.Mutex
+	evictionMapping map[string]sets.Set[QueueKey]
+
+	kubeClient client.Client
+	recorder   events.Recorder
+}
+
+func NewQueue(kubeClient client.Client, recorder events.Recorder) *Queue {
 	queue := &Queue{
 		RateLimitingInterface: workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(evictionQueueBaseDelay, evictionQueueMaxDelay)),
-		Set:                   set.NewSet(),
-		coreV1Client:          coreV1Client,
+		evictionMapping:       map[string]sets.Set[QueueKey]{},
+		kubeClient:            kubeClient,
 		recorder:              recorder,
 	}
 	return queue
@@ -88,14 +98,50 @@ func (q *Queue) Builder(_ context.Context, m manager.Manager) controller.Builder
 	return controller.NewSingletonManagedBy(m)
 }
 
+func (q *Queue) Has(pod *v1.Pod) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	pods, ok := q.evictionMapping[pod.Spec.NodeName]
+	if !ok {
+		return false
+	}
+	return pods.Has(QueueKey{NodeName: pod.Spec.NodeName, NamespacedName: client.ObjectKeyFromObject(pod)})
+}
+
 // Add adds pods to the Queue
 func (q *Queue) Add(pods ...*v1.Pod) {
+	if len(pods) == 0 {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if _, ok := q.evictionMapping[pods[0].Spec.NodeName]; !ok {
+		q.evictionMapping[pods[0].Spec.NodeName] = sets.New[QueueKey]()
+	}
 	for _, pod := range pods {
-		if nn := client.ObjectKeyFromObject(pod); !q.Set.Contains(nn) {
-			q.Set.Add(nn)
-			q.RateLimitingInterface.Add(nn)
+		qk := QueueKey{NamespacedName: client.ObjectKeyFromObject(pod), NodeName: pod.Spec.NodeName}
+		if !q.evictionMapping[pod.Spec.NodeName].Has(qk) {
+			q.evictionMapping[pod.Spec.NodeName].Insert(qk)
+			q.RateLimitingInterface.Add(qk)
 		}
 	}
+}
+
+// ClearForNode removes all pods that were sitting on the eviction queue that were associated with a given nodeName
+func (q *Queue) ClearForNode(nodeName string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if _, ok := q.evictionMapping[nodeName]; !ok {
+		return
+	}
+	for qk := range q.evictionMapping[nodeName].UnsortedList() {
+		q.RateLimitingInterface.Forget(qk)
+		q.RateLimitingInterface.Done(qk)
+	}
+	delete(q.evictionMapping, nodeName)
 }
 
 func (q *Queue) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.Result, error) {
@@ -110,25 +156,26 @@ func (q *Queue) Reconcile(ctx context.Context, _ reconcile.Request) (reconcile.R
 	if shutdown {
 		return reconcile.Result{}, fmt.Errorf("EvictionQueue is broken and has shutdown")
 	}
-	nn := item.(types.NamespacedName)
-	defer q.RateLimitingInterface.Done(nn)
+	key := item.(QueueKey)
+	defer q.RateLimitingInterface.Done(key)
 	// Evict pod
-	if q.Evict(ctx, nn) {
-		q.RateLimitingInterface.Forget(nn)
-		q.Set.Remove(nn)
+	if q.Evict(ctx, key) {
+		q.mu.Lock()
+		q.evictionMapping[key.NodeName].Delete(key)
+		q.mu.Unlock()
+
+		q.RateLimitingInterface.Forget(key)
 		return reconcile.Result{RequeueAfter: controller.Immediately}, nil
 	}
 	// Requeue pod if eviction failed
-	q.RateLimitingInterface.AddRateLimited(nn)
+	q.RateLimitingInterface.AddRateLimited(key)
 	return reconcile.Result{RequeueAfter: controller.Immediately}, nil
 }
 
 // Evict returns true if successful eviction call, and false if not an eviction-related error
-func (q *Queue) Evict(ctx context.Context, nn types.NamespacedName) bool {
-	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("pod", nn))
-	if err := q.coreV1Client.Pods(nn.Namespace).EvictV1(ctx, &policyv1.Eviction{
-		ObjectMeta: metav1.ObjectMeta{Name: nn.Name, Namespace: nn.Namespace},
-	}); err != nil {
+func (q *Queue) Evict(ctx context.Context, key QueueKey) bool {
+	ctx = logging.WithLogger(ctx, logging.FromContext(ctx).With("pod", key.NamespacedName))
+	if err := q.kubeClient.SubResource("eviction").Create(ctx, &v1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: key.Namespace, Name: key.Name}}, &policyv1.Eviction{}); err != nil {
 		// status codes for the eviction API are defined here:
 		// https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/#how-api-initiated-eviction-works
 		if apierrors.IsNotFound(err) { // 404
@@ -136,19 +183,22 @@ func (q *Queue) Evict(ctx context.Context, nn types.NamespacedName) bool {
 		}
 		if apierrors.IsTooManyRequests(err) { // 429 - PDB violation
 			q.recorder.Publish(terminatorevents.NodeFailedToDrain(&v1.Node{ObjectMeta: metav1.ObjectMeta{
-				Name:      nn.Name,
-				Namespace: nn.Namespace,
-			}}, fmt.Errorf("evicting pod %s/%s violates a PDB", nn.Namespace, nn.Name)))
+				Name:      key.Name,
+				Namespace: key.Namespace,
+			}}, fmt.Errorf("evicting pod %s/%s violates a PDB", key.Namespace, key.Name)))
 			return false
 		}
 		logging.FromContext(ctx).Errorf("evicting pod, %s", err)
 		return false
 	}
-	q.recorder.Publish(terminatorevents.EvictPod(&v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: nn.Name, Namespace: nn.Namespace}}))
+	q.recorder.Publish(terminatorevents.EvictPod(&v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}))
 	return true
 }
 
 func (q *Queue) Reset() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	q.RateLimitingInterface = workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(evictionQueueBaseDelay, evictionQueueMaxDelay))
-	q.Set = set.NewSet()
+	q.evictionMapping = map[string]sets.Set[QueueKey]{}
 }
