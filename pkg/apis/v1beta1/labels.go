@@ -67,6 +67,10 @@ var (
 		v1.LabelNamespaceNodeRestriction,
 	)
 
+	LabelExceptions = sets.New(
+		"karpenter.sh/provisioner-name",
+	)
+
 	// WellKnownLabels are labels that belong to the RestrictedLabelDomains but allowed.
 	// Karpenter is aware of these labels, and they can be used to further narrow down
 	// the range of the corresponding values by either provisioner or pods.
@@ -121,6 +125,9 @@ func IsRestrictedNodeLabel(key string) bool {
 		if strings.HasSuffix(labelDomain, exceptionLabelDomain) {
 			return false
 		}
+	}
+	if LabelExceptions.Has(key) {
+		return false
 	}
 	for restrictedLabelDomain := range RestrictedLabelDomains {
 		if strings.HasSuffix(labelDomain, restrictedLabelDomain) {

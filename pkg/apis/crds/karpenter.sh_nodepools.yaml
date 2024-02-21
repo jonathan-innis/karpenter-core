@@ -101,7 +101,7 @@ spec:
                             - message: label domain "k8s.io" is restricted
                               rule: self.all(x, x.find("^([^/]+)").endsWith("kops.k8s.io") || !x.find("^([^/]+)").endsWith("k8s.io"))
                             - message: label domain "karpenter.sh" is restricted
-                              rule: self.all(x, x in ["karpenter.sh/capacity-type", "karpenter.sh/nodepool"] || !x.find("^([^/]+)").endsWith("karpenter.sh"))
+                              rule: self.all(x, x in ["karpenter.sh/capacity-type", "karpenter.sh/nodepool", "karpenter.sh/provisioner-name"] || !x.find("^([^/]+)").endsWith("karpenter.sh"))
                             - message: label "karpenter.sh/nodepool" is restricted
                               rule: self.all(x, x != "karpenter.sh/nodepool")
                             - message: label "kubernetes.io/hostname" is restricted
@@ -240,7 +240,7 @@ spec:
                                   - message: label domain "k8s.io" is restricted
                                     rule: self.find("^([^/]+)").endsWith("kops.k8s.io") || !self.find("^([^/]+)").endsWith("k8s.io")
                                   - message: label domain "karpenter.sh" is restricted
-                                    rule: self in ["karpenter.sh/capacity-type", "karpenter.sh/nodepool"] || !self.find("^([^/]+)").endsWith("karpenter.sh")
+                                    rule: self in ["karpenter.sh/capacity-type", "karpenter.sh/nodepool", "karpenter.sh/provisioner-name"] || !self.find("^([^/]+)").endsWith("karpenter.sh")
                                   - message: label "karpenter.sh/nodepool" is restricted
                                     rule: self != "karpenter.sh/nodepool"
                                   - message: label "kubernetes.io/hostname" is restricted
