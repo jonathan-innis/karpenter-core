@@ -73,26 +73,26 @@ func WithReason(reason string) func(LaunchOptions) LaunchOptions {
 
 // Provisioner waits for enqueued pods, batches them, creates capacity and binds the pods to the capacity.
 type Provisioner struct {
-	cloudProvider  cloudprovider.CloudProvider
-	kubeClient     client.Client
-	batcher        *Batcher
-	volumeTopology *scheduler.VolumeTopology
-	cluster        *state.Cluster
-	recorder       events.Recorder
-	cm             *pretty.ChangeMonitor
+	batcher              *Batcher
+	cloudProvider        cloudprovider.CloudProvider
+	kubeClient           client.Client
+	volumeTopologyClient *scheduler.VolumeTopologyClient
+	cluster              *state.Cluster
+	recorder             events.Recorder
+	cm                   *pretty.ChangeMonitor
 }
 
 func NewProvisioner(kubeClient client.Client, recorder events.Recorder,
 	cloudProvider cloudprovider.CloudProvider, cluster *state.Cluster,
 ) *Provisioner {
 	p := &Provisioner{
-		batcher:        NewBatcher(),
-		cloudProvider:  cloudProvider,
-		kubeClient:     kubeClient,
-		volumeTopology: scheduler.NewVolumeTopology(kubeClient),
-		cluster:        cluster,
-		recorder:       recorder,
-		cm:             pretty.NewChangeMonitor(),
+		batcher:              NewBatcher(),
+		cloudProvider:        cloudProvider,
+		kubeClient:           kubeClient,
+		volumeTopologyClient: scheduler.NewVolumeTopologyClient(kubeClient),
+		cluster:              cluster,
+		recorder:             recorder,
+		cm:                   pretty.NewChangeMonitor(),
 	}
 	return p
 }
@@ -273,7 +273,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 	}
 
 	// inject topology constraints
-	pods = p.injectTopology(ctx, pods)
+	pods = p.injectVolumeTopology(ctx, pods)
 
 	// Calculate cluster topology
 	topology, err := scheduler.NewTopology(ctx, p.kubeClient, p.cluster, domains, pods)
@@ -284,7 +284,7 @@ func (p *Provisioner) NewScheduler(ctx context.Context, pods []*v1.Pod, stateNod
 	if err != nil {
 		return nil, fmt.Errorf("getting daemon pods, %w", err)
 	}
-	return scheduler.NewScheduler(ctx, p.kubeClient, nodeClaimTemplates, nodePoolList.Items, p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder), nil
+	return scheduler.NewScheduler(ctx, p.kubeClient, lo.ToSlicePtr(nodePoolList.Items), p.cluster, stateNodes, topology, instanceTypes, daemonSetPods, p.recorder), nil
 }
 
 func (p *Provisioner) Schedule(ctx context.Context) (scheduler.Results, error) {
@@ -420,7 +420,7 @@ func (p *Provisioner) Validate(ctx context.Context, pod *v1.Pod) error {
 		validateKarpenterManagedLabelCanExist(pod),
 		validateNodeSelector(pod),
 		validateAffinity(pod),
-		p.volumeTopology.ValidatePersistentVolumeClaims(ctx, pod),
+		p.volumeTopologyClient.ValidatePersistentVolumeClaims(ctx, pod),
 	)
 }
 
@@ -436,10 +436,10 @@ func validateKarpenterManagedLabelCanExist(p *v1.Pod) error {
 	return nil
 }
 
-func (p *Provisioner) injectTopology(ctx context.Context, pods []*v1.Pod) []*v1.Pod {
+func (p *Provisioner) injectVolumeTopology(ctx context.Context, pods []*v1.Pod) []*v1.Pod {
 	var schedulablePods []*v1.Pod
 	for _, pod := range pods {
-		if err := p.volumeTopology.Inject(ctx, pod); err != nil {
+		if err := p.volumeTopologyClient.Inject(ctx, pod); err != nil {
 			logging.FromContext(ctx).With("pod", client.ObjectKeyFromObject(pod)).Errorf("getting volume topology requirements, %s", err)
 		} else {
 			schedulablePods = append(schedulablePods, pod)

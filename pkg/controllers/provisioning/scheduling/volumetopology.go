@@ -30,15 +30,15 @@ import (
 	volumeutil "sigs.k8s.io/karpenter/pkg/utils/volume"
 )
 
-func NewVolumeTopology(kubeClient client.Client) *VolumeTopology {
-	return &VolumeTopology{kubeClient: kubeClient}
+func NewVolumeTopologyClient(kubeClient client.Client) *VolumeTopologyClient {
+	return &VolumeTopologyClient{kubeClient: kubeClient}
 }
 
-type VolumeTopology struct {
+type VolumeTopologyClient struct {
 	kubeClient client.Client
 }
 
-func (v *VolumeTopology) Inject(ctx context.Context, pod *v1.Pod) error {
+func (v *VolumeTopologyClient) Inject(ctx context.Context, pod *v1.Pod) error {
 	var requirements []v1.NodeSelectorRequirement
 	for _, volume := range pod.Spec.Volumes {
 		req, err := v.getRequirements(ctx, pod, volume)
@@ -76,7 +76,7 @@ func (v *VolumeTopology) Inject(ctx context.Context, pod *v1.Pod) error {
 	return nil
 }
 
-func (v *VolumeTopology) getRequirements(ctx context.Context, pod *v1.Pod, volume v1.Volume) ([]v1.NodeSelectorRequirement, error) {
+func (v *VolumeTopologyClient) getRequirements(ctx context.Context, pod *v1.Pod, volume v1.Volume) ([]v1.NodeSelectorRequirement, error) {
 	pvc, err := volumeutil.GetPersistentVolumeClaim(ctx, v.kubeClient, pod, volume)
 	if err != nil {
 		return nil, fmt.Errorf("discovering persistent volume claim, %w", err)
@@ -105,7 +105,7 @@ func (v *VolumeTopology) getRequirements(ctx context.Context, pod *v1.Pod, volum
 	return nil, nil
 }
 
-func (v *VolumeTopology) getStorageClassRequirements(ctx context.Context, storageClassName string) ([]v1.NodeSelectorRequirement, error) {
+func (v *VolumeTopologyClient) getStorageClassRequirements(ctx context.Context, storageClassName string) ([]v1.NodeSelectorRequirement, error) {
 	storageClass := &storagev1.StorageClass{}
 	if err := v.kubeClient.Get(ctx, types.NamespacedName{Name: storageClassName}, storageClass); err != nil {
 		return nil, fmt.Errorf("getting storage class %q, %w", storageClassName, err)
@@ -120,7 +120,7 @@ func (v *VolumeTopology) getStorageClassRequirements(ctx context.Context, storag
 	return requirements, nil
 }
 
-func (v *VolumeTopology) getPersistentVolumeRequirements(ctx context.Context, pod *v1.Pod, volumeName string) ([]v1.NodeSelectorRequirement, error) {
+func (v *VolumeTopologyClient) getPersistentVolumeRequirements(ctx context.Context, pod *v1.Pod, volumeName string) ([]v1.NodeSelectorRequirement, error) {
 	pv := &v1.PersistentVolume{}
 	if err := v.kubeClient.Get(ctx, types.NamespacedName{Name: volumeName, Namespace: pod.Namespace}, pv); err != nil {
 		return nil, fmt.Errorf("getting persistent volume %q, %w", volumeName, err)
@@ -141,7 +141,7 @@ func (v *VolumeTopology) getPersistentVolumeRequirements(ctx context.Context, po
 
 // ValidatePersistentVolumeClaims returns an error if the pod doesn't appear to be valid with respect to
 // PVCs (e.g. the PVC is not found or references an unknown storage class).
-func (v *VolumeTopology) ValidatePersistentVolumeClaims(ctx context.Context, pod *v1.Pod) error {
+func (v *VolumeTopologyClient) ValidatePersistentVolumeClaims(ctx context.Context, pod *v1.Pod) error {
 	for _, volume := range pod.Spec.Volumes {
 		pvc, err := volumeutil.GetPersistentVolumeClaim(ctx, v.kubeClient, pod, volume)
 		if err != nil {
@@ -171,7 +171,7 @@ func (v *VolumeTopology) ValidatePersistentVolumeClaims(ctx context.Context, pod
 	return nil
 }
 
-func (v *VolumeTopology) validateVolume(ctx context.Context, volumeName string) error {
+func (v *VolumeTopologyClient) validateVolume(ctx context.Context, volumeName string) error {
 	// we have a volume name, so ensure that it exists
 	if volumeName != "" {
 		pv := &v1.PersistentVolume{}
@@ -182,7 +182,7 @@ func (v *VolumeTopology) validateVolume(ctx context.Context, volumeName string) 
 	return nil
 }
 
-func (v *VolumeTopology) validateStorageClass(ctx context.Context, storageClassName string) error {
+func (v *VolumeTopologyClient) validateStorageClass(ctx context.Context, storageClassName string) error {
 	storageClass := &storagev1.StorageClass{}
 	if err := v.kubeClient.Get(ctx, types.NamespacedName{Name: storageClassName}, storageClass); err != nil {
 		return err
