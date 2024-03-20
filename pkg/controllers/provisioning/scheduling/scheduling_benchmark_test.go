@@ -36,6 +36,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 	fakecr "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/karpenter/pkg/cloudprovider"
+	"sigs.k8s.io/karpenter/pkg/controllers/provisioning/scheduling"
+	"sigs.k8s.io/karpenter/pkg/events"
 
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,9 +47,7 @@ import (
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider/fake"
-	"sigs.k8s.io/karpenter/pkg/controllers/provisioning/scheduling"
 	"sigs.k8s.io/karpenter/pkg/controllers/state"
-	"sigs.k8s.io/karpenter/pkg/events"
 	"sigs.k8s.io/karpenter/pkg/test"
 
 	v1 "k8s.io/api/core/v1"
@@ -125,7 +126,7 @@ func TestSchedulingProfile(t *testing.T) {
 	totalNodes := 0
 	var totalTime time.Duration
 	for _, instanceCount := range []int{400} {
-		for _, podCount := range []int{10, 100, 500, 1000, 1500, 2000, 5000} {
+		for _, podCount := range []int{2000} {
 			start := time.Now()
 			res := testing.Benchmark(func(b *testing.B) { benchmarkScheduler(b, instanceCount, podCount) })
 			totalTime += time.Since(start) / time.Duration(res.N)
@@ -168,16 +169,6 @@ func benchmarkScheduler(b *testing.B, instanceCount, podCount int) {
 	client := fakecr.NewFakeClient()
 	pods := makeDiversePods(podCount)
 	cluster = state.NewCluster(&clock.RealClock{}, client, cloudProvider)
-	domains := map[string]sets.Set[string]{}
-	topology, err := scheduling.NewTopology(ctx, client, cluster, domains, pods)
-	if err != nil {
-		b.Fatalf("creating topology, %s", err)
-	}
-
-	scheduler := scheduling.NewScheduler(ctx, client, []*v1beta1.NodePool{nodePool},
-		cluster, nil, topology,
-		map[string][]*cloudprovider.InstanceType{nodePool.Name: instanceTypes}, nil,
-		events.NewRecorder(&record.FakeRecorder{}))
 
 	b.ResetTimer()
 	// Pack benchmark
@@ -185,9 +176,22 @@ func benchmarkScheduler(b *testing.B, instanceCount, podCount int) {
 	podsScheduledInRound1 := 0
 	nodesInRound1 := 0
 	for i := 0; i < b.N; i++ {
-		results := scheduler.Solve(ctx, pods)
-		if i == 0 {
+		topology, err := scheduling.NewTopology(ctx, client, cluster, map[string]sets.Set[string]{}, pods)
+		if err != nil {
+			b.Fatalf("creating topology, %s", err)
+		}
+		results := scheduling.NewScheduler(ctx,
+			client,
+			[]*v1beta1.NodePool{nodePool},
+			cluster,
+			nil,
+			topology,
+			map[string][]*cloudprovider.InstanceType{nodePool.Name: instanceTypes},
+			nil,
+			events.NewRecorder(&record.FakeRecorder{}),
+		).Solve(ctx, pods)
 
+		if i == 0 {
 			minPods := math.MaxInt64
 			maxPods := 0
 			var podCounts []int
