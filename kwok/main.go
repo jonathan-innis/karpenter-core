@@ -51,6 +51,7 @@ func main() {
 			op.GetClient(),
 			state.NewCluster(op.Clock, op.GetClient(), cloudProvider),
 			op.EventRecorder,
+			op.GetEventRecorderFor("controller"),
 			cloudProvider,
 		)...).Start(ctx)
 }

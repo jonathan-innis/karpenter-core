@@ -32,4 +32,5 @@ var (
 func init() {
 	lo.Must0(clientgoscheme.AddToScheme(Scheme))
 	lo.Must0(apis.AddToScheme(Scheme))
+	lo.Must0(apis.AddToScheme(clientgoscheme.Scheme))
 }

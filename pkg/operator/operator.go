@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/awslabs/operatorpkg/status"
 	"github.com/prometheus/client_golang/prometheus"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/klog/v2"
@@ -223,7 +222,6 @@ func (o *Operator) WithControllers(ctx context.Context, controllers ...controlle
 	for _, c := range controllers {
 		lo.Must0(c.Register(ctx, o.Manager))
 	}
-	status.NewController[*v1beta1.NodeClaim](o.GetClient(), o.GetEventRecorderFor("status.nodeclaim"))
 	return o
 }
 
