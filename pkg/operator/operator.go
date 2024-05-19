@@ -90,6 +90,8 @@ var Version = "unspecified"
 func init() {
 	crmetrics.Registry.MustRegister(BuildInfo)
 	operatormetrics.RegisterClientMetrics(crmetrics.Registry)
+	operatormetrics.RegisterWorkQueueMetrics(crmetrics.Registry)
+
 	BuildInfo.WithLabelValues(Version, runtime.Version(), runtime.GOARCH, changeset.Get()).Set(1)
 }
 
