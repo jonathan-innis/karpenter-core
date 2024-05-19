@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ limitations under the License.
 package metrics
 
 import (
+	"errors"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -88,7 +90,21 @@ var (
 )
 
 func RegisterWorkQueueMetrics(r prometheus.Registerer) {
-	r.MustRegister(depth, adds, latency, workDuration, unfinished, longestRunningProcessor, retries)
+	err := &prometheus.AlreadyRegisteredError{}
+	errors.As(r.Register(depth), err)
+	depth = err.ExistingCollector.(*prometheus.GaugeVec)
+	errors.As(r.Register(adds), err)
+	adds = err.ExistingCollector.(*prometheus.CounterVec)
+	errors.As(r.Register(latency), err)
+	latency = err.ExistingCollector.(*prometheus.HistogramVec)
+	errors.As(r.Register(workDuration), err)
+	workDuration = err.ExistingCollector.(*prometheus.HistogramVec)
+	errors.As(r.Register(unfinished), err)
+	unfinished = err.ExistingCollector.(*prometheus.GaugeVec)
+	errors.As(r.Register(longestRunningProcessor), err)
+	longestRunningProcessor = err.ExistingCollector.(*prometheus.GaugeVec)
+	errors.As(r.Register(retries), err)
+	retries = err.ExistingCollector.(*prometheus.CounterVec)
 
 	workqueue.SetProvider(workqueueMetricsProvider{})
 }

@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -45,10 +44,8 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/utils/clock"
-	knativeinjection "knative.dev/pkg/injection"
 	"knative.dev/pkg/signals"
 	"knative.dev/pkg/system"
-	"knative.dev/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -64,7 +61,6 @@ import (
 	operatormetrics "sigs.k8s.io/karpenter/pkg/operator/metrics"
 	"sigs.k8s.io/karpenter/pkg/operator/options"
 	"sigs.k8s.io/karpenter/pkg/operator/scheme"
-	"sigs.k8s.io/karpenter/pkg/webhooks"
 )
 
 const (
@@ -101,15 +97,12 @@ type Operator struct {
 	KubernetesInterface kubernetes.Interface
 	EventRecorder       events.Recorder
 	Clock               clock.Clock
-
-	webhooks []knativeinjection.ControllerConstructor
 }
 
 // NewOperator instantiates a controller manager or panics
 func NewOperator() (context.Context, *Operator) {
 	// Root Context
 	ctx := signals.NewContext()
-	ctx = knativeinjection.WithNamespaceScope(ctx, system.Namespace())
 
 	// Options
 	ctx = injection.WithOptionsOrDie(ctx, options.Injectables...)
@@ -120,14 +113,6 @@ func NewOperator() (context.Context, *Operator) {
 		newLimit := int64(float64(options.FromContext(ctx).MemoryLimit) * 0.9)
 		debug.SetMemoryLimit(newLimit)
 	}
-
-	// Webhook
-	ctx = webhook.WithOptions(ctx, webhook.Options{
-		Port:        options.FromContext(ctx).WebhookPort,
-		ServiceName: options.FromContext(ctx).ServiceName,
-		SecretName:  fmt.Sprintf("%s-cert", options.FromContext(ctx).ServiceName),
-		GracePeriod: 5 * time.Second,
-	})
 
 	// Client Config
 	config := ctrl.GetConfigOrDie()
@@ -229,15 +214,6 @@ func (o *Operator) WithControllers(ctx context.Context, controllers ...controlle
 	return o
 }
 
-func (o *Operator) WithWebhooks(ctx context.Context, ctors ...knativeinjection.ControllerConstructor) *Operator {
-	if !options.FromContext(ctx).DisableWebhook {
-		o.webhooks = append(o.webhooks, ctors...)
-		lo.Must0(o.Manager.AddReadyzCheck("webhooks", webhooks.HealthProbe(ctx)))
-		lo.Must0(o.Manager.AddHealthzCheck("webhooks", webhooks.HealthProbe(ctx)))
-	}
-	return o
-}
-
 func (o *Operator) Start(ctx context.Context) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -245,14 +221,5 @@ func (o *Operator) Start(ctx context.Context) {
 		defer wg.Done()
 		lo.Must0(o.Manager.Start(ctx))
 	}()
-	if options.FromContext(ctx).DisableWebhook {
-		log.FromContext(ctx).Info("webhook disabled")
-	} else {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			webhooks.Start(ctx, o.GetConfig(), o.webhooks...)
-		}()
-	}
 	wg.Wait()
 }
