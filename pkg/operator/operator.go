@@ -61,6 +61,7 @@ import (
 	"sigs.k8s.io/karpenter/pkg/events"
 	"sigs.k8s.io/karpenter/pkg/operator/injection"
 	"sigs.k8s.io/karpenter/pkg/operator/logging"
+	operatormetrics "sigs.k8s.io/karpenter/pkg/operator/metrics"
 	"sigs.k8s.io/karpenter/pkg/operator/options"
 	"sigs.k8s.io/karpenter/pkg/operator/scheme"
 	"sigs.k8s.io/karpenter/pkg/webhooks"
@@ -88,6 +89,7 @@ var Version = "unspecified"
 
 func init() {
 	crmetrics.Registry.MustRegister(BuildInfo)
+	operatormetrics.RegisterClientMetrics(crmetrics.Registry)
 	BuildInfo.WithLabelValues(Version, runtime.Version(), runtime.GOARCH, changeset.Get()).Set(1)
 }
 
