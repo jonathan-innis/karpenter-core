@@ -391,7 +391,7 @@ func (c *Cluster) DeleteDaemonSet(key types.NamespacedName) {
 
 func (c *Cluster) newStateFromNodeClaim(nodeClaim *v1beta1.NodeClaim, oldNode *StateNode) *StateNode {
 	if oldNode == nil {
-		oldNode = NewNode()
+		oldNode = NewNode(c.kubeClient)
 	}
 	n := &StateNode{
 		Node:              oldNode.Node,
@@ -432,7 +432,7 @@ func (c *Cluster) cleanupNodeClaim(name string) {
 
 func (c *Cluster) newStateFromNode(ctx context.Context, node *v1.Node, oldNode *StateNode) (*StateNode, error) {
 	if oldNode == nil {
-		oldNode = NewNode()
+		oldNode = NewNode(c.kubeClient)
 	}
 	n := &StateNode{
 		Node:              node,
@@ -498,7 +498,7 @@ func (c *Cluster) populateResourceRequests(ctx context.Context, n *StateNode) er
 		if podutils.IsTerminal(pod) {
 			continue
 		}
-		if err := n.updateForPod(ctx, c.kubeClient, pod); err != nil {
+		if err := n.updateForPod(ctx, pod); err != nil {
 			return err
 		}
 		c.cleanupOldBindings(pod)
@@ -520,7 +520,7 @@ func (c *Cluster) updateNodeUsageFromPod(ctx context.Context, pod *v1.Pod) error
 		// the node must exist for us to update the resource requests on the node
 		return errors.NewNotFound(schema.GroupResource{Resource: "Node"}, pod.Spec.NodeName)
 	}
-	if err := n.updateForPod(ctx, c.kubeClient, pod); err != nil {
+	if err := n.updateForPod(ctx, pod); err != nil {
 		return err
 	}
 	c.cleanupOldBindings(pod)

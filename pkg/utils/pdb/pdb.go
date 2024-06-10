@@ -23,7 +23,6 @@ import (
 	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	podutil "sigs.k8s.io/karpenter/pkg/utils/pod"
@@ -32,8 +31,8 @@ import (
 // Limits is used to evaluate if evicting a list of pods is possible.
 type Limits []*pdbItem
 
-func NewLimits(ctx context.Context, clk clock.Clock, kubeClient client.Client) (Limits, error) {
-	pdbs := []*pdbItem{}
+func NewLimits(ctx context.Context, kubeClient client.Reader) (Limits, error) {
+	var pdbs []*pdbItem
 
 	var pdbList policyv1.PodDisruptionBudgetList
 	if err := kubeClient.List(ctx, &pdbList); err != nil {

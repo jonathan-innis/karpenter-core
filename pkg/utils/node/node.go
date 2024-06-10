@@ -28,7 +28,7 @@ import (
 )
 
 // GetPods grabs all pods that are currently bound to the passed nodes
-func GetPods(ctx context.Context, kubeClient client.Client, nodes ...*v1.Node) ([]*v1.Pod, error) {
+func GetPods(ctx context.Context, kubeClient client.Reader, nodes ...*v1.Node) ([]*v1.Pod, error) {
 	var pods []*v1.Pod
 	for _, node := range nodes {
 		var podList v1.PodList
@@ -43,7 +43,7 @@ func GetPods(ctx context.Context, kubeClient client.Client, nodes ...*v1.Node) (
 }
 
 // GetReschedulablePods grabs all pods from the passed nodes that satisfy the IsReschedulable criteria
-func GetReschedulablePods(ctx context.Context, kubeClient client.Client, nodes ...*v1.Node) ([]*v1.Pod, error) {
+func GetReschedulablePods(ctx context.Context, kubeClient client.Reader, nodes ...*v1.Node) ([]*v1.Pod, error) {
 	pods, err := GetPods(ctx, kubeClient, nodes...)
 	if err != nil {
 		return nil, fmt.Errorf("listing pods, %w", err)

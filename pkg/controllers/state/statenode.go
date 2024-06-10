@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"sigs.k8s.io/karpenter/pkg/apis/v1beta1"
@@ -60,10 +59,10 @@ func (n StateNodes) Deleting() StateNodes {
 }
 
 // Pods gets the pods assigned to all StateNodes based on the kubernetes api-server bindings
-func (n StateNodes) Pods(ctx context.Context, kubeClient client.Client) ([]*v1.Pod, error) {
+func (n StateNodes) Pods(ctx context.Context) ([]*v1.Pod, error) {
 	var pods []*v1.Pod
 	for _, node := range n {
-		p, err := node.Pods(ctx, kubeClient)
+		p, err := node.Pods(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -73,22 +72,25 @@ func (n StateNodes) Pods(ctx context.Context, kubeClient client.Client) ([]*v1.P
 }
 
 // Disruptable filters StateNodes that are meet the IsDisruptable condition
-func (n StateNodes) Disruptable(ctx context.Context, clk clock.Clock, kubeClient client.Client) (StateNodes, error) {
-	pdbs, err := pdb.NewLimits(ctx, clk, kubeClient)
+func (n StateNodes) Disruptable(ctx context.Context) (StateNodes, error) {
+	if len(n) == 0 {
+		return nil, nil
+	}
+	pdbs, err := pdb.NewLimits(ctx, n[0].kubeClient)
 	if err != nil {
 		return StateNodes{}, fmt.Errorf("constructing pdbs, %w", err)
 	}
 	n = lo.Filter(n, func(node *StateNode, _ int) bool {
-		_, err := node.ValidateDisruptable(ctx, kubeClient, pdbs)
+		_, err := node.ValidateDisruptable(ctx, pdbs)
 		return err == nil
 	})
 	return n, nil
 }
 
-func (n StateNodes) ReschedulablePods(ctx context.Context, kubeClient client.Client) ([]*v1.Pod, error) {
+func (n StateNodes) ReschedulablePods(ctx context.Context) ([]*v1.Pod, error) {
 	var pods []*v1.Pod
 	for _, node := range n {
-		p, err := node.ReschedulablePods(ctx, kubeClient)
+		p, err := node.ReschedulablePods(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -101,8 +103,12 @@ func (n StateNodes) ReschedulablePods(ctx context.Context, kubeClient client.Cli
 // needed.  This currently contains node utilization across all the allocatable resources, but will soon be used to
 // compute topology information.
 // +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:deepcopy-gen:interfaces=sigs.k8s.io/controller-runtime/pkg/client.Client
 // nolint: revive
 type StateNode struct {
+	kubeClient client.Client
+
 	Node      *v1.Node
 	NodeClaim *v1beta1.NodeClaim
 
@@ -123,8 +129,9 @@ type StateNode struct {
 	nominatedUntil    metav1.Time
 }
 
-func NewNode() *StateNode {
+func NewNode(kubeClient client.Client) *StateNode {
 	return &StateNode{
+		kubeClient:        kubeClient,
 		daemonSetRequests: map[types.NamespacedName]v1.ResourceList{},
 		daemonSetLimits:   map[types.NamespacedName]v1.ResourceList{},
 		podRequests:       map[types.NamespacedName]v1.ResourceList{},
@@ -158,11 +165,11 @@ func (in *StateNode) ProviderID() string {
 }
 
 // Pods gets the pods assigned to the Node based on the kubernetes api-server bindings
-func (in *StateNode) Pods(ctx context.Context, kubeClient client.Client) ([]*v1.Pod, error) {
+func (in *StateNode) Pods(ctx context.Context) ([]*v1.Pod, error) {
 	if in.Node == nil {
 		return nil, nil
 	}
-	return nodeutils.GetPods(ctx, kubeClient, in.Node)
+	return nodeutils.GetPods(ctx, in.kubeClient, in.Node)
 }
 
 // ValidateDisruptable returns an error if the StateNode cannot be disrupted
@@ -171,7 +178,7 @@ func (in *StateNode) Pods(ctx context.Context, kubeClient client.Client) ([]*v1.
 // ValidateDisruptable takes in a recorder to emit events on the nodeclaims when the state node is not a candidate
 //
 //nolint:gocyclo
-func (in *StateNode) ValidateDisruptable(ctx context.Context, kubeClient client.Client, pdbs pdb.Limits) ([]*v1.Pod, error) {
+func (in *StateNode) ValidateDisruptable(ctx context.Context, pdbs pdb.Limits) ([]*v1.Pod, error) {
 	if in.Node == nil || in.NodeClaim == nil {
 		return nil, fmt.Errorf("state node doesn't contain both a node and a nodeclaim")
 	}
@@ -199,7 +206,7 @@ func (in *StateNode) ValidateDisruptable(ctx context.Context, kubeClient client.
 			return nil, fmt.Errorf("state node doesn't have required label %q", label)
 		}
 	}
-	pods, err := in.Pods(ctx, kubeClient)
+	pods, err := in.Pods(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting pods from state node, %w", err)
 	}
@@ -218,11 +225,11 @@ func (in *StateNode) ValidateDisruptable(ctx context.Context, kubeClient client.
 }
 
 // ReschedulablePods gets the pods assigned to the Node that are reschedulable based on the kubernetes api-server bindings
-func (in *StateNode) ReschedulablePods(ctx context.Context, kubeClient client.Client) ([]*v1.Pod, error) {
+func (in *StateNode) ReschedulablePods(ctx context.Context) ([]*v1.Pod, error) {
 	if in.Node == nil {
 		return nil, nil
 	}
-	return nodeutils.GetReschedulablePods(ctx, kubeClient, in.Node)
+	return nodeutils.GetReschedulablePods(ctx, in.kubeClient, in.Node)
 }
 
 func (in *StateNode) HostName() string {
@@ -401,10 +408,10 @@ func (in *StateNode) Managed() bool {
 	return in.NodeClaim != nil
 }
 
-func (in *StateNode) updateForPod(ctx context.Context, kubeClient client.Client, pod *v1.Pod) error {
+func (in *StateNode) updateForPod(ctx context.Context, pod *v1.Pod) error {
 	podKey := client.ObjectKeyFromObject(pod)
 	hostPorts := scheduling.GetHostPorts(pod)
-	volumes, err := scheduling.GetVolumes(ctx, kubeClient, pod)
+	volumes, err := scheduling.GetVolumes(ctx, in.kubeClient, pod)
 	if err != nil {
 		return fmt.Errorf("tracking volume usage, %w", err)
 	}

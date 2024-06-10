@@ -92,7 +92,7 @@ func (in *VolumeUsage) DeepCopyInto(out *VolumeUsage) {
 			} else {
 				inVal := (*in)[key]
 				in, out := &inVal, &outVal
-				*out = make(sets.Set[string], len(*in))
+				*out = make(sets.Set, len(*in))
 				for key, val := range *in {
 					(*out)[key] = val
 				}
@@ -104,7 +104,7 @@ func (in *VolumeUsage) DeepCopyInto(out *VolumeUsage) {
 		in, out := &in.podVolumes, &out.podVolumes
 		*out = make(map[types.NamespacedName]Volumes, len(*in))
 		for key, val := range *in {
-			var outVal map[string]sets.Set[string]
+			var outVal map[string]sets.Set
 			if val == nil {
 				(*out)[key] = nil
 			} else {
@@ -118,7 +118,7 @@ func (in *VolumeUsage) DeepCopyInto(out *VolumeUsage) {
 					} else {
 						inVal := (*in)[key]
 						in, out := &inVal, &outVal
-						*out = make(sets.Set[string], len(*in))
+						*out = make(sets.Set, len(*in))
 						for key, val := range *in {
 							(*out)[key] = val
 						}
@@ -160,7 +160,7 @@ func (in Volumes) DeepCopyInto(out *Volumes) {
 			} else {
 				inVal := (*in)[key]
 				in, out := &inVal, &outVal
-				*out = make(sets.Set[string], len(*in))
+				*out = make(sets.Set, len(*in))
 				for key, val := range *in {
 					(*out)[key] = val
 				}
