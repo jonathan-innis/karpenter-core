@@ -57,13 +57,12 @@ const (
 )
 
 type Command struct {
-	Replacements      []Replacement
-	candidates        []*state.StateNode
-	timeAdded         time.Time // timeAdded is used to track timeouts
-	id                types.UID // used for log tracking
-	method            string    // used for metrics
-	consolidationType string    // used for metrics
-	lastError         error
+	Replacements []Replacement
+	candidates   []*state.StateNode
+	timeAdded    time.Time           // timeAdded is used to track timeouts
+	id           types.UID           // used for log tracking
+	reason       v1.DisruptionReason // used for metrics
+	lastError    error
 }
 
 // Replacement wraps a NodeClaim name with an initialized field to save on readiness checks and identify
@@ -76,8 +75,8 @@ type Replacement struct {
 	Initialized bool
 }
 
-func (c *Command) Reason() string {
-	return fmt.Sprintf("%s/%s", c.method,
+func (c *Command) String() string {
+	return fmt.Sprintf("%s/%s", c.reason,
 		lo.Ternary(len(c.Replacements) > 0, "replace", "delete"))
 }
 
@@ -143,15 +142,14 @@ func NewTestingQueue(kubeClient client.Client, recorder events.Recorder, cluster
 }
 
 // NewCommand creates a command key and adds in initial data for the orchestration queue.
-func NewCommand(replacements []string, candidates []*state.StateNode, id types.UID, method, consolidationType string) *Command {
+func NewCommand(replacements []string, candidates []*state.StateNode, id types.UID, reason v1.DisruptionReason) *Command {
 	return &Command{
 		Replacements: lo.Map(replacements, func(name string, _ int) Replacement {
 			return Replacement{name: name}
 		}),
-		candidates:        candidates,
-		method:            method,
-		consolidationType: consolidationType,
-		id:                id,
+		candidates: candidates,
+		reason:     reason,
+		id:         id,
 	}
 }
 
@@ -164,11 +162,6 @@ func (q *Queue) Register(_ context.Context, m manager.Manager) error {
 
 func (q *Queue) Reconcile(ctx context.Context) (reconcile.Result, error) {
 	ctx = injection.WithControllerName(ctx, "disruption.queue")
-
-	// The queue depth is the number of commands currently being considered.
-	// This should not use the RateLimitingInterface.Len() method, as this does not include
-	// commands that haven't completed their requeue backoff.
-	disruptionQueueDepthGauge.Set(float64(len(lo.Uniq(lo.Values(q.providerIDToCommand)))))
 
 	// Check if the queue is empty. client-go recommends not using this function to gate the subsequent
 	// get call, but since we're popping items off the queue synchronously retrying, there should be
@@ -202,9 +195,8 @@ func (q *Queue) Reconcile(ctx context.Context) (reconcile.Result, error) {
 		failedLaunches := lo.Filter(cmd.Replacements, func(r Replacement, _ int) bool {
 			return !r.Initialized
 		})
-		disruptionReplacementNodeClaimFailedCounter.With(map[string]string{
-			methodLabel:            cmd.method,
-			consolidationTypeLabel: cmd.consolidationType,
+		queueFailuresTotal.With(map[string]string{
+			reasonLabel: string(cmd.reason),
 		}).Add(float64(len(failedLaunches)))
 		multiErr := multierr.Combine(err, cmd.lastError, state.RequireNoScheduleTaint(ctx, q.kubeClient, false, cmd.candidates...))
 		// Log the error
@@ -247,7 +239,7 @@ func (q *Queue) waitOrTerminate(ctx context.Context, cmd *Command) error {
 		}
 		// We emitted this event when disruption was blocked on launching/termination.
 		// This does not block other forms of deprovisioning, but we should still emit this.
-		q.recorder.Publish(disruptionevents.Launching(nodeClaim, cmd.Reason()))
+		q.recorder.Publish(disruptionevents.Launching(nodeClaim, cmd.String()))
 		initializedStatus := nodeClaim.StatusConditions().Get(v1.ConditionTypeInitialized)
 		if !initializedStatus.IsTrue() {
 			q.recorder.Publish(disruptionevents.WaitingOnReadiness(nodeClaim))
@@ -255,9 +247,6 @@ func (q *Queue) waitOrTerminate(ctx context.Context, cmd *Command) error {
 			continue
 		}
 		cmd.Replacements[i].Initialized = true
-		// Subtract the last initialization time from the time the command was added to get initialization duration.
-		initLength := initializedStatus.LastTransitionTime.Time.Sub(nodeClaim.CreationTimestamp.Time).Seconds()
-		disruptionReplacementNodeClaimInitializedHistogram.Observe(initLength)
 	}
 	// If we have any errors, don't continue
 	if err := multierr.Combine(waitErrs...); err != nil {
@@ -270,12 +259,12 @@ func (q *Queue) waitOrTerminate(ctx context.Context, cmd *Command) error {
 	var multiErr error
 	for i := range cmd.candidates {
 		candidate := cmd.candidates[i]
-		q.recorder.Publish(disruptionevents.Terminating(candidate.Node, candidate.NodeClaim, cmd.Reason())...)
+		q.recorder.Publish(disruptionevents.Terminating(candidate.Node, candidate.NodeClaim, cmd.String())...)
 		if err := q.kubeClient.Delete(ctx, candidate.NodeClaim); err != nil {
 			multiErr = multierr.Append(multiErr, client.IgnoreNotFound(err))
 		} else {
 			metrics.NodeClaimsTerminatedCounter.With(prometheus.Labels{
-				metrics.ReasonLabel:       cmd.method,
+				metrics.ReasonLabel:       string(cmd.reason),
 				metrics.NodePoolLabel:     cmd.candidates[i].NodeClaim.Labels[v1.NodePoolLabelKey],
 				metrics.CapacityTypeLabel: metrics.GetLabelOrDefault(cmd.candidates[i].Node.Labels, v1.CapacityTypeLabelKey),
 			}).Inc()

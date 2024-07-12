@@ -25,7 +25,6 @@ import (
 
 	v1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/controllers/provisioning/scheduling"
-	"sigs.k8s.io/karpenter/pkg/metrics"
 )
 
 const SingleNodeConsolidationTimeoutDuration = 3 * time.Minute
@@ -68,7 +67,7 @@ func (s *SingleNodeConsolidation) ComputeCommand(ctx context.Context, disruption
 			continue
 		}
 		if s.clock.Now().After(timeout) {
-			ConsolidationTimeoutTotalCounter.WithLabelValues(s.ConsolidationType()).Inc()
+			TotalConsolidationTimeouts.WithLabelValues("single").Inc()
 			log.FromContext(ctx).V(1).Info(fmt.Sprintf("abandoning single-node consolidation due to timeout after evaluating %d candidates", i))
 			return Command{}, scheduling.Results{}, nil
 		}
@@ -83,6 +82,7 @@ func (s *SingleNodeConsolidation) ComputeCommand(ctx context.Context, disruption
 		}
 		if err := v.IsValid(ctx, cmd, consolidationTTL); err != nil {
 			if IsValidationError(err) {
+				TotalValidationFailures.WithLabelValues(string(s.Reason())).Inc()
 				log.FromContext(ctx).V(1).Info(fmt.Sprintf("abandoning single-node consolidation attempt due to pod churn, command is no longer valid, %s", cmd))
 				return Command{}, scheduling.Results{}, nil
 			}
@@ -99,10 +99,6 @@ func (s *SingleNodeConsolidation) ComputeCommand(ctx context.Context, disruption
 	return Command{}, scheduling.Results{}, nil
 }
 
-func (s *SingleNodeConsolidation) Type() string {
-	return metrics.ConsolidationReason
-}
-
-func (s *SingleNodeConsolidation) ConsolidationType() string {
-	return "single"
+func (s *SingleNodeConsolidation) Reason() v1.DisruptionReason {
+	return v1.DisruptionReasonUnderutilized
 }

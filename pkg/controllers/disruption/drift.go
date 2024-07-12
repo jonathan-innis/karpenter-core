@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/karpenter/pkg/controllers/provisioning/scheduling"
 	"sigs.k8s.io/karpenter/pkg/controllers/state"
 	"sigs.k8s.io/karpenter/pkg/events"
-	"sigs.k8s.io/karpenter/pkg/metrics"
 )
 
 // Drift is a subreconciler that deletes drifted candidates.
@@ -113,10 +112,6 @@ func (d *Drift) ComputeCommand(ctx context.Context, disruptionBudgetMapping map[
 	return Command{}, scheduling.Results{}, nil
 }
 
-func (d *Drift) Type() string {
-	return metrics.DriftReason
-}
-
-func (d *Drift) ConsolidationType() string {
-	return ""
+func (d *Drift) Reason() v1.DisruptionReason {
+	return v1.DisruptionReasonDrifted
 }

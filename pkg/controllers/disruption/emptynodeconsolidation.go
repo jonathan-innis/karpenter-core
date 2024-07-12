@@ -26,7 +26,6 @@ import (
 
 	v1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/controllers/provisioning/scheduling"
-	"sigs.k8s.io/karpenter/pkg/metrics"
 )
 
 // EmptyNodeConsolidation is the consolidation controller that performs multi-nodeclaim consolidation of entirely empty nodes
@@ -91,6 +90,7 @@ func (c *EmptyNodeConsolidation) ComputeCommand(ctx context.Context, disruptionB
 	validatedCandidates, err := v.ValidateCandidates(ctx, cmd.candidates...)
 	if err != nil {
 		if IsValidationError(err) {
+			TotalValidationFailures.WithLabelValues(string(c.Reason())).Inc()
 			log.FromContext(ctx).V(1).Info(fmt.Sprintf("abandoning empty node consolidation attempt due to pod churn, command is no longer valid, %s", cmd))
 			return Command{}, scheduling.Results{}, nil
 		}
@@ -108,10 +108,6 @@ func (c *EmptyNodeConsolidation) ComputeCommand(ctx context.Context, disruptionB
 	return cmd, scheduling.Results{}, nil
 }
 
-func (c *EmptyNodeConsolidation) Type() string {
-	return metrics.ConsolidationReason
-}
-
-func (c *EmptyNodeConsolidation) ConsolidationType() string {
-	return "empty"
+func (c *EmptyNodeConsolidation) Reason() v1.DisruptionReason {
+	return v1.DisruptionReasonEmpty
 }

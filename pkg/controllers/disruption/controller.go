@@ -132,7 +132,7 @@ func (c *Controller) Reconcile(ctx context.Context) (reconcile.Result, error) {
 		c.recordRun(fmt.Sprintf("%T", m))
 		success, err := c.disrupt(ctx, m)
 		if err != nil {
-			return reconcile.Result{}, fmt.Errorf("disrupting via %q, %w", m.Type(), err)
+			return reconcile.Result{}, fmt.Errorf("disrupting via %q, %w", m.Reason(), err)
 		}
 		if success {
 			return reconcile.Result{RequeueAfter: singleton.RequeueImmediately}, nil
@@ -144,17 +144,17 @@ func (c *Controller) Reconcile(ctx context.Context) (reconcile.Result, error) {
 }
 
 func (c *Controller) disrupt(ctx context.Context, disruption Method) (bool, error) {
-	defer metrics.Measure(EvaluationDurationHistogram.With(map[string]string{
-		methodLabel:            disruption.Type(),
-		consolidationTypeLabel: disruption.ConsolidationType(),
+	// TODO: I think this is the right semantic, but we need to figure out to accurately reflect the decision evaluation
+	// time with this semantic
+	defer metrics.Measure(ActionEvaluationDuration.With(map[string]string{
+		reasonLabel: string(disruption.Reason()),
 	}))()
 	candidates, err := GetCandidates(ctx, c.cluster, c.kubeClient, c.recorder, c.clock, c.cloudProvider, disruption.ShouldDisrupt, c.queue)
 	if err != nil {
 		return false, fmt.Errorf("determining candidates, %w", err)
 	}
-	EligibleNodesGauge.With(map[string]string{
-		methodLabel:            disruption.Type(),
-		consolidationTypeLabel: disruption.ConsolidationType(),
+	EligibleNodes.With(map[string]string{
+		reasonLabel: string(disruption.Reason()),
 	}).Set(float64(len(candidates)))
 
 	// If there are no candidates, move to the next disruption
@@ -187,7 +187,7 @@ func (c *Controller) disrupt(ctx context.Context, disruption Method) (bool, erro
 // 3. Add Command to orchestration.Queue to wait to delete the candiates.
 func (c *Controller) executeCommand(ctx context.Context, m Method, cmd Command, schedulingResults scheduling.Results) error {
 	commandID := uuid.NewUUID()
-	log.FromContext(ctx).WithValues("command-id", commandID).Info(fmt.Sprintf("disrupting via %s %s", m.Type(), cmd))
+	log.FromContext(ctx).WithValues("command-id", commandID).Info(fmt.Sprintf("disrupting via %s %s", m.Reason(), cmd))
 
 	stateNodes := lo.Map(cmd.candidates, func(c *Candidate, _ int) *state.StateNode {
 		return c.StateNode
@@ -223,37 +223,22 @@ func (c *Controller) executeCommand(ctx context.Context, m Method, cmd Command, 
 	c.cluster.MarkForDeletion(providerIDs...)
 
 	if err := c.queue.Add(orchestration.NewCommand(nodeClaimNames,
-		lo.Map(cmd.candidates, func(c *Candidate, _ int) *state.StateNode { return c.StateNode }), commandID, m.Type(), m.ConsolidationType())); err != nil {
+		lo.Map(cmd.candidates, func(c *Candidate, _ int) *state.StateNode { return c.StateNode }), commandID, m.Reason())); err != nil {
 		c.cluster.UnmarkForDeletion(providerIDs...)
 		return fmt.Errorf("adding command to queue (command-id: %s), %w", commandID, multierr.Append(err, state.RequireNoScheduleTaint(ctx, c.kubeClient, false, stateNodes...)))
 	}
 
 	// An action is only performed and pods/nodes are only disrupted after a successful add to the queue
-	ActionsPerformedCounter.With(map[string]string{
-		actionLabel:            string(cmd.Action()),
-		methodLabel:            m.Type(),
-		consolidationTypeLabel: m.ConsolidationType(),
+	TotalActions.With(map[string]string{
+		actionLabel: string(cmd.Action()),
+		reasonLabel: string(m.Reason()),
 	}).Inc()
-	for _, cd := range cmd.candidates {
-		NodesDisruptedCounter.With(map[string]string{
-			metrics.NodePoolLabel:  cd.nodePool.Name,
-			actionLabel:            string(cmd.Action()),
-			methodLabel:            m.Type(),
-			consolidationTypeLabel: m.ConsolidationType(),
-		}).Inc()
-		PodsDisruptedCounter.With(map[string]string{
-			metrics.NodePoolLabel:  cd.nodePool.Name,
-			actionLabel:            string(cmd.Action()),
-			methodLabel:            m.Type(),
-			consolidationTypeLabel: m.ConsolidationType(),
-		}).Add(float64(len(cd.reschedulablePods)))
-	}
 	return nil
 }
 
 // createReplacementNodeClaims creates replacement NodeClaims
 func (c *Controller) createReplacementNodeClaims(ctx context.Context, m Method, cmd Command) ([]string, error) {
-	reason := fmt.Sprintf("%s/%s", m.Type(), cmd.Action())
+	reason := fmt.Sprintf("%s/%s", m.Reason(), cmd.Action())
 	nodeClaimNames, err := c.provisioner.CreateNodeClaims(ctx, cmd.replacements, provisioning.WithReason(reason))
 	if err != nil {
 		return nil, err

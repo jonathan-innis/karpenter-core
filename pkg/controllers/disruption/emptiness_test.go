@@ -122,7 +122,7 @@ var _ = Describe("Emptiness", func() {
 			ExpectSingletonReconciled(ctx, disruptionController)
 			wg.Wait()
 
-			ExpectMetricGaugeValue(disruption.EligibleNodesGauge, 0, eligibleNodesEmptinessLabels)
+			ExpectMetricGaugeValue(disruption.EligibleNodes, 0, eligibleNodesEmptinessLabels)
 
 			// delete pod and update cluster state, node should now be disruptable
 			ExpectDeleted(ctx, env.Client, pod)
@@ -133,7 +133,7 @@ var _ = Describe("Emptiness", func() {
 			ExpectSingletonReconciled(ctx, disruptionController)
 			wg.Wait()
 
-			ExpectMetricGaugeValue(disruption.EligibleNodesGauge, 1, eligibleNodesEmptinessLabels)
+			ExpectMetricGaugeValue(disruption.EligibleNodes, 1, eligibleNodesEmptinessLabels)
 		})
 	})
 	Context("Budgets", func() {

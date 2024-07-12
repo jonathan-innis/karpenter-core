@@ -30,7 +30,6 @@ import (
 	v1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 	"sigs.k8s.io/karpenter/pkg/cloudprovider"
 	"sigs.k8s.io/karpenter/pkg/controllers/provisioning/scheduling"
-	"sigs.k8s.io/karpenter/pkg/metrics"
 	scheduler "sigs.k8s.io/karpenter/pkg/scheduling"
 )
 
@@ -98,6 +97,7 @@ func (m *MultiNodeConsolidation) ComputeCommand(ctx context.Context, disruptionB
 
 	if err := NewValidation(m.clock, m.cluster, m.kubeClient, m.provisioner, m.cloudProvider, m.recorder, m.queue, v1.DisruptionReasonUnderutilized).IsValid(ctx, cmd, consolidationTTL); err != nil {
 		if IsValidationError(err) {
+			TotalValidationFailures.WithLabelValues(string(m.Reason())).Inc()
 			log.FromContext(ctx).V(1).Info(fmt.Sprintf("abandoning multi-node consolidation attempt due to pod churn, command is no longer valid, %s", cmd))
 			return Command{}, scheduling.Results{}, nil
 		}
@@ -125,7 +125,7 @@ func (m *MultiNodeConsolidation) firstNConsolidationOption(ctx context.Context, 
 	// binary search to find the maximum number of NodeClaims we can terminate
 	for min <= max {
 		if m.clock.Now().After(timeout) {
-			ConsolidationTimeoutTotalCounter.WithLabelValues(m.ConsolidationType()).Inc()
+			TotalConsolidationTimeouts.WithLabelValues("multi").Inc()
 			if lastSavedCommand.candidates == nil {
 				log.FromContext(ctx).V(1).Info(fmt.Sprintf("failed to find a multi-node consolidation after timeout, last considered batch had %d", (min+max)/2))
 			} else {
@@ -214,10 +214,6 @@ func filterOutSameType(newNodeClaim *scheduling.NodeClaim, consolidate []*Candid
 	return newNodeClaim.InstanceTypeOptions, err
 }
 
-func (m *MultiNodeConsolidation) Type() string {
-	return metrics.ConsolidationReason
-}
-
-func (m *MultiNodeConsolidation) ConsolidationType() string {
-	return "multi"
+func (m *MultiNodeConsolidation) Reason() v1.DisruptionReason {
+	return v1.DisruptionReasonUnderutilized
 }

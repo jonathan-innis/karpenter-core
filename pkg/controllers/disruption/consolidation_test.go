@@ -153,7 +153,7 @@ var _ = Describe("Consolidation", func() {
 			wg.Wait()
 
 			for _, ct := range consolidationTypes {
-				ExpectMetricGaugeValue(disruption.EligibleNodesGauge, 0, map[string]string{
+				ExpectMetricGaugeValue(disruption.EligibleNodes, 0, map[string]string{
 					"method":             "consolidation",
 					"consolidation_type": ct,
 				})
@@ -170,7 +170,7 @@ var _ = Describe("Consolidation", func() {
 			wg.Wait()
 
 			for _, ct := range consolidationTypes {
-				ExpectMetricGaugeValue(disruption.EligibleNodesGauge, 1, map[string]string{
+				ExpectMetricGaugeValue(disruption.EligibleNodes, 1, map[string]string{
 					"method":             "consolidation",
 					"consolidation_type": ct,
 				})

@@ -101,7 +101,7 @@ var _ = Describe("Drift", func() {
 			ExpectSingletonReconciled(ctx, disruptionController)
 			wg.Wait()
 
-			ExpectMetricGaugeValue(disruption.EligibleNodesGauge, 0, eligibleNodesLabels)
+			ExpectMetricGaugeValue(disruption.EligibleNodes, 0, eligibleNodesLabels)
 
 			// remove the do-not-disrupt annotation to make the node eligible for drift and update cluster state
 			pod.SetAnnotations(map[string]string{})
@@ -113,7 +113,7 @@ var _ = Describe("Drift", func() {
 			ExpectSingletonReconciled(ctx, disruptionController)
 			wg.Wait()
 
-			ExpectMetricGaugeValue(disruption.EligibleNodesGauge, 1, eligibleNodesLabels)
+			ExpectMetricGaugeValue(disruption.EligibleNodes, 1, eligibleNodesLabels)
 		})
 	})
 	Context("Budgets", func() {
