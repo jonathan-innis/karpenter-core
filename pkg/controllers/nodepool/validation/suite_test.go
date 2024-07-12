@@ -24,8 +24,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"sigs.k8s.io/karpenter/pkg/test/v1alpha1"
-
 	"github.com/Pallinder/go-randomdata"
 
 	"github.com/awslabs/operatorpkg/status"
@@ -53,7 +51,7 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	env = test.NewEnvironment(test.WithCRDs(apis.CRDs...), test.WithCRDs(v1alpha1.CRDs...))
+	env = test.NewEnvironment(test.WithCRDs(apis.CRDs...))
 	nodePoolValidationController = NewController(env.Client)
 })
 var _ = AfterEach(func() {

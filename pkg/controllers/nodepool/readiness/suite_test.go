@@ -56,7 +56,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	cloudProvider = fake.NewCloudProvider()
-	env = test.NewEnvironment(test.WithCRDs(apis.CRDs...), test.WithCRDs(v1alpha1.CRDs...))
+	env = test.NewEnvironment(test.WithCRDs(apis.CRDs...))
 	controller = readiness.NewController(env.Client, cloudProvider)
 })
 var _ = AfterEach(func() {

@@ -20,20 +20,21 @@ limitations under the License.
 // +groupName=karpenter.test.sh
 package v1alpha1 // doc.go is discovered by codegen
 import (
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes/scheme"
 )
 
 const (
 	Group = "karpenter.test.sh"
 )
 
-func init() {
-	gv := schema.GroupVersion{Group: Group, Version: "v1alpha1"}
-	v1.AddToGroupVersion(scheme.Scheme, gv)
-	scheme.Scheme.AddKnownTypes(gv,
-		&TestNodeClass{},
-		&TestNodeClassList{},
-	)
-}
+var (
+	SchemeGroupVersion = schema.GroupVersion{Group: Group, Version: "v1alpha1"}
+	SchemeBuilder      = runtime.NewSchemeBuilder(func(scheme *runtime.Scheme) error {
+		scheme.AddKnownTypes(SchemeGroupVersion,
+			&TestNodeClass{},
+			&TestNodeClassList{},
+		)
+		return nil
+	})
+)

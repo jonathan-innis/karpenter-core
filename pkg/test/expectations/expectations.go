@@ -26,6 +26,9 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	"sigs.k8s.io/karpenter/pkg/test/v1alpha1"
 
 	"github.com/awslabs/operatorpkg/singleton"
@@ -217,11 +220,25 @@ func ExpectDeletionTimestampSet(ctx context.Context, c client.Client, objects ..
 }
 
 func ExpectCleanedUp(ctx context.Context, c client.Client) {
-	GinkgoHelper()
+	//GinkgoHelper()
 	wg := sync.WaitGroup{}
 	namespaces := &corev1.NamespaceList{}
 	Expect(c.List(ctx, namespaces)).To(Succeed())
 	ExpectFinalizersRemovedFromList(ctx, c, &corev1.NodeList{}, &v1.NodeClaimList{}, &corev1.PersistentVolumeClaimList{})
+	for gvk := range scheme.Scheme.AllKnownTypes() {
+		for _, namespace := range namespaces.Items {
+			wg.Add(1)
+			go func(gvk schema.GroupVersionKind, namespace string) {
+				defer wg.Done()
+				defer GinkgoRecover()
+				obj := &unstructured.Unstructured{}
+				obj.SetGroupVersionKind(gvk)
+				_ = c.DeleteAllOf(ctx, obj, client.InNamespace(namespace),
+					&client.DeleteAllOfOptions{DeleteOptions: client.DeleteOptions{GracePeriodSeconds: lo.ToPtr(int64(0))}})
+			}(gvk, namespace.Name)
+		}
+	}
+
 	for _, object := range []client.Object{
 		&corev1.Pod{},
 		&corev1.Node{},
@@ -238,7 +255,6 @@ func ExpectCleanedUp(ctx context.Context, c client.Client) {
 		for _, namespace := range namespaces.Items {
 			wg.Add(1)
 			go func(object client.Object, namespace string) {
-				GinkgoHelper()
 				defer wg.Done()
 				defer GinkgoRecover()
 				Expect(c.DeleteAllOf(ctx, object, client.InNamespace(namespace),
