@@ -26,6 +26,7 @@ import (
 
 	"github.com/samber/lo"
 	cliflag "k8s.io/component-base/cli/flag"
+	"k8s.io/klog/v2"
 
 	"sigs.k8s.io/karpenter/pkg/utils/env"
 )
@@ -82,6 +83,7 @@ func (fs *FlagSet) BoolVarWithEnv(p *bool, name string, envVar string, val bool,
 }
 
 func (o *Options) AddFlags(fs *FlagSet) {
+	klog.InitFlags(fs.FlagSet)
 	fs.StringVar(&o.ServiceName, "karpenter-service", env.WithDefaultString("KARPENTER_SERVICE", ""), "The Karpenter Service name for the dynamic webhook certificate")
 	fs.BoolVarWithEnv(&o.DisableWebhook, "disable-webhook", "DISABLE_WEBHOOK", true, "Disable the admission and validation webhooks")
 	fs.IntVar(&o.WebhookPort, "webhook-port", env.WithDefaultInt("WEBHOOK_PORT", 8443), "The port the webhook endpoint binds to for validation and mutation of resources")
