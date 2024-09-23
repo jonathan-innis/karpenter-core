@@ -120,10 +120,11 @@ func NewOperator() (context.Context, *Operator) {
 
 	// Webhook
 	ctx = webhook.WithOptions(ctx, webhook.Options{
-		Port:        options.FromContext(ctx).WebhookPort,
-		ServiceName: options.FromContext(ctx).ServiceName,
-		SecretName:  fmt.Sprintf("%s-cert", options.FromContext(ctx).ServiceName),
-		GracePeriod: 5 * time.Second,
+		Port:                      options.FromContext(ctx).WebhookPort,
+		ServiceName:               options.FromContext(ctx).ServiceName,
+		SecretName:                fmt.Sprintf("%s-cert", options.FromContext(ctx).ServiceName),
+		GracePeriod:               5 * time.Second,
+		DisableNamespaceOwnership: true,
 	})
 
 	// Client Config
