@@ -35,6 +35,12 @@ metadata:
 spec:
   template:
     spec:
+      containers:
+        - name: kwok-controller
+          resources:
+            requests:
+              cpu: 16
+              memory: 20Gi
       tolerations:
       - operator: "Equal"
         key: CriticalAddonsOnly 

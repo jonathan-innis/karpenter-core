@@ -23,7 +23,7 @@ For full Karpenter documentation please checkout [https://karpenter.sh](https://
 | controller.image.digest | string | `""` | SHA256 digest of the controller image. |
 | controller.image.repository | string | `""` | Repository path to the controller image. |
 | controller.image.tag | string | `""` | Tag of the controller image. |
-| controller.metrics.port | int | `8000` | The container port to use for metrics. |
+| controller.metrics.port | int | `8080` | The container port to use for metrics. |
 | controller.resources | object | `{}` | Resources for the controller pod. |
 | controller.sidecarContainer | list | `[]` | Additional sidecarContainer config |
 | controller.sidecarVolumeMounts | list | `[]` | Additional volumeMounts for the sidecar - this will be added to the volume mounts on top of extraVolumeMounts |
@@ -34,7 +34,7 @@ For full Karpenter documentation please checkout [https://karpenter.sh](https://
 | hostNetwork | bool | `false` | Bind the pod to the host network. This is required when using a custom CNI. |
 | imagePullPolicy | string | `"IfNotPresent"` | Image pull policy for Docker images. |
 | imagePullSecrets | list | `[]` | Image pull secrets for Docker images. |
-| logLevel | string | `"info"` | Global log level, defaults to 'info' |
+| logLevel | string | `"debug"` | Global log level, defaults to 'info' |
 | nameOverride | string | `""` | Overrides the chart's name. |
 | nodeSelector | object | `{"kubernetes.io/os":"linux"}` | Node selectors to schedule the pod to nodes with labels. |
 | podAnnotations | object | `{}` | Additional annotations for the pod. |

@@ -35,6 +35,11 @@ import (
 	"sigs.k8s.io/karpenter/pkg/scheduling"
 )
 
+type ConditionError struct {
+	error
+	ConditionMessage string
+}
+
 type Launch struct {
 	kubeClient    client.Client
 	cloudProvider cloudprovider.CloudProvider
