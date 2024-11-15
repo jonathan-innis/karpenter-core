@@ -22,6 +22,10 @@ import (
 	v1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
+type KWOKNodeClassSpec struct {
+	MaxPods int32 `json:"maxPods,omitempty"`
+}
+
 // KWOKNodeClass is the Schema for the KWOKNodeClass API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=kwoknodeclasses,scope=Cluster,categories=karpenter,shortName={kwoknc,kwokncs}
@@ -29,6 +33,7 @@ import (
 type KWOKNodeClass struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              KWOKNodeClassSpec `json:"spec,omitempty"`
 	// +kubebuilder:default:={conditions: {{type: "Ready", status: "True", reason:"Ready", lastTransitionTime: "2024-01-01T01:01:01Z", message: ""}}}
 	Status KWOKNodeClassStatus `json:"status,omitempty"`
 }

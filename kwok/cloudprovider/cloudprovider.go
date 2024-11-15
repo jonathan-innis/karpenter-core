@@ -28,9 +28,12 @@ import (
 	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/karpenter/kwok/apis"
 
 	"sigs.k8s.io/karpenter/kwok/apis/v1alpha1"
 	v1 "sigs.k8s.io/karpenter/pkg/apis/v1"
@@ -112,9 +115,25 @@ func (c CloudProvider) List(ctx context.Context) ([]*v1.NodeClaim, error) {
 	return nodeClaims, nil
 }
 
-// Return the hard-coded instance types.
+// Return a modified version of the hard-coded instance types.
 func (c CloudProvider) GetInstanceTypes(ctx context.Context, nodePool *v1.NodePool) ([]*cloudprovider.InstanceType, error) {
-	return c.instanceTypes, nil
+	nodeClass, err := c.resolveNodeClassFromNodePool(ctx, nodePool)
+	if err != nil {
+		// We must return an error here in the event of the node class not being found. Otherwise, users just get
+		// no instance types and a failure to schedule with no indicator pointing to a bad configuration
+		// as the cause.
+		return nil, fmt.Errorf("resolving node class, %w", err)
+	}
+
+	return lo.Map(c.instanceTypes, func(i *cloudprovider.InstanceType, _ int) *cloudprovider.InstanceType {
+		return &cloudprovider.InstanceType{
+			Name:         i.Name,
+			Requirements: i.Requirements,
+			Offerings:    i.Offerings,
+			Capacity:     lo.Assign(i.Capacity, corev1.ResourceList{corev1.ResourcePods: resource.MustParse(fmt.Sprint(nodeClass.Spec.MaxPods))}),
+			Overhead:     i.Overhead,
+		}
+	}), nil
 }
 
 // Return nothing since there's no cloud provider drift.
@@ -130,8 +149,39 @@ func (c CloudProvider) GetSupportedNodeClasses() []status.Object {
 	return []status.Object{&v1alpha1.KWOKNodeClass{}}
 }
 
-func (c CloudProvider) getInstanceType(instanceTypeName string) (*cloudprovider.InstanceType, error) {
-	it, found := lo.Find(c.instanceTypes, func(it *cloudprovider.InstanceType) bool {
+func (c CloudProvider) resolveNodeClassFromNodeClaim(ctx context.Context, nodeClaim *v1.NodeClaim) (*v1alpha1.KWOKNodeClass, error) {
+	nodeClass := &v1alpha1.KWOKNodeClass{}
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: nodeClaim.Spec.NodeClassRef.Name}, nodeClass); err != nil {
+		return nil, err
+	}
+	// For the purposes of NodeClass CloudProvider resolution, we treat deleting NodeClasses as NotFound
+	if !nodeClass.DeletionTimestamp.IsZero() {
+		// For the purposes of NodeClass CloudProvider resolution, we treat deleting NodeClasses as NotFound,
+		// but we return a different error message to be clearer to users
+		return nil, newTerminatingNodeClassError(nodeClass.Name)
+	}
+	return nodeClass, nil
+}
+
+func (c CloudProvider) resolveNodeClassFromNodePool(ctx context.Context, nodePool *v1.NodePool) (*v1alpha1.KWOKNodeClass, error) {
+	nodeClass := &v1alpha1.KWOKNodeClass{}
+	if err := c.kubeClient.Get(ctx, types.NamespacedName{Name: nodePool.Spec.Template.Spec.NodeClassRef.Name}, nodeClass); err != nil {
+		return nil, err
+	}
+	if !nodeClass.DeletionTimestamp.IsZero() {
+		// For the purposes of NodeClass CloudProvider resolution, we treat deleting NodeClasses as NotFound,
+		// but we return a different error message to be clearer to users
+		return nil, newTerminatingNodeClassError(nodeClass.Name)
+	}
+	return nodeClass, nil
+}
+
+func (c CloudProvider) getInstanceType(ctx context.Context, nodePool *v1.NodePool, instanceTypeName string) (*cloudprovider.InstanceType, error) {
+	instanceTypes, err := c.GetInstanceTypes(ctx, nodePool)
+	if err != nil {
+
+	}
+	it, found := lo.Find(, func(it *cloudprovider.InstanceType) bool {
 		return it.Name == instanceTypeName
 	})
 	if !found {
@@ -255,4 +305,12 @@ func (c CloudProvider) toNodeClaim(node *corev1.Node) (*v1.NodeClaim, error) {
 			Allocatable: node.Status.Allocatable,
 		},
 	}, nil
+}
+
+// newTerminatingNodeClassError returns a NotFound error for handling by
+func newTerminatingNodeClassError(name string) *errors.StatusError {
+	qualifiedResource := schema.GroupResource{Group: apis.Group, Resource: "kwoknodeclasses"}
+	err := errors.NewNotFound(qualifiedResource, name)
+	err.ErrStatus.Message = fmt.Sprintf("%s %q is terminating, treating as not found", qualifiedResource.String(), name)
+	return err
 }
