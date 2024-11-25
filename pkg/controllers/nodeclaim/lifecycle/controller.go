@@ -113,6 +113,10 @@ func (c *Controller) Name() string {
 func (c *Controller) Reconcile(ctx context.Context, nodeClaim *v1.NodeClaim) (reconcile.Result, error) {
 	ctx = injection.WithControllerName(ctx, c.Name())
 
+	// Call NodeClaim.StatusConditions() to set all the conditions to Unknown
+	// We need this so that we get accurate metrics for Launch, Register, Initialized latencies
+	nodeClaim.StatusConditions()
+
 	if !nodeclaimutils.IsManaged(nodeClaim, c.cloudProvider) {
 		return reconcile.Result{}, nil
 	}
