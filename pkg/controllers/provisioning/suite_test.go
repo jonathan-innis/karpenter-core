@@ -19,6 +19,7 @@ package provisioning_test
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,6 +91,7 @@ var _ = BeforeSuite(func() {
 var _ = BeforeEach(func() {
 	ctx = options.ToContext(ctx, test.Options())
 	cloudProvider.Reset()
+	fakeClock.SetTime(time.Now())
 })
 
 var _ = AfterSuite(func() {
@@ -112,6 +114,87 @@ var _ = Describe("Provisioning", func() {
 		Expect(env.Client.List(ctx, nodes)).To(Succeed())
 		Expect(len(nodes.Items)).To(Equal(1))
 		ExpectScheduled(ctx, env.Client, pod)
+	})
+	It("should provision single pod if no other pod is received within the batch idle duration", func() {
+		ExpectApplied(ctx, env.Client, test.NodePool())
+		pod := test.UnschedulablePod()
+		ExpectApplied(ctx, env.Client, pod)
+		prov.Trigger(pod.UID)
+
+		wg := sync.WaitGroup{}
+		ExpectToWait(fakeClock, &wg)
+		result := ExpectSingletonReconciled(ctx, prov)
+		Expect(result.RequeueAfter).ToNot(BeNil())
+	})
+	It("should not extend the timeout if we receive the same pod within the batch idle duration", func() {
+		ctx = options.ToContext(ctx, test.Options(test.OptionsFields{
+			BatchMaxDuration:  lo.ToPtr(10 * time.Second),
+			BatchIdleDuration: lo.ToPtr(5 * time.Second),
+		}))
+		ExpectApplied(ctx, env.Client, test.NodePool())
+		pod := test.UnschedulablePod()
+		ExpectApplied(ctx, env.Client, pod)
+		prov.Trigger(pod.UID)
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		Expect(fakeClock.HasWaiters()).To(BeFalse())
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			// Step the clock by 3 seconds which is within the batch idle duration of 5s and then add the same pod again.
+			fakeClock.Step(3 * time.Second)
+			// We expect to have waiters on the fakeClock since this is still within the batch idle duration of 5s.
+			Eventually(func() bool { return fakeClock.HasWaiters() }).WithTimeout(10 * time.Second).Should(BeTrue())
+			prov.Trigger(pod.UID)
+			// Step the clock again by 3s to just cross the batch idle duration. We should be able to get out of the
+			// provisioning loop because the same pod will not cause the idle duration to reset.
+			fakeClock.Step(3 * time.Second)
+			Eventually(func() bool { return fakeClock.HasWaiters() }).
+				// Caution: if another go routine takes longer than this timeout to
+				// wait on the clock, we will deadlock until the test suite timeout
+				WithTimeout(15 * time.Second).
+				WithPolling(10 * time.Millisecond).
+				Should(BeFalse())
+		}()
+		ExpectSingletonReconciled(ctx, prov)
+	})
+	It("should extend the timeout if we receive a new pod within the batch idle duration", func() {
+		ctx = options.ToContext(ctx, test.Options(test.OptionsFields{
+			BatchMaxDuration:  lo.ToPtr(10 * time.Second),
+			BatchIdleDuration: lo.ToPtr(5 * time.Second),
+		}))
+		ExpectApplied(ctx, env.Client, test.NodePool())
+		pod := test.UnschedulablePod()
+		ExpectApplied(ctx, env.Client, pod)
+		prov.Trigger(pod.UID)
+
+		pod2 := test.UnschedulablePod()
+		ExpectApplied(ctx, env.Client, pod2)
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			// Step the clock by 3 seconds which is within the batch idle duration of 5s and then add a new pod
+			fakeClock.Step(3 * time.Second)
+			// We expect to have waiters on the fakeClock since this is still within the batch idle duration of 5s.
+			Eventually(func() bool { return fakeClock.HasWaiters() }).WithTimeout(10 * time.Second).Should(BeTrue())
+			prov.Trigger(pod2.UID)
+			// Step the clock by 5s as we expect provisioning to not happen until another 5s because the
+			// batch idle duration was reset due to a new pod being added.
+			fakeClock.Step(5 * time.Second)
+			Consistently(func() bool { return fakeClock.HasWaiters() }, 5*time.Second).Should(BeTrue())
+			// Stepping the clock again by 2s. We should be able to get out of the
+			// provisioning loop at this point
+			fakeClock.Step(2 * time.Second)
+			Eventually(func() bool { return fakeClock.HasWaiters() }).
+				// Caution: if another go routine takes longer than this timeout to
+				// wait on the clock, we will deadlock until the test suite timeout
+				WithTimeout(10 * time.Second).
+				WithPolling(10 * time.Millisecond).
+				Should(BeFalse())
+		}()
+		ExpectSingletonReconciled(ctx, prov)
 	})
 	It("should ignore NodePools that are deleting", func() {
 		nodePool := test.NodePool()
